@@ -33,3 +33,29 @@ docker compose -f docker-compose.prod.yml up --build -d
 
 - App production: http://localhost:8080
 - Migration production opsional: set `RUN_MIGRATIONS=true`
+
+## Bootstrap Whitelist User
+
+Jika production masih kosong dan login menampilkan `Account is inactive or not whitelisted.`, buat user internal pertama dari server:
+
+```sh
+docker compose --env-file .env.production -f docker-compose.prod.yml exec app php artisan invoice:whitelist-user admin@company.com \
+  --name="Admin Invoice" \
+  --role=ADMIN_DIVISI \
+  --ldap-uid=admin@company.com \
+  --division-code=DIV-OPS \
+  --division-name="Divisi Operasional" \
+  --department-code=DEP-OPS-ADM \
+  --department-name="Departemen Administrasi Operasional"
+```
+
+Jika LDAP belum aktif dan butuh login password lokal sementara:
+
+```sh
+docker compose --env-file .env.production -f docker-compose.prod.yml exec app php artisan invoice:whitelist-user admin@company.com \
+  --name="Admin Invoice" \
+  --role=ADMIN_DIVISI \
+  --password="password-kuat" \
+  --division-code=DIV-OPS \
+  --department-code=DEP-OPS-ADM
+```

@@ -97,20 +97,23 @@ Artisan::command('invoice:whitelist-user
         'email_verified_at' => now(),
     ];
 
+    $existingUser = User::query()->where('email', $email)->first();
+
     if ($password !== '') {
         $payload['password'] = Hash::make($password);
+    } elseif (! $existingUser) {
+        $payload['password'] = Hash::make(Str::random(40));
     }
 
-    $user = User::query()->updateOrCreate(
-        ['email' => $email],
-        $payload,
-    );
+    $user = $existingUser ?: new User(['email' => $email]);
+    $user->fill($payload);
+    $user->save();
 
     $this->info(sprintf(
         'Whitelist user %s (%s) sudah %s.',
         $user->email,
         $role->value,
-        $user->wasRecentlyCreated ? 'dibuat' : 'diupdate',
+        $existingUser ? 'diupdate' : 'dibuat',
     ));
 
     if ($password === '') {

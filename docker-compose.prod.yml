@@ -1,0 +1,45 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    image: invoice-collector:production
+    container_name: invoice-collector-production-app
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      APP_KEY: ${APP_KEY:-}
+      LOG_CHANNEL: stderr
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-invoice_collector}
+      DB_USERNAME: ${DB_USERNAME:-invoice_collector}
+      DB_PASSWORD: ${DB_PASSWORD:-invoice_collector}
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-false}
+    ports:
+      - "${APP_PORT:-8080}:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: invoice-collector-production-postgres
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-invoice_collector}
+      POSTGRES_USER: ${DB_USERNAME:-invoice_collector}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-invoice_collector}
+    volumes:
+      - postgres-production-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-invoice_collector} -d ${DB_DATABASE:-invoice_collector}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres-production-data:

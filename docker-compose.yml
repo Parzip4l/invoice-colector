@@ -1,0 +1,62 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: invoice-collector-app
+    working_dir: /var/www/html
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: invoice_collector
+      DB_USERNAME: invoice_collector
+      DB_PASSWORD: invoice_collector
+      VITE_DEV_SERVER_URL: http://localhost:5173
+    volumes:
+      - .:/var/www/html
+      - composer-cache:/tmp/composer-cache
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  vite:
+    image: node:20-alpine
+    container_name: invoice-collector-vite
+    working_dir: /var/www/html
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      VITE_DEV_SERVER_URL: http://localhost:5173
+    volumes:
+      - .:/var/www/html
+      - node-modules:/var/www/html/node_modules
+    ports:
+      - "5173:5173"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: invoice-collector-postgres
+    environment:
+      POSTGRES_DB: invoice_collector
+      POSTGRES_USER: invoice_collector
+      POSTGRES_PASSWORD: invoice_collector
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U invoice_collector -d invoice_collector"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  composer-cache:
+  node-modules:
+  postgres-data:

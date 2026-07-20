@@ -129,12 +129,21 @@ Artisan::command('ldap:test-login
 }', function () {
     $email = Str::lower(trim((string) $this->argument('email')));
     $password = (string) $this->option('password');
+    $host = trim((string) config('ldap.host', 'localhost'));
+    $connectionHost = preg_match('/^ldaps?:\/\//i', $host)
+        ? $host
+        : (filter_var(config('ldap.use_ssl'), FILTER_VALIDATE_BOOLEAN) ? 'ldaps://' : 'ldap://').$host;
 
     $this->line('LDAP_ENABLED: '.var_export(config('ldap.enabled'), true));
+    $this->line('LDAP_DOMAIN: '.(config('ldap.domain') ?: '(empty)'));
     $this->line('LDAP_HOST: '.config('ldap.host'));
+    $this->line('LDAP_CONNECTION_HOST: '.$connectionHost);
     $this->line('LDAP_PORT: '.config('ldap.port'));
     $this->line('LDAP_BASE_DN: '.(config('ldap.base_dn') ?: '(empty)'));
+    $this->line('LDAP_GROUP_DN: '.(config('ldap.group_dn') ?: '(empty)'));
     $this->line('LDAP_LOGIN_ATTRIBUTE: '.config('ldap.login_attribute'));
+    $this->line('LDAP_SSL: '.var_export(config('ldap.use_ssl'), true));
+    $this->line('LDAP_TLS: '.var_export(config('ldap.use_tls'), true));
 
     if (! extension_loaded('ldap')) {
         $this->error('PHP LDAP extension belum terinstall di container.');
@@ -142,7 +151,7 @@ Artisan::command('ldap:test-login
         return Command::FAILURE;
     }
 
-    $connection = @ldap_connect((string) config('ldap.host'), (int) config('ldap.port'));
+    $connection = @ldap_connect($connectionHost, (int) config('ldap.port'));
 
     if (! $connection) {
         $this->error('Tidak bisa membuat LDAP connection. Cek LDAP_HOST dan LDAP_PORT.');

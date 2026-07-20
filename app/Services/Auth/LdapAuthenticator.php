@@ -32,7 +32,7 @@ class LdapAuthenticator
      */
     private function connect()
     {
-        $connection = ldap_connect((string) config('ldap.host'), (int) config('ldap.port'));
+        $connection = ldap_connect($this->host(), (int) config('ldap.port'));
 
         if (! $connection) {
             throw new RuntimeException('Unable to connect to LDAP server.');
@@ -47,6 +47,19 @@ class LdapAuthenticator
         }
 
         return $connection;
+    }
+
+    private function host(): string
+    {
+        $host = trim((string) config('ldap.host', 'localhost'));
+
+        if (preg_match('/^ldaps?:\/\//i', $host)) {
+            return $host;
+        }
+
+        $scheme = filter_var(config('ldap.use_ssl'), FILTER_VALIDATE_BOOLEAN) ? 'ldaps://' : 'ldap://';
+
+        return $scheme.$host;
     }
 
     /**

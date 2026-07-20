@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile.production
     image: invoice-collector:production
     container_name: invoice-collector-production-app
+    env_file:
+      - .env.production
     environment:
       APP_ENV: production
       APP_DEBUG: "false"

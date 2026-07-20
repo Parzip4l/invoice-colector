@@ -82,32 +82,6 @@ class="authentication-bg"
                             </div>
                         </form>
 
-                        <div class="alert alert-info border-0 mt-4 mb-0" role="alert">
-                            <div class="fw-semibold mb-2">Akun demo setelah reset database</div>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-borderless align-middle mb-0">
-                                    <tbody>
-                                        <tr>
-                                            <td class="text-muted">Vendor Eksternal</td>
-                                            <td><code>vendor@demo.local</code></td>
-                                        </tr>
-                                        <tr>
-                                            <td class="text-muted">Vendor Internal</td>
-                                            <td><code>user.divisi@demo.local</code></td>
-                                        </tr>
-                                        <tr>
-                                            <td class="text-muted">Accounting</td>
-                                            <td><code>akuntansi@demo.local</code></td>
-                                        </tr>
-                                        <tr>
-                                            <td class="text-muted">Finance</td>
-                                            <td><code>finance@demo.local</code></td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div class="small mt-2">Password semua akun: <code>password</code></div>
-                        </div>
                     </div>
                 </div>
             </div>

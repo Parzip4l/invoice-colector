@@ -122,3 +122,100 @@ Artisan::command('invoice:whitelist-user
 
     return Command::SUCCESS;
 })->purpose('Create or update an active internal invoice verification whitelist user.');
+
+Artisan::command('ldap:test-login
+    {email : Email/login to search and test}
+    {--password= : Optional user password. If omitted, you will be prompted.}
+}', function () {
+    $email = Str::lower(trim((string) $this->argument('email')));
+    $password = (string) $this->option('password');
+
+    $this->line('LDAP_ENABLED: '.var_export(config('ldap.enabled'), true));
+    $this->line('LDAP_HOST: '.config('ldap.host'));
+    $this->line('LDAP_PORT: '.config('ldap.port'));
+    $this->line('LDAP_BASE_DN: '.(config('ldap.base_dn') ?: '(empty)'));
+    $this->line('LDAP_LOGIN_ATTRIBUTE: '.config('ldap.login_attribute'));
+
+    if (! extension_loaded('ldap')) {
+        $this->error('PHP LDAP extension belum terinstall di container.');
+
+        return Command::FAILURE;
+    }
+
+    $connection = @ldap_connect((string) config('ldap.host'), (int) config('ldap.port'));
+
+    if (! $connection) {
+        $this->error('Tidak bisa membuat LDAP connection. Cek LDAP_HOST dan LDAP_PORT.');
+
+        return Command::FAILURE;
+    }
+
+    ldap_set_option($connection, LDAP_OPT_PROTOCOL_VERSION, 3);
+    ldap_set_option($connection, LDAP_OPT_NETWORK_TIMEOUT, (int) config('ldap.timeout', 5));
+    ldap_set_option($connection, LDAP_OPT_REFERRALS, filter_var(config('ldap.follow_referrals'), FILTER_VALIDATE_BOOLEAN) ? 1 : 0);
+    $this->info('Connection object OK.');
+
+    if (filter_var(config('ldap.use_tls'), FILTER_VALIDATE_BOOLEAN)) {
+        if (@ldap_start_tls($connection) !== true) {
+            $this->error('StartTLS gagal: '.ldap_error($connection));
+
+            return Command::FAILURE;
+        }
+
+        $this->info('StartTLS OK.');
+    }
+
+    $serviceUsername = trim((string) config('ldap.username', ''));
+    $servicePassword = (string) config('ldap.password', '');
+    $baseDn = trim((string) config('ldap.base_dn', ''));
+    $userDn = $email;
+
+    if ($serviceUsername !== '' && $baseDn !== '') {
+        if (@ldap_bind($connection, $serviceUsername, $servicePassword) !== true) {
+            $this->error('Service bind gagal: '.ldap_error($connection));
+
+            return Command::FAILURE;
+        }
+
+        $this->info('Service bind OK.');
+
+        $attribute = preg_replace('/[^a-zA-Z0-9_.-]/', '', (string) config('ldap.login_attribute', 'mail')) ?: 'mail';
+        $filter = sprintf('(%s=%s)', $attribute, ldap_escape($email, '', LDAP_ESCAPE_FILTER));
+        $this->line('Search filter: '.$filter);
+
+        $search = @ldap_search($connection, $baseDn, $filter, ['dn'], 0, 1);
+
+        if (! $search) {
+            $this->error('LDAP search gagal: '.ldap_error($connection));
+
+            return Command::FAILURE;
+        }
+
+        $entries = ldap_get_entries($connection, $search);
+
+        if (($entries['count'] ?? 0) < 1 || empty($entries[0]['dn'])) {
+            $this->error('User tidak ditemukan di LDAP dengan filter tersebut.');
+
+            return Command::FAILURE;
+        }
+
+        $userDn = (string) $entries[0]['dn'];
+        $this->info('User DN ditemukan: '.$userDn);
+    } else {
+        $this->warn('LDAP_USERNAME atau LDAP_BASE_DN kosong. Test bind user langsung memakai email sebagai DN.');
+    }
+
+    if ($password === '') {
+        $password = (string) $this->secret('Masukkan password user LDAP');
+    }
+
+    if (@ldap_bind($connection, $userDn, $password) !== true) {
+        $this->error('User bind gagal: '.ldap_error($connection));
+
+        return Command::FAILURE;
+    }
+
+    $this->info('User bind OK. LDAP login seharusnya berhasil.');
+
+    return Command::SUCCESS;
+})->purpose('Diagnose LDAP connection, search, and user bind for login.');

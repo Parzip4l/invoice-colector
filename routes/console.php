@@ -141,6 +141,7 @@ Artisan::command('ldap:test-login
     $this->line('LDAP_PORT: '.config('ldap.port'));
     $this->line('LDAP_BASE_DN: '.(config('ldap.base_dn') ?: '(empty)'));
     $this->line('LDAP_GROUP_DN: '.(config('ldap.group_dn') ?: '(empty)'));
+    $this->line('LDAP_BIND_MODE: '.config('ldap.bind_mode'));
     $this->line('LDAP_LOGIN_ATTRIBUTE: '.config('ldap.login_attribute'));
     $this->line('LDAP_SSL: '.var_export(config('ldap.use_ssl'), true));
     $this->line('LDAP_TLS: '.var_export(config('ldap.use_tls'), true));
@@ -178,6 +179,47 @@ Artisan::command('ldap:test-login
     $servicePassword = (string) config('ldap.password', '');
     $baseDn = trim((string) config('ldap.base_dn', ''));
     $userDn = $email;
+    $bindMode = strtolower(trim((string) config('ldap.bind_mode', 'user'))) === 'service' ? 'service' : 'user';
+
+    if ($bindMode === 'user') {
+        if ($password === '') {
+            $password = (string) $this->secret('Masukkan password user LDAP');
+        }
+
+        if (@ldap_bind($connection, $email, $password) !== true) {
+            $this->error('User bind gagal: '.ldap_error($connection));
+
+            return Command::FAILURE;
+        }
+
+        $this->info('User bind OK.');
+
+        if ($baseDn !== '') {
+            $attribute = preg_replace('/[^a-zA-Z0-9_.-]/', '', (string) config('ldap.login_attribute', 'userPrincipalName')) ?: 'userPrincipalName';
+            $filter = sprintf('(%s=%s)', $attribute, ldap_escape($email, '', LDAP_ESCAPE_FILTER));
+            $this->line('Search filter: '.$filter);
+
+            $search = @ldap_search($connection, $baseDn, $filter, ['dn', 'displayName', 'mail', 'sAMAccountName'], 0, 1);
+
+            if (! $search) {
+                $this->error('LDAP search gagal setelah user bind: '.ldap_error($connection));
+
+                return Command::FAILURE;
+            }
+
+            $entries = ldap_get_entries($connection, $search);
+
+            if (($entries['count'] ?? 0) < 1 || empty($entries[0]['dn'])) {
+                $this->warn('User bind berhasil, tapi user tidak ditemukan saat search.');
+            } else {
+                $this->info('User DN ditemukan: '.((string) $entries[0]['dn']));
+            }
+        }
+
+        $this->info('LDAP login seharusnya berhasil.');
+
+        return Command::SUCCESS;
+    }
 
     if ($serviceUsername !== '' && $baseDn !== '') {
         if (@ldap_bind($connection, $serviceUsername, $servicePassword) !== true) {

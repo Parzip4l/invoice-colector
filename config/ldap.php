@@ -10,6 +10,7 @@ return [
 
     'local_fallback' => env('LDAP_LOCAL_FALLBACK', env('APP_ENV') === 'local'),
 
+    'bind_mode' => env('LDAP_BIND_MODE', 'user'),
     'login_attribute' => env('LDAP_LOGIN_ATTRIBUTE', 'mail'),
 
     'host' => env('LDAP_HOST', 'ldap://localhost'),

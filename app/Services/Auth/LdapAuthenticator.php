@@ -19,6 +19,10 @@ class LdapAuthenticator
         $connection = $this->connect();
 
         try {
+            if ($this->bindMode() === 'user') {
+                return @ldap_bind($connection, $this->loginIdentifier($email), $password) === true;
+            }
+
             $userDn = $this->resolveUserDn($connection, $email);
 
             return @ldap_bind($connection, $userDn, $password) === true;
@@ -60,6 +64,22 @@ class LdapAuthenticator
         $scheme = filter_var(config('ldap.use_ssl'), FILTER_VALIDATE_BOOLEAN) ? 'ldaps://' : 'ldap://';
 
         return $scheme.$host;
+    }
+
+    private function bindMode(): string
+    {
+        return strtolower(trim((string) config('ldap.bind_mode', 'user'))) === 'service' ? 'service' : 'user';
+    }
+
+    private function loginIdentifier(string $email): string
+    {
+        if (str_contains($email, '@')) {
+            return $email;
+        }
+
+        $domain = trim((string) config('ldap.domain', ''));
+
+        return $domain !== '' ? $email.'@'.$domain : $email;
     }
 
     /**

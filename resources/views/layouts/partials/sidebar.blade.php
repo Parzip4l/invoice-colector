@@ -1,19 +1,19 @@
 <div class="app-sidebar">
      <div class="logo-box">
           <a href="{{ route('invoice-verification.dashboard') }}" class="logo-dark">
-               <img src="/images/logogram.png" class="logo-sm" alt="logo sm" style="height: 40px!important">
-               <img src="/images/logo.png" class="logo-lg" alt="logo dark" style="height: 40px!important">
+               <img src="/images/logo-sm.png" class="logo-sm" alt="SIGNAL icon">
+               <img src="/images/logo.png" class="logo-lg" alt="SIGNAL logo">
           </a>
 
           <a href="{{ route('invoice-verification.dashboard') }}" class="logo-light">
-               <img src="/images/logogram.png" class="logo-sm" alt="logo sm" style="height: 40px">
-               <img src="/images/logo.png" class="logo-xl" alt="logo light" style="height: 40px!important">
+               <img src="/images/logo-sm.png" class="logo-sm" alt="SIGNAL icon">
+               <img src="/images/logo.png" class="logo-lg" alt="SIGNAL logo">
           </a>
      </div>
 
      <div class="scrollbar" data-simplebar>
           <ul class="navbar-nav" id="navbar-nav">
-               <li class="menu-title">Sistem Verifikasi</li>
+               <li class="menu-title">Invoice Verification</li>
 
                <li class="nav-item">
                     <a class="nav-link" href="{{ route('invoice-verification.dashboard') }}">
@@ -30,7 +30,7 @@
                          <span class="nav-icon">
                               <iconify-icon icon="solar:bill-list-outline"></iconify-icon>
                          </span>
-                         <span class="nav-text"> Transactions </span>
+                         <span class="nav-text"> Transaksi </span>
                     </a>
                     <div class="collapse show" id="sidebarTransactions">
                          <ul class="nav sub-navbar-nav">
@@ -44,27 +44,12 @@
                               @endcan
                               @if(auth()->user()?->hasRole(\App\Modules\InvoiceVerification\Domain\Enums\RoleCode::VENDOR))
                                    <li class="sub-nav-item">
-                                        <a class="sub-nav-link" href="{{ route('invoice-verification.transactions.index', ['status' => 'REVISION_IN_PROGRESS']) }}">Revisi</a>
-                                   </li>
-                              @endif
-                              @if(auth()->user()?->hasRole(\App\Modules\InvoiceVerification\Domain\Enums\RoleCode::ADMIN_DIVISI))
-                                   <li class="sub-nav-item">
-                                        <a class="sub-nav-link" href="{{ route('invoice-verification.vendor-reviews.index') }}">Admin Review</a>
-                                   </li>
-                              @endif
-                              @if(auth()->user()?->hasRole(\App\Modules\InvoiceVerification\Domain\Enums\RoleCode::KEPALA_DEPARTEMEN))
-                                   <li class="sub-nav-item">
-                                        <a class="sub-nav-link" href="{{ route('invoice-verification.kadep-review.index') }}">Kadep Review</a>
-                                   </li>
-                              @endif
-                              @if(auth()->user()?->hasRole(\App\Modules\InvoiceVerification\Domain\Enums\RoleCode::KEPALA_DIVISI))
-                                   <li class="sub-nav-item">
-                                        <a class="sub-nav-link" href="{{ route('invoice-verification.kadiv-review.index') }}">Kadiv Review</a>
+                                        <a class="sub-nav-link" href="{{ route('invoice-verification.transactions.index', ['status' => \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::NOT_APPROVED->value]) }}">Revisi</a>
                                    </li>
                               @endif
                               @if(auth()->user()?->hasRole(\App\Modules\InvoiceVerification\Domain\Enums\RoleCode::AKUNTANSI))
                                    <li class="sub-nav-item">
-                                        <a class="sub-nav-link" href="{{ route('invoice-verification.transactions.index', ['status' => 'ACCOUNTING_VERIFICATION']) }}">Verification</a>
+                                        <a class="sub-nav-link" href="{{ route('invoice-verification.transactions.index', ['status' => \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::IN_REVIEW->value]) }}">Verifikasi Accounting</a>
                                    </li>
                               @endif
                          </ul>
@@ -78,7 +63,7 @@
                               <span class="nav-icon">
                                    <iconify-icon icon="solar:document-text-outline"></iconify-icon>
                               </span>
-                              <span class="nav-text"> Finalization </span>
+                              <span class="nav-text"> Data Penomoran </span>
                          </a>
                          <div class="collapse" id="sidebarFinalization">
                               <ul class="nav sub-navbar-nav">
@@ -86,10 +71,10 @@
                                         <a class="sub-nav-link" href="{{ route('invoice-verification.numbering-registers.index') }}">Numbering Register</a>
                                    </li>
                                    <li class="sub-nav-item">
-                                        <a class="sub-nav-link" href="{{ route('invoice-verification.compiled-documents.index') }}">Compiled Documents</a>
+                                        <a class="sub-nav-link" href="{{ route('invoice-verification.compiled-documents.index') }}">Dokumen Kompilasi</a>
                                    </li>
                                    <li class="sub-nav-item">
-                                        <a class="sub-nav-link" href="{{ route('invoice-verification.archive.index') }}">Archive</a>
+                                        <a class="sub-nav-link" href="{{ route('invoice-verification.archive.index') }}">Arsip</a>
                                    </li>
                               </ul>
                          </div>
@@ -113,7 +98,7 @@
                               <span class="nav-icon">
                                    <iconify-icon icon="solar:history-outline"></iconify-icon>
                               </span>
-                              <span class="nav-text"> Audit Logs </span>
+                              <span class="nav-text"> Log Audit </span>
                          </a>
                     </li>
                @endunless

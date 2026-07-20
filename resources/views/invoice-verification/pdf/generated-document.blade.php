@@ -77,6 +77,9 @@
         <tr><td class="label">Nilai Invoice</td><td>: Rp {{ number_format($invoiceValue, 0, ',', '.') }}</td></tr>
         <tr><td class="label">PPN</td><td>: Rp {{ number_format($ppnValue, 0, ',', '.') }}</td></tr>
         <tr><td class="label">Vendor</td><td>: {{ $transaction->vendor?->name ?? '-' }}</td></tr>
+        <tr><td class="label">Bank</td><td>: {{ $transaction->invoiceMetadata?->bank_name ?? '-' }}</td></tr>
+        <tr><td class="label">No. Rekening</td><td>: {{ $transaction->invoiceMetadata?->account_number ?? '-' }}</td></tr>
+        <tr><td class="label">Atas Nama</td><td>: {{ $transaction->invoiceMetadata?->account_name ?? '-' }}</td></tr>
     </table>
 
     <table class="signatures">

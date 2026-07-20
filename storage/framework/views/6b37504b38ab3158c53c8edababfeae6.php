@@ -3,15 +3,33 @@
 <?php echo $__env->make('invoice-verification.partials.flash', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?>
 
 <div class="card">
-    <div class="card-header">
-        <h5 class="card-title mb-1"><?php echo e($transaction->registration_number); ?></h5>
-        <p class="text-muted mb-0">Accounting memverifikasi Administration dan Invoicing secara terpisah.</p>
+    <div class="card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div>
+            <h5 class="card-title mb-1"><?php echo e($transaction->registration_number); ?></h5>
+            <p class="text-muted mb-0">Pilih status setiap bagian, lalu tekan tombol simpan untuk memproses hasil verifikasi.</p>
+        </div>
+        <button class="btn btn-primary" type="submit" form="accountingVerificationForm">
+            Simpan Verifikasi
+        </button>
     </div>
     <div class="card-body">
         <?php
             $selectedAdministrationStatus = old('administration_status', 'VALID');
         ?>
-        <form method="POST" action="<?php echo e(route('invoice-verification.transactions.accounting-verifications.update', $transaction)); ?>">
+        <?php $__errorArgs = ['status'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+            <div class="alert alert-danger"><?php echo e($message); ?></div>
+        <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+        <div class="alert alert-info border-0">
+            Tombol Approve/Reject di bawah hanya memilih keputusan. Keputusan baru dikirim ke sistem setelah klik <strong>Simpan Verifikasi</strong>.
+        </div>
+        <form id="accountingVerificationForm" method="POST" action="<?php echo e(route('invoice-verification.transactions.accounting-verifications.update', $transaction)); ?>">
             <?php echo csrf_field(); ?>
             <?php echo method_field('PUT'); ?>
             <div class="border rounded-3 p-3 mb-3">
@@ -49,7 +67,15 @@
                                 <div class="fw-semibold"><?php echo e(str($generatedDocument->document_code)->replace('_', ' ')->title()); ?></div>
                                 <div class="text-muted small"><?php echo e($generatedDocument->document_number ?? '-'); ?></div>
                                 <div class="d-flex gap-2 flex-wrap mt-2">
-                                    <a href="<?php echo e(route('invoice-verification.generated-documents.preview', $generatedDocument)); ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">Preview File</a>
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-primary d-inline-flex align-items-center gap-2"
+                                        data-file-preview-url="<?php echo e(route('invoice-verification.generated-documents.preview', $generatedDocument)); ?>"
+                                        data-file-preview-title="<?php echo e(str($generatedDocument->document_code)->replace('_', ' ')->title()); ?> - <?php echo e($generatedDocument->document_number ?? $transaction->registration_number); ?>"
+                                    >
+                                        <iconify-icon icon="solar:eye-outline" class="fs-18"></iconify-icon>
+                                        <span>Lihat Dokumen</span>
+                                    </button>
                                     <a href="<?php echo e(route('invoice-verification.generated-documents.show', $generatedDocument)); ?>" class="btn btn-sm btn-outline-secondary">Detail</a>
                                 </div>
                             </div>
@@ -64,7 +90,15 @@
                                 <div class="fw-semibold">Lembar Checklist PPA</div>
                                 <div class="text-muted small"><?php echo e($transaction->ppaVerificationSheet->file_name ?? 'Checklist PPA'); ?></div>
                                 <div class="d-flex gap-2 flex-wrap mt-2">
-                                    <a href="<?php echo e(route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction)); ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">Preview File</a>
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-primary d-inline-flex align-items-center gap-2"
+                                        data-file-preview-url="<?php echo e(route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction)); ?>"
+                                        data-file-preview-title="Lembar Checklist PPA - <?php echo e($transaction->registration_number); ?>"
+                                    >
+                                        <iconify-icon icon="solar:eye-outline" class="fs-18"></iconify-icon>
+                                        <span>Lihat Dokumen</span>
+                                    </button>
                                     <a href="<?php echo e(route('invoice-verification.transactions.ppa-verification-sheets.edit', $transaction)); ?>" class="btn btn-sm btn-outline-secondary">Detail Checklist</a>
                                 </div>
                             </div>
@@ -103,7 +137,15 @@
                                 <td>v<?php echo e($item->transactionDocument?->version); ?></td>
                                 <td>
                                     <?php if($item->transactionDocument): ?>
-                                        <a href="<?php echo e(route('invoice-verification.transaction-documents.preview', $item->transactionDocument)); ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">Preview File</a>
+                                        <button
+                                            type="button"
+                                            class="btn btn-outline-primary d-inline-flex align-items-center gap-2"
+                                            data-file-preview-url="<?php echo e(route('invoice-verification.transaction-documents.preview', $item->transactionDocument)); ?>"
+                                            data-file-preview-title="<?php echo e($item->transactionDocument->document_label ?: $item->transactionDocument->documentType?->name); ?>"
+                                        >
+                                            <iconify-icon icon="solar:eye-outline" class="fs-18"></iconify-icon>
+                                            <span>Lihat Dokumen</span>
+                                        </button>
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>
@@ -159,6 +201,8 @@
     </div>
 </div>
 <?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('invoice-verification.components.file-preview-modal', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?>
 
 <?php $__env->startSection('scripts'); ?>
 <script>

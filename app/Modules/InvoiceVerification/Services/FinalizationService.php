@@ -44,6 +44,7 @@ class FinalizationService
                     'invoice_number' => $transaction->invoiceMetadata->invoice_number,
                     'invoice_date' => $transaction->invoiceMetadata->invoice_date,
                     'account_number' => $transaction->invoiceMetadata->account_number,
+                    'account_name' => $transaction->invoiceMetadata->account_name,
                     'bank_name' => $transaction->invoiceMetadata->bank_name,
                     'memo_number' => $transaction->invoiceMetadata->memo_number,
                     'contract_number' => $transaction->invoiceMetadata->contract_number,

@@ -5,6 +5,7 @@
 /public/storage
 /storage/*.key
 /storage/pail
+/storage/framework/views/*.php
 /vendor
 .env
 .env.backup

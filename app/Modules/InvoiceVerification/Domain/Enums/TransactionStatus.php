@@ -5,6 +5,12 @@ namespace App\Modules\InvoiceVerification\Domain\Enums;
 enum TransactionStatus: string
 {
     case DRAFT = 'DRAFT';
+    case SUBMITTED = 'SUBMITTED';
+    case IN_REVIEW = 'IN_REVIEW';
+    case NOT_APPROVED = 'NOT_APPROVED';
+    case RECEIVED = 'RECEIVED';
+    case SCHEDULING_PAYMENT = 'SCHEDULING_PAYMENT';
+    case PAID = 'PAID';
     case VENDOR_INPUT = 'VENDOR_INPUT';
     case ADMIN_REVIEW = 'ADMIN_REVIEW';
     case WAITING_APPROVAL = 'WAITING_APPROVAL';
@@ -17,10 +23,35 @@ enum TransactionStatus: string
     case COMPLETED = 'COMPLETED';
     case ARCHIVED = 'ARCHIVED';
 
+    /**
+     * Status workflow aktif sesuai use case diagram.
+     * Status setelah daftar ini dipertahankan hanya untuk membaca data legacy.
+     *
+     * @return array<int, self>
+     */
+    public static function workflowCases(): array
+    {
+        return [
+            self::DRAFT,
+            self::SUBMITTED,
+            self::IN_REVIEW,
+            self::NOT_APPROVED,
+            self::RECEIVED,
+            self::SCHEDULING_PAYMENT,
+            self::PAID,
+        ];
+    }
+
     public function label(): string
     {
         return match ($this) {
             self::DRAFT => 'Draft',
+            self::SUBMITTED => 'Submitted',
+            self::IN_REVIEW => 'In Review',
+            self::NOT_APPROVED => 'Not Approved',
+            self::RECEIVED => 'Received',
+            self::SCHEDULING_PAYMENT => 'Scheduling Payment',
+            self::PAID => 'Paid',
             self::VENDOR_INPUT => 'Input Vendor',
             self::ADMIN_REVIEW => 'In Review Admin',
             self::WAITING_APPROVAL => 'Menunggu Approval',
@@ -39,6 +70,12 @@ enum TransactionStatus: string
     {
         return match ($this) {
             self::DRAFT => 'bg-secondary-subtle text-secondary',
+            self::SUBMITTED => 'bg-primary-subtle text-primary',
+            self::IN_REVIEW => 'bg-dark-subtle text-dark',
+            self::NOT_APPROVED => 'bg-danger-subtle text-danger',
+            self::RECEIVED => 'bg-info-subtle text-info',
+            self::SCHEDULING_PAYMENT => 'bg-warning-subtle text-warning',
+            self::PAID => 'bg-success-subtle text-success',
             self::VENDOR_INPUT => 'bg-info-subtle text-info',
             self::ADMIN_REVIEW => 'bg-primary-subtle text-primary',
             self::WAITING_APPROVAL => 'bg-warning-subtle text-warning',

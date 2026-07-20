@@ -13,7 +13,7 @@ class GeneratedDocumentController extends Controller
     {
         $this->authorize('view', $generatedDocument);
 
-        $generatedDocument->load(['transaction', 'approvals.approvalFlow', 'generator', 'templateReference']);
+        $generatedDocument->load(['transaction.vendor', 'approvals.approvalFlow', 'generator', 'templateReference']);
 
         return view('invoice-verification.generated-documents.show', compact('generatedDocument'));
     }
@@ -27,14 +27,17 @@ class GeneratedDocumentController extends Controller
 
         $fileName = $generatedDocument->file_name ?: basename($generatedDocument->file_path);
         $mimeType = $generatedDocument->mime_type ?: Storage::disk($generatedDocument->file_disk)->mimeType($generatedDocument->file_path);
+        if (strtolower(pathinfo($fileName, PATHINFO_EXTENSION)) === 'pdf') {
+            $mimeType = 'application/pdf';
+        }
 
         return Storage::disk($generatedDocument->file_disk)->response(
             $generatedDocument->file_path,
             $fileName,
             [
                 'Content-Type' => $mimeType ?: 'application/octet-stream',
-                'Content-Disposition' => 'inline; filename="'.$fileName.'"',
             ],
+            'inline',
         );
     }
 }

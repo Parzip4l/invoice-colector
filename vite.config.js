@@ -26,6 +26,7 @@ export default defineConfig({
                 "resources/js/app.js",
                 "resources/js/config.js",
                 "resources/js/pages/dashboard.js",
+                "resources/js/pages/invoice-verification-dashboard.js",
                 "resources/js/pages/chart.js",
                 "resources/js/pages/form-quilljs.js",
                 "resources/js/pages/form-fileupload.js",

@@ -55,6 +55,7 @@ class DocumentController extends Controller
                 'invoice_number' => $payload['invoice_number'],
                 'invoice_date' => $payload['invoice_date'] ?? null,
                 'account_number' => $payload['account_number'] ?? null,
+                'account_name' => $payload['account_name'] ?? null,
                 'bank_name' => $payload['bank_name'] ?? null,
                 'memo_number' => $transaction->memoRequest?->memo_number,
                 'contract_number' => $transaction->agreementReference?->contract_number,

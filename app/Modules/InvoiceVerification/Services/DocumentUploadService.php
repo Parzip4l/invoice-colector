@@ -90,23 +90,30 @@ class DocumentUploadService
                 ],
             );
 
-            $nextStep = $sourceActor === DocumentSourceActor::VENDOR
-                ? TransactionStep::ADMIN_DOCUMENT_REVIEW
-                : TransactionStep::INTERNAL_DOCUMENT_UPLOAD;
+            if (in_array($transaction->status, [
+                TransactionStatus::VENDOR_INPUT,
+                TransactionStatus::ADMIN_REVIEW,
+                TransactionStatus::REVISION_IN_PROGRESS,
+                TransactionStatus::DOCUMENT_COLLECTION,
+            ], true)) {
+                $nextStep = $sourceActor === DocumentSourceActor::VENDOR
+                    ? TransactionStep::ADMIN_DOCUMENT_REVIEW
+                    : TransactionStep::INTERNAL_DOCUMENT_UPLOAD;
 
-            $nextStatus = $sourceActor === DocumentSourceActor::VENDOR
-                ? TransactionStatus::ADMIN_REVIEW
-                : TransactionStatus::DOCUMENT_COLLECTION;
+                $nextStatus = $sourceActor === DocumentSourceActor::VENDOR
+                    ? TransactionStatus::ADMIN_REVIEW
+                    : TransactionStatus::DOCUMENT_COLLECTION;
 
-            $this->transactionLifecycleService->transition(
-                $transaction,
-                $nextStatus,
-                $nextStep,
-                $user,
-                $sourceActor === DocumentSourceActor::VENDOR
-                    ? 'Dokumen vendor diunggah untuk pengecekan hasil pekerjaan.'
-                    : 'Softcopy dokumen diunggah melalui aplikasi invoice collector.',
-            );
+                $this->transactionLifecycleService->transition(
+                    $transaction,
+                    $nextStatus,
+                    $nextStep,
+                    $user,
+                    $sourceActor === DocumentSourceActor::VENDOR
+                        ? 'Dokumen vendor diunggah untuk pengecekan hasil pekerjaan.'
+                        : 'Softcopy dokumen diunggah melalui aplikasi invoice collector.',
+                );
+            }
 
             return $document;
         });

@@ -1,11 +1,16 @@
 <header class="app-topbar">
      <div class="container-fluid">
           <div class="navbar-header">
-               <div class="d-flex align-items-center gap-2">
+               <div class="d-flex align-items-center gap-3">
                     <div class="topbar-item">
                          <button type="button" class="button-toggle-menu topbar-button">
                               <iconify-icon icon="solar:hamburger-menu-outline" class="fs-24 align-middle"></iconify-icon>
                          </button>
+                    </div>
+
+                    <div class="d-none d-xl-block">
+                         <div class="fw-semibold lh-sm">Sistem Verifikasi</div>
+                         <small class="text-muted">Invoice Verification Control</small>
                     </div>
 
                     <form class="app-search d-none d-md-block me-auto" action="{{ route('invoice-verification.transactions.index') }}" method="GET">
@@ -26,14 +31,14 @@
                     </div>
 
                     <div class="dropdown topbar-item">
-                         <a type="button" class="topbar-button" id="page-header-user-dropdown" data-bs-toggle="dropdown"
+                         <a type="button" class="topbar-button user-menu-button" id="page-header-user-dropdown" data-bs-toggle="dropdown"
                               aria-haspopup="true" aria-expanded="false">
                               <span class="d-flex align-items-center gap-2">
-                                   <span class="avatar-sm rounded-circle bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center fw-semibold">
+                                   <span class="topbar-user-avatar rounded-circle bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center fw-semibold">
                                         {{ str(auth()->user()?->name ?? 'U')->substr(0, 1)->upper() }}
                                    </span>
                                    <span class="d-none d-lg-block text-start">
-                                        <span class="d-block fw-semibold">{{ auth()->user()?->name }}</span>
+                                        <span class="d-block fw-semibold lh-sm">{{ auth()->user()?->name }}</span>
                                         <small class="text-muted">{{ auth()->user()?->role_code?->label() ?? auth()->user()?->role_code }}</small>
                                    </span>
                               </span>

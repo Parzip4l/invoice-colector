@@ -4,13 +4,43 @@
 
 body {
      &.authentication-bg {
-          background: linear-gradient(90deg, hsl(220, 75%, 40%) 0%, hsl(240, 60%, 35%) 100%);
+          background:
+               linear-gradient(135deg, rgba(226, 26, 26, .94) 0%, rgba(154, 18, 18, .96) 48%, rgba(192, 127, 32, .94) 100%);
 
           .account-pages {
                align-items: center;
                display: flex;
                min-height: 100vh;
           }
+     }
+}
+
+.btn-auth-primary {
+     --#{$prefix}btn-color: #{$white};
+     --#{$prefix}btn-bg: #e21a1a;
+     --#{$prefix}btn-border-color: #e21a1a;
+     --#{$prefix}btn-hover-color: #{$white};
+     --#{$prefix}btn-hover-bg: #c51616;
+     --#{$prefix}btn-hover-border-color: #c51616;
+     --#{$prefix}btn-active-color: #{$white};
+     --#{$prefix}btn-active-bg: #a91212;
+     --#{$prefix}btn-active-border-color: #a91212;
+     --#{$prefix}btn-disabled-color: #{$white};
+     --#{$prefix}btn-disabled-bg: #e21a1a;
+     --#{$prefix}btn-disabled-border-color: #e21a1a;
+     min-height: 48px;
+     border-radius: $border-radius;
+     box-shadow: 0 2px 6px rgba(33, 37, 41, .08);
+     transition: background-color .15s ease-in-out, border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+
+     &:hover,
+     &:focus {
+          color: #{$white};
+          box-shadow: 0 3px 8px rgba(33, 37, 41, .12);
+     }
+
+     &:active {
+          box-shadow: none;
      }
 }
 

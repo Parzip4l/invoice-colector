@@ -17,6 +17,11 @@ return [
             'xlsx',
         ],
     ],
+    'eproc' => [
+        'driver' => env('EPROC_DRIVER', 'local'),
+        'base_url' => env('EPROC_BASE_URL'),
+        'token' => env('EPROC_TOKEN'),
+    ],
     'roles' => [
         'ADMIN_DIVISI' => 'Admin Divisi',
         'KEPALA_DEPARTEMEN' => 'Kepala Departemen',

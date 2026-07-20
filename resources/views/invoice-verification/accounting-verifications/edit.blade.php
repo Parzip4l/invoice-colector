@@ -5,15 +5,26 @@
 @include('invoice-verification.partials.flash')
 
 <div class="card">
-    <div class="card-header">
-        <h5 class="card-title mb-1">{{ $transaction->registration_number }}</h5>
-        <p class="text-muted mb-0">Accounting memverifikasi Administration dan Invoicing secara terpisah.</p>
+    <div class="card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div>
+            <h5 class="card-title mb-1">{{ $transaction->registration_number }}</h5>
+            <p class="text-muted mb-0">Pilih status setiap bagian, lalu tekan tombol simpan untuk memproses hasil verifikasi.</p>
+        </div>
+        <button class="btn btn-primary" type="submit" form="accountingVerificationForm">
+            Simpan Verifikasi
+        </button>
     </div>
     <div class="card-body">
         @php
             $selectedAdministrationStatus = old('administration_status', 'VALID');
         @endphp
-        <form method="POST" action="{{ route('invoice-verification.transactions.accounting-verifications.update', $transaction) }}">
+        @error('status')
+            <div class="alert alert-danger">{{ $message }}</div>
+        @enderror
+        <div class="alert alert-info border-0">
+            Tombol Approve/Reject di bawah hanya memilih keputusan. Keputusan baru dikirim ke sistem setelah klik <strong>Simpan Verifikasi</strong>.
+        </div>
+        <form id="accountingVerificationForm" method="POST" action="{{ route('invoice-verification.transactions.accounting-verifications.update', $transaction) }}">
             @csrf
             @method('PUT')
             <div class="border rounded-3 p-3 mb-3">
@@ -51,7 +62,15 @@
                                 <div class="fw-semibold">{{ str($generatedDocument->document_code)->replace('_', ' ')->title() }}</div>
                                 <div class="text-muted small">{{ $generatedDocument->document_number ?? '-' }}</div>
                                 <div class="d-flex gap-2 flex-wrap mt-2">
-                                    <a href="{{ route('invoice-verification.generated-documents.preview', $generatedDocument) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">Preview File</a>
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-primary d-inline-flex align-items-center gap-2"
+                                        data-file-preview-url="{{ route('invoice-verification.generated-documents.preview', $generatedDocument) }}"
+                                        data-file-preview-title="{{ str($generatedDocument->document_code)->replace('_', ' ')->title() }} - {{ $generatedDocument->document_number ?? $transaction->registration_number }}"
+                                    >
+                                        <iconify-icon icon="solar:eye-outline" class="fs-18"></iconify-icon>
+                                        <span>Lihat Dokumen</span>
+                                    </button>
                                     <a href="{{ route('invoice-verification.generated-documents.show', $generatedDocument) }}" class="btn btn-sm btn-outline-secondary">Detail</a>
                                 </div>
                             </div>
@@ -66,7 +85,15 @@
                                 <div class="fw-semibold">Lembar Checklist PPA</div>
                                 <div class="text-muted small">{{ $transaction->ppaVerificationSheet->file_name ?? 'Checklist PPA' }}</div>
                                 <div class="d-flex gap-2 flex-wrap mt-2">
-                                    <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">Preview File</a>
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-primary d-inline-flex align-items-center gap-2"
+                                        data-file-preview-url="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}"
+                                        data-file-preview-title="Lembar Checklist PPA - {{ $transaction->registration_number }}"
+                                    >
+                                        <iconify-icon icon="solar:eye-outline" class="fs-18"></iconify-icon>
+                                        <span>Lihat Dokumen</span>
+                                    </button>
                                     <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.edit', $transaction) }}" class="btn btn-sm btn-outline-secondary">Detail Checklist</a>
                                 </div>
                             </div>
@@ -105,7 +132,15 @@
                                 <td>v{{ $item->transactionDocument?->version }}</td>
                                 <td>
                                     @if ($item->transactionDocument)
-                                        <a href="{{ route('invoice-verification.transaction-documents.preview', $item->transactionDocument) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">Preview File</a>
+                                        <button
+                                            type="button"
+                                            class="btn btn-outline-primary d-inline-flex align-items-center gap-2"
+                                            data-file-preview-url="{{ route('invoice-verification.transaction-documents.preview', $item->transactionDocument) }}"
+                                            data-file-preview-title="{{ $item->transactionDocument->document_label ?: $item->transactionDocument->documentType?->name }}"
+                                        >
+                                            <iconify-icon icon="solar:eye-outline" class="fs-18"></iconify-icon>
+                                            <span>Lihat Dokumen</span>
+                                        </button>
                                     @else
                                         <span class="text-muted">-</span>
                                     @endif
@@ -161,6 +196,8 @@
     </div>
 </div>
 @endsection
+
+@include('invoice-verification.components.file-preview-modal')
 
 @section('scripts')
 <script>

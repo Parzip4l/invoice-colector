@@ -11,13 +11,14 @@ class DirectorySeeder extends Seeder
     public function run(): void
     {
         foreach ([
-            ['ldap_code' => 'DIV-OPS', 'name' => 'Divisi Operasional'],
-            ['ldap_code' => 'DIV-KEU', 'name' => 'Divisi Keuangan'],
+            ['ldap_code' => 'DIV-OPS', 'name' => 'Divisi Operasional', 'petty_cash_ceiling' => 15000000],
+            ['ldap_code' => 'DIV-KEU', 'name' => 'Divisi Keuangan', 'petty_cash_ceiling' => 10000000],
         ] as $division) {
             Division::updateOrCreate(
                 ['ldap_code' => $division['ldap_code']],
                 [
                     'name' => $division['name'],
+                    'petty_cash_ceiling' => $division['petty_cash_ceiling'],
                     'is_active' => true,
                     'last_synced_at' => now(),
                 ],

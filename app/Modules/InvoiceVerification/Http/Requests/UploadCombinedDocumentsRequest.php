@@ -6,6 +6,16 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class UploadCombinedDocumentsRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $attachments = collect((array) $this->input('attachments', []))
+            ->filter(fn ($item, $key) => $this->hasFile("attachments.$key.file"))
+            ->values()
+            ->all();
+
+        $this->merge(['attachments' => $attachments]);
+    }
+
     public function authorize(): bool
     {
         $transaction = $this->route('transaction');

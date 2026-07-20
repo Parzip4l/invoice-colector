@@ -18,14 +18,17 @@ class DocumentFileController extends Controller
 
         $fileName = $transactionDocument->file_name ?: basename($transactionDocument->file_path);
         $mimeType = $transactionDocument->mime_type ?: Storage::disk($transactionDocument->file_disk)->mimeType($transactionDocument->file_path);
+        if (strtolower(pathinfo($fileName, PATHINFO_EXTENSION)) === 'pdf') {
+            $mimeType = 'application/pdf';
+        }
 
         return Storage::disk($transactionDocument->file_disk)->response(
             $transactionDocument->file_path,
             $fileName,
             [
                 'Content-Type' => $mimeType ?: 'application/octet-stream',
-                'Content-Disposition' => 'inline; filename="'.$fileName.'"',
             ],
+            'inline',
         );
     }
 }

@@ -7,6 +7,13 @@ use Illuminate\Validation\Rule;
 
 class UploadPpaDocumentsRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('account_number')) {
+            $this->merge(['account_number' => preg_replace('/[\s-]+/', '', (string) $this->input('account_number'))]);
+        }
+    }
+
     public function authorize(): bool
     {
         $transaction = $this->route('transaction');
@@ -30,7 +37,8 @@ class UploadPpaDocumentsRequest extends FormRequest
             ],
             'invoice_date' => ['required', 'date'],
             'received_date' => ['nullable', 'date'],
-            'account_number' => ['nullable', 'string', 'max:255'],
+            'account_number' => ['nullable', 'regex:/^\d{6,30}$/'],
+            'account_name' => ['nullable', 'string', 'max:255'],
             'bank_name' => ['nullable', 'string', 'max:255'],
             'invoice_value' => ['required', 'numeric', 'min:0'],
             'ppn_value' => ['nullable', 'numeric', 'min:0'],
@@ -41,6 +49,15 @@ class UploadPpaDocumentsRequest extends FormRequest
             'documents.*.document_information.document_number' => ['required', 'string', 'max:255'],
             'documents.*.document_information.document_date' => ['required', 'date'],
             'documents.*.document_information.notes' => ['nullable', 'string'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'account_number.regex' => 'Nomor rekening hanya boleh berisi angka, 6 sampai 30 digit.',
+            'invoice_value.numeric' => 'Nilai invoice harus berupa angka.',
+            'invoice_value.min' => 'Nilai invoice tidak boleh kurang dari 0.',
         ];
     }
 }

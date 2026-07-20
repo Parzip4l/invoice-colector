@@ -2,6 +2,7 @@
 
 namespace App\Modules\InvoiceVerification\Services;
 
+use App\Mail\InvoiceTransactionReceivedMail;
 use App\Models\User;
 use App\Modules\InvoiceVerification\Domain\Enums\AccountingVerificationItemStatus;
 use App\Modules\InvoiceVerification\Domain\Enums\AccountingVerificationStatus;
@@ -15,6 +16,8 @@ use App\Modules\InvoiceVerification\Domain\Models\AccountingVerificationItem;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
 use App\Modules\InvoiceVerification\Domain\Models\VendorDocumentReview;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 
 class AccountingVerificationService
 {
@@ -41,7 +44,7 @@ class AccountingVerificationService
                 $query->where('source_actor', DocumentSourceActor::USER_DIVISI->value)
                     ->orWhere(function ($vendorQuery) {
                         $vendorQuery->where('source_actor', DocumentSourceActor::VENDOR->value)
-                            ->where('status', 'ACCEPTED');
+                            ->whereIn('status', ['ACCEPTED', 'UNDER_REVIEW', 'UPLOADED']);
                     });
             })
             ->get();
@@ -61,6 +64,11 @@ class AccountingVerificationService
         return $verification->fresh('items.transactionDocument.documentType');
     }
 
+    public function startReview(Transaction $transaction, User $actor): Transaction
+    {
+        return $this->transactionLifecycleService->startAccountingReview($transaction, $actor);
+    }
+
     public function verify(
         Transaction $transaction,
         User $actor,
@@ -71,6 +79,18 @@ class AccountingVerificationService
     ): AccountingVerification
     {
         return DB::transaction(function () use ($transaction, $actor, $items, $administrationStatus, $administrationNotes, $notes) {
+            $transaction->refresh();
+
+            if ($transaction->status === TransactionStatus::ACCOUNTING_VERIFICATION) {
+                $transaction = $this->transactionLifecycleService->startAccountingReview($transaction, $actor);
+            }
+
+            if ($transaction->status !== TransactionStatus::IN_REVIEW) {
+                throw ValidationException::withMessages([
+                    'status' => 'Transaksi harus berstatus In Review sebelum verifikasi diselesaikan.',
+                ]);
+            }
+
             $verification = $this->getOrCreate($transaction, $actor);
             $mismatchMap = collect($this->ppaVerificationSheetService->mismatchSummary($transaction))
                 ->keyBy('document_name');
@@ -140,13 +160,7 @@ class AccountingVerificationService
             if ($hasAdministrationIssue) {
                 $this->markVendorDocumentsForRevision($transaction, $actor, $administrationNotes ?: 'Accounting meminta revisi dokumen tagihan.');
 
-                $this->transactionLifecycleService->transition(
-                    $transaction,
-                    TransactionStatus::REVISION_IN_PROGRESS,
-                    TransactionStep::VENDOR_INVOICE_INPUT,
-                    $actor,
-                    $administrationNotes ?: 'Accounting meminta revisi. Vendor perlu menyesuaikan data tagihan/dokumen dan Admin User terkait telah diberi catatan pada audit trail.',
-                );
+                $this->transactionLifecycleService->markNotApproved($transaction, $actor, $administrationNotes ?: 'Accounting meminta revisi dokumen tagihan.');
 
                 $this->auditLogService->log(
                     module: 'notifications',
@@ -162,13 +176,7 @@ class AccountingVerificationService
             }
 
             if ($hasIssue) {
-                $this->transactionLifecycleService->transition(
-                    $transaction,
-                    TransactionStatus::REVISION_IN_PROGRESS,
-                    TransactionStep::VENDOR_INVOICE_INPUT,
-                    $actor,
-                    $notes ?: 'Accounting meminta revisi dokumen Invoicing ke Vendor dan Admin User terkait diberi catatan pada audit trail.',
-                );
+                $this->transactionLifecycleService->markNotApproved($transaction, $actor, $notes ?: 'Accounting meminta revisi dokumen Invoicing ke Vendor.');
 
                 $this->auditLogService->log(
                     module: 'notifications',
@@ -183,7 +191,16 @@ class AccountingVerificationService
                 return $verification->fresh('items.transactionDocument.documentType');
             }
 
-            $this->finalizationService->finalize($transaction->fresh('invoiceMetadata', 'vendor', 'latestDocuments.documentType', 'generatedDocuments'), $actor);
+            $receivedTransaction = $this->transactionLifecycleService->markReceived($transaction, $actor);
+
+            DB::afterCommit(function () use ($receivedTransaction) {
+                $receivedTransaction->loadMissing('transactionType', 'vendor');
+                $email = $receivedTransaction->vendor?->contact_email ?? $receivedTransaction->owner?->email;
+
+                if ($email) {
+                    Mail::to($email)->send(new InvoiceTransactionReceivedMail($receivedTransaction));
+                }
+            });
 
             return $verification->fresh('items.transactionDocument.documentType');
         });

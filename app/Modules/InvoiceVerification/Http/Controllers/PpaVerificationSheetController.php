@@ -37,14 +37,17 @@ class PpaVerificationSheetController extends Controller
 
         $fileName = $sheet->file_name ?: basename($sheet->file_path);
         $mimeType = $sheet->mime_type ?: Storage::disk($sheet->file_disk)->mimeType($sheet->file_path);
+        if (strtolower(pathinfo($fileName, PATHINFO_EXTENSION)) === 'pdf') {
+            $mimeType = 'application/pdf';
+        }
 
         return Storage::disk($sheet->file_disk)->response(
             $sheet->file_path,
             $fileName,
             [
                 'Content-Type' => $mimeType ?: 'application/octet-stream',
-                'Content-Disposition' => 'inline; filename="'.$fileName.'"',
             ],
+            'inline',
         );
     }
 

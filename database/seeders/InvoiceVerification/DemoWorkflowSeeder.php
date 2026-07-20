@@ -5,36 +5,27 @@ namespace Database\Seeders\InvoiceVerification;
 use App\Models\User;
 use App\Modules\InvoiceVerification\Domain\Enums\AccountingVerificationItemStatus;
 use App\Modules\InvoiceVerification\Domain\Enums\AccountingVerificationStatus;
-use App\Modules\InvoiceVerification\Domain\Enums\ApprovalMode;
-use App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus;
-use App\Modules\InvoiceVerification\Domain\Enums\AttachmentStatus;
-use App\Modules\InvoiceVerification\Domain\Enums\DocumentCode;
 use App\Modules\InvoiceVerification\Domain\Enums\DocumentSourceActor;
-use App\Modules\InvoiceVerification\Domain\Enums\GeneratedDocumentStatus;
-use App\Modules\InvoiceVerification\Domain\Enums\PpaVerificationSheetStatus;
-use App\Modules\InvoiceVerification\Domain\Enums\RoleCode;
+use App\Modules\InvoiceVerification\Domain\Enums\DocumentSourceType;
 use App\Modules\InvoiceVerification\Domain\Enums\TransactionDocumentStatus;
 use App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus;
 use App\Modules\InvoiceVerification\Domain\Enums\TransactionStep;
+use App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode;
 use App\Modules\InvoiceVerification\Domain\Models\AccountingVerification;
 use App\Modules\InvoiceVerification\Domain\Models\AccountingVerificationItem;
 use App\Modules\InvoiceVerification\Domain\Models\AgreementReference;
-use App\Modules\InvoiceVerification\Domain\Models\ApprovalFlow;
-use App\Modules\InvoiceVerification\Domain\Models\ApprovalTransaction;
 use App\Modules\InvoiceVerification\Domain\Models\DocumentType;
-use App\Modules\InvoiceVerification\Domain\Models\GeneratedDocument;
 use App\Modules\InvoiceVerification\Domain\Models\InvoiceMetadata;
 use App\Modules\InvoiceVerification\Domain\Models\MemoRequest;
-use App\Modules\InvoiceVerification\Domain\Models\PpaVerificationSheet;
-use App\Modules\InvoiceVerification\Domain\Models\PpaVerificationSheetItem;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
 use App\Modules\InvoiceVerification\Domain\Models\TransactionDocument;
 use App\Modules\InvoiceVerification\Domain\Models\TransactionParty;
 use App\Modules\InvoiceVerification\Domain\Models\TransactionStatusHistory;
 use App\Modules\InvoiceVerification\Domain\Models\TransactionType;
 use App\Modules\InvoiceVerification\Domain\Models\Vendor;
-use App\Modules\InvoiceVerification\Domain\Models\VendorDocumentReview;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -42,379 +33,608 @@ class DemoWorkflowSeeder extends Seeder
 {
     public function run(): void
     {
-        $admin = User::query()->where('email', 'admin.divisi@demo.local')->firstOrFail();
+        $externalVendorUser = User::query()->where('email', 'vendor@demo.local')->firstOrFail();
+        $internalVendorUser = User::query()->where('email', 'user.divisi@demo.local')->firstOrFail();
         $accounting = User::query()->where('email', 'akuntansi@demo.local')->firstOrFail();
-        $ppaType = TransactionType::query()->where('code', 'PPA')->firstOrFail();
+        $finance = User::query()->where('email', 'finance@demo.local')->firstOrFail();
 
-        $registrationNumbers = [
-            'TRX/DEMO/2026/0001',
-            'TRX/DEMO/2026/0002',
-            'TRX/DEMO/2026/0003',
-            'TRX/DEMO/2026/0004',
+        $this->deleteExistingDemoTransactions();
+
+        $ppaDraft = $this->createPpaContract(
+            registrationNumber: 'PPA-00001',
+            status: TransactionStatus::DRAFT,
+            owner: $externalVendorUser,
+            titleSuffix: 'Draft vendor eksternal',
+        );
+
+        $ppaSubmitted = $this->createPpaContract(
+            registrationNumber: 'PPA-00002',
+            status: TransactionStatus::SUBMITTED,
+            owner: $externalVendorUser,
+            titleSuffix: 'Menunggu review Accounting',
+        );
+
+        $pnkInReview = $this->createInternalTransaction(
+            registrationNumber: 'PNK-00001',
+            typeCode: TransactionTypeCode::PPA_NON_CONTRACT,
+            status: TransactionStatus::IN_REVIEW,
+            owner: $internalVendorUser,
+            title: 'Pengadaan perlengkapan administrasi operasional',
+            amount: 18500000,
+        );
+
+        $spuNotApproved = $this->createInternalTransaction(
+            registrationNumber: 'SPU-00001',
+            typeCode: TransactionTypeCode::SPU,
+            status: TransactionStatus::NOT_APPROVED,
+            owner: $internalVendorUser,
+            title: 'Uang muka kegiatan inspeksi jalur',
+            amount: 12500000,
+            accountingUser: $accounting,
+            accountingHasIssue: true,
+        );
+
+        $spuReceived = $this->createInternalTransaction(
+            registrationNumber: 'SPU-00002',
+            typeCode: TransactionTypeCode::SPU,
+            status: TransactionStatus::RECEIVED,
+            owner: $internalVendorUser,
+            title: 'Uang muka kegiatan kalibrasi perangkat',
+            amount: 20000000,
+            accountingUser: $accounting,
+        );
+
+        $this->createSpuk(
+            registrationNumber: 'SPUK-00001',
+            status: TransactionStatus::SCHEDULING_PAYMENT,
+            owner: $internalVendorUser,
+            parentSpu: $spuReceived,
+            accountabilityAmount: 16500000,
+            accountingUser: $accounting,
+            financeUser: $finance,
+        );
+
+        $this->createPettyCash(
+            registrationNumber: 'KK-00001',
+            status: TransactionStatus::PAID,
+            owner: $internalVendorUser,
+            remainingAmount: 3500000,
+            accountingUser: $accounting,
+            financeUser: $finance,
+        );
+
+        $this->createAdditionalDemoTransactions($externalVendorUser, $internalVendorUser, $accounting, $finance, $spuReceived);
+
+        $this->seedNumberSequences([
+            'PPA' => 8,
+            'PNK' => 6,
+            'SPU' => 8,
+            'SPUK' => 4,
+            'KK' => 4,
+        ]);
+
+        unset($ppaDraft, $ppaSubmitted, $pnkInReview);
+    }
+
+    private function createAdditionalDemoTransactions(
+        User $externalVendorUser,
+        User $internalVendorUser,
+        User $accounting,
+        User $finance,
+        Transaction $parentSpu,
+    ): void {
+        $ppaScenarios = [
+            ['PPA-00003', TransactionStatus::IN_REVIEW, 'Review dokumen invoice', false],
+            ['PPA-00004', TransactionStatus::NOT_APPROVED, 'Revisi faktur pajak', true],
+            ['PPA-00005', TransactionStatus::RECEIVED, 'Dokumen lengkap', false],
+            ['PPA-00006', TransactionStatus::SCHEDULING_PAYMENT, 'Menunggu jadwal bayar', false],
+            ['PPA-00007', TransactionStatus::PAID, 'Pembayaran selesai', false],
+            ['PPA-00008', TransactionStatus::DRAFT, 'Draft pekerjaan tambahan', false],
         ];
 
-        Transaction::query()
-            ->whereIn('registration_number', $registrationNumbers)
-            ->delete();
+        foreach ($ppaScenarios as [$number, $status, $suffix, $hasIssue]) {
+            $transaction = $this->createPpaContract($number, $status, $externalVendorUser, $suffix, $hasIssue);
+            $this->seedFinanceStateIfNeeded($transaction, $status, $finance);
+        }
 
-        $scenarios = [
-            [
-                'registration_number' => 'TRX/DEMO/2026/0001',
-                'invoice_number' => 'INV-DEMO-2026-001',
-                'vendor_code' => 'VND-0001',
-                'memo_number' => 'MEMO-OPS-2026-001',
-                'contract_number' => 'SPK-LRTJ-2026-001',
-                'invoice_value' => 18000000,
-                'status' => TransactionStatus::DRAFT,
-                'step' => TransactionStep::VENDOR_INVOICE_INPUT,
-                'mode' => 'draft_vendor_input',
-                'description' => 'Demo: draft dibuat Admin dan menunggu Vendor input tagihan serta upload dokumen.',
-            ],
-            [
-                'registration_number' => 'TRX/DEMO/2026/0002',
-                'invoice_number' => 'INV-DEMO-2026-002',
-                'vendor_code' => 'VND-0002',
-                'memo_number' => 'MEMO-OPS-2026-002',
-                'contract_number' => 'SPK-LRTJ-2026-002',
-                'invoice_value' => 24500000,
-                'status' => TransactionStatus::REVISION_IN_PROGRESS,
-                'step' => TransactionStep::VENDOR_DOCUMENT_REVIEW,
-                'mode' => 'vendor_revision',
-                'description' => 'Demo: satu dokumen direject Admin User dan perlu upload ulang vendor.',
-            ],
-            [
-                'registration_number' => 'TRX/DEMO/2026/0003',
-                'invoice_number' => 'INV-DEMO-2026-003',
-                'vendor_code' => 'VND-0003',
-                'memo_number' => 'MEMO-OPS-2026-003',
-                'contract_number' => 'SPK-LRTJ-2026-003',
-                'invoice_value' => 36750000,
-                'status' => TransactionStatus::WAITING_APPROVAL,
-                'step' => TransactionStep::KADEP_REVIEW,
-                'mode' => 'kadep_review',
-                'description' => 'Demo: Admin sudah approve dokumen vendor dan transaksi menunggu Kadep Review.',
-            ],
-            [
-                'registration_number' => 'TRX/DEMO/2026/0004',
-                'invoice_number' => 'INV-DEMO-2026-004',
-                'vendor_code' => 'VND-0004',
-                'memo_number' => 'MEMO-OPS-2026-004',
-                'contract_number' => 'SPK-LRTJ-2026-004',
-                'invoice_value' => 52900000,
-                'status' => TransactionStatus::ACCOUNTING_VERIFICATION,
-                'step' => TransactionStep::ACCOUNTING_ADMINISTRATION,
-                'mode' => 'accounting_verification',
-                'description' => 'Demo: Kadep dan Kadiv sudah approve, transaksi masuk Accounting Verification.',
-            ],
-        ];
+        foreach ([
+            ['PNK-00002', TransactionStatus::DRAFT, 'Pengadaan ATK kantor pusat', 8500000, false],
+            ['PNK-00003', TransactionStatus::SUBMITTED, 'Kegiatan koordinasi operasional', 12300000, false],
+            ['PNK-00004', TransactionStatus::NOT_APPROVED, 'Pengadaan konsumsi pelatihan', 9750000, true],
+            ['PNK-00005', TransactionStatus::RECEIVED, 'Jasa dokumentasi kegiatan', 14600000, false],
+            ['PNK-00006', TransactionStatus::PAID, 'Sewa perlengkapan rapat', 11250000, false],
+        ] as [$number, $status, $title, $amount, $hasIssue]) {
+            $transaction = $this->createInternalTransaction(
+                registrationNumber: $number,
+                typeCode: TransactionTypeCode::PPA_NON_CONTRACT,
+                status: $status,
+                owner: $internalVendorUser,
+                title: $title,
+                amount: $amount,
+                accountingUser: $accounting,
+                accountingHasIssue: $hasIssue,
+            );
+            $this->seedFinanceStateIfNeeded($transaction, $status, $finance);
+        }
 
-        foreach ($scenarios as $index => $scenario) {
-            $this->createDemoTransaction($scenario, $index + 1, $ppaType, $admin, $accounting);
+        foreach ([
+            ['SPU-00003', TransactionStatus::DRAFT, 'Uang muka survey jalur', 7000000],
+            ['SPU-00004', TransactionStatus::SUBMITTED, 'Uang muka inspeksi depo', 15500000],
+            ['SPU-00005', TransactionStatus::IN_REVIEW, 'Uang muka workshop safety', 9500000],
+            ['SPU-00006', TransactionStatus::RECEIVED, 'Uang muka maintenance lift', 22500000],
+            ['SPU-00007', TransactionStatus::SCHEDULING_PAYMENT, 'Uang muka perbaikan panel', 17800000],
+            ['SPU-00008', TransactionStatus::PAID, 'Uang muka audit perangkat', 13200000],
+        ] as [$number, $status, $title, $amount]) {
+            $transaction = $this->createInternalTransaction(
+                registrationNumber: $number,
+                typeCode: TransactionTypeCode::SPU,
+                status: $status,
+                owner: $internalVendorUser,
+                title: $title,
+                amount: $amount,
+                accountingUser: $accounting,
+            );
+            $this->seedFinanceStateIfNeeded($transaction, $status, $finance);
+        }
+
+        foreach ([
+            ['SPUK-00002', TransactionStatus::SUBMITTED, 4500000],
+            ['SPUK-00003', TransactionStatus::RECEIVED, 9200000],
+            ['SPUK-00004', TransactionStatus::PAID, 12800000],
+        ] as [$number, $status, $accountabilityAmount]) {
+            $transaction = $this->createSpuk(
+                registrationNumber: $number,
+                status: $status,
+                owner: $internalVendorUser,
+                parentSpu: $parentSpu,
+                accountabilityAmount: $accountabilityAmount,
+                accountingUser: $accounting,
+                financeUser: $finance,
+            );
+            $this->seedFinanceStateIfNeeded($transaction, $status, $finance);
+        }
+
+        foreach ([
+            ['KK-00002', TransactionStatus::SUBMITTED, 9200000],
+            ['KK-00003', TransactionStatus::RECEIVED, 6200000],
+            ['KK-00004', TransactionStatus::SCHEDULING_PAYMENT, 4800000],
+        ] as [$number, $status, $remainingAmount]) {
+            $transaction = $this->createPettyCash(
+                registrationNumber: $number,
+                status: $status,
+                owner: $internalVendorUser,
+                remainingAmount: $remainingAmount,
+                accountingUser: $accounting,
+                financeUser: $finance,
+            );
+            $this->seedFinanceStateIfNeeded($transaction, $status, $finance);
         }
     }
 
-    private function createDemoTransaction(array $scenario, int $sequence, TransactionType $ppaType, User $admin, User $accounting): Transaction
+    private function deleteExistingDemoTransactions(): void
     {
-        $vendor = Vendor::query()->where('vendor_code', $scenario['vendor_code'])->firstOrFail();
-        $vendorUser = User::query()->where('email', $vendor->contact_email)->firstOrFail();
-        $memo = MemoRequest::query()->where('memo_number', $scenario['memo_number'])->firstOrFail();
-        $agreement = AgreementReference::query()->where('contract_number', $scenario['contract_number'])->firstOrFail();
+        Transaction::query()
+            ->where(function ($query) {
+                $query->where('registration_number', 'like', 'PPA-0000%')
+                    ->orWhere('registration_number', 'like', 'PNK-0000%')
+                    ->orWhere('registration_number', 'like', 'SPU-0000%')
+                    ->orWhere('registration_number', 'like', 'SPUK-0000%')
+                    ->orWhere('registration_number', 'like', 'KK-0000%')
+                    ->orWhere('registration_number', 'like', 'TRX/DEMO/%');
+            })
+            ->delete();
+    }
+
+    private function createPpaContract(
+        string $registrationNumber,
+        TransactionStatus $status,
+        User $owner,
+        string $titleSuffix,
+        bool $accountingHasIssue = false,
+    ): Transaction {
+        $vendor = Vendor::query()->where('contact_email', $owner->email)->firstOrFail();
+        $agreement = AgreementReference::query()->where('vendor_id', $vendor->id)->oldest()->firstOrFail();
+        $memo = MemoRequest::query()->where('memo_number', 'MEMO-OPS-2026-001')->firstOrFail();
+        $type = $this->type(TransactionTypeCode::PPA);
 
         $transaction = Transaction::create([
-            'registration_number' => $scenario['registration_number'],
-            'transaction_type_id' => $ppaType->id,
+            'registration_number' => $registrationNumber,
+            'transaction_type_id' => $type->id,
             'vendor_id' => $vendor->id,
+            'owner_user_id' => $owner->id,
             'division_id' => $agreement->division_id,
             'department_id' => $agreement->department_id,
             'memo_request_id' => $memo->id,
             'agreement_reference_id' => $agreement->id,
-            'title' => $scenario['invoice_number'].' - '.$agreement->contract_number,
-            'description' => $scenario['description'],
+            'title' => $agreement->title.' - '.$titleSuffix,
+            'description' => 'Seeder workflow baru PPA Kontrak.',
             'contract_number' => $agreement->contract_number,
             'contract_value' => $agreement->contract_value,
-            'status' => $scenario['status'],
-            'current_step' => $scenario['step'],
-            'created_by' => $admin->id,
-            'submitted_at' => $scenario['mode'] === 'draft_vendor_input' ? null : now()->subDays(5 - $sequence),
+            'period' => '2026-07',
+            'status' => $status,
+            'current_step' => $this->stepFor($status),
+            'created_by' => $owner->id,
+            'submitted_at' => $status === TransactionStatus::DRAFT ? null : now()->subDays(5),
         ]);
 
-        TransactionParty::create([
-            'transaction_id' => $transaction->id,
-            'party_type' => 'CREATOR',
-            'user_id' => $admin->id,
-            'status' => 'ACTIVE',
-        ]);
-
-        TransactionParty::create([
-            'transaction_id' => $transaction->id,
-            'party_type' => 'VENDOR',
-            'vendor_id' => $vendor->id,
-            'status' => 'ACTIVE',
-        ]);
-
-        if ($scenario['mode'] !== 'draft_vendor_input') {
-            InvoiceMetadata::create([
-                'transaction_id' => $transaction->id,
-                'vendor_id' => $vendor->id,
-                'invoice_number' => $scenario['invoice_number'],
-                'invoice_date' => now()->subDays(8 - $sequence)->toDateString(),
-                'account_number' => $vendor->default_account_number,
-                'bank_name' => $vendor->defaultBank?->name,
-                'memo_number' => $memo->memo_number,
-                'contract_number' => $agreement->contract_number,
-                'contract_value' => $agreement->contract_value,
-                'invoice_value' => $scenario['invoice_value'],
-                'ppn_value' => round($scenario['invoice_value'] * 0.11, 2),
-                'description' => $scenario['description'],
-                'received_date' => now()->subDays(5 - $sequence)->toDateString(),
-            ]);
-        }
-
-        $documents = $scenario['mode'] === 'draft_vendor_input'
-            ? []
-            : $this->seedVendorDocuments($transaction, $scenario, $sequence, $vendorUser, $admin);
-
-        if (in_array($scenario['mode'], ['kadep_review', 'accounting_verification'], true)) {
-            $this->seedTransactionReviewApprovals($transaction, $scenario['mode']);
-        }
-
-        if ($scenario['mode'] === 'accounting_verification') {
-            $this->seedAdministrationDocuments($transaction, $admin, $scenario['mode']);
-        }
-
-        if ($scenario['mode'] === 'accounting_verification') {
-            $this->seedAccountingVerification($transaction, $accounting, $documents);
-        }
-
-        TransactionStatusHistory::create([
-            'transaction_id' => $transaction->id,
-            'to_status' => $scenario['status']->value,
-            'to_step' => $scenario['step']->value,
-            'changed_by' => $scenario['mode'] === 'draft_vendor_input' ? $admin->id : $vendorUser->id,
-            'notes' => 'Demo seed: '.$scenario['description'],
-        ]);
+        $this->attachParties($transaction, $owner, $vendor);
+        $this->seedInvoiceMetadata($transaction, (int) $agreement->contract_value);
+        $this->seedDocuments($transaction, $owner, $vendor, $status);
+        $this->seedWorkflowArtifacts($transaction, $status, null, $accountingHasIssue);
 
         return $transaction;
     }
 
-    private function seedVendorDocuments(Transaction $transaction, array $scenario, int $sequence, User $vendorUser, User $admin): array
+    private function createInternalTransaction(
+        string $registrationNumber,
+        TransactionTypeCode $typeCode,
+        TransactionStatus $status,
+        User $owner,
+        string $title,
+        int $amount,
+        ?User $accountingUser = null,
+        bool $accountingHasIssue = false,
+    ): Transaction {
+        $memo = MemoRequest::query()->where('memo_number', 'MEMO-OPS-2026-002')->firstOrFail();
+        $type = $this->type($typeCode);
+
+        $transaction = Transaction::create([
+            'registration_number' => $registrationNumber,
+            'transaction_type_id' => $type->id,
+            'owner_user_id' => $owner->id,
+            'division_id' => $owner->division_id,
+            'department_id' => $owner->department_id,
+            'memo_request_id' => $memo->id,
+            'title' => $title,
+            'activity_name' => $title,
+            'description' => 'Seeder workflow baru '.$type->name.'.',
+            'transaction_bank_name' => 'Bank Mandiri',
+            'transaction_account_number' => '8877665544',
+            'spu_amount' => $typeCode === TransactionTypeCode::SPU ? $amount : null,
+            'contract_value' => $typeCode === TransactionTypeCode::PPA_NON_CONTRACT ? $amount : null,
+            'status' => $status,
+            'current_step' => $this->stepFor($status),
+            'created_by' => $owner->id,
+            'submitted_at' => $status === TransactionStatus::DRAFT ? null : now()->subDays(4),
+        ]);
+
+        $this->attachParties($transaction, $owner);
+        $this->seedInvoiceMetadata($transaction, $amount);
+        $this->seedDocuments($transaction, $owner, null, $status);
+        $this->seedWorkflowArtifacts($transaction, $status, $accountingUser, $accountingHasIssue);
+
+        return $transaction;
+    }
+
+    private function createSpuk(
+        string $registrationNumber,
+        TransactionStatus $status,
+        User $owner,
+        Transaction $parentSpu,
+        int $accountabilityAmount,
+        User $accountingUser,
+        User $financeUser,
+    ): Transaction {
+        $type = $this->type(TransactionTypeCode::SPUK);
+        $remainingAmount = (int) $parentSpu->spu_amount - $accountabilityAmount;
+
+        $transaction = Transaction::create([
+            'registration_number' => $registrationNumber,
+            'transaction_type_id' => $type->id,
+            'owner_user_id' => $owner->id,
+            'parent_spu_transaction_id' => $parentSpu->id,
+            'division_id' => $owner->division_id,
+            'department_id' => $owner->department_id,
+            'memo_request_id' => $parentSpu->memo_request_id,
+            'title' => 'Pertanggungjawaban '.$parentSpu->activity_name,
+            'activity_name' => $parentSpu->activity_name,
+            'description' => 'Seeder workflow baru SPUK.',
+            'spu_amount' => $parentSpu->spu_amount,
+            'accountability_amount' => $accountabilityAmount,
+            'remaining_amount' => $remainingAmount,
+            'status' => $status,
+            'current_step' => $this->stepFor($status),
+            'created_by' => $owner->id,
+            'submitted_at' => now()->subDays(4),
+            'scheduled_payment_at' => in_array($status, [TransactionStatus::SCHEDULING_PAYMENT, TransactionStatus::PAID], true) ? now()->addDays(2) : null,
+        ]);
+
+        $this->attachParties($transaction, $owner);
+        $this->seedInvoiceMetadata($transaction, $accountabilityAmount);
+        $this->seedDocuments($transaction, $owner, null, $status);
+        $this->seedWorkflowArtifacts($transaction, $status, $accountingUser);
+        $this->seedFinanceStateIfNeeded($transaction, $status, $financeUser);
+
+        return $transaction;
+    }
+
+    private function createPettyCash(
+        string $registrationNumber,
+        TransactionStatus $status,
+        User $owner,
+        int $remainingAmount,
+        User $accountingUser,
+        User $financeUser,
+    ): Transaction {
+        $type = $this->type(TransactionTypeCode::KAS_KECIL);
+        $ceiling = (int) ($owner->division?->petty_cash_ceiling ?? 0);
+        $topUp = $ceiling - $remainingAmount;
+
+        $transaction = Transaction::create([
+            'registration_number' => $registrationNumber,
+            'transaction_type_id' => $type->id,
+            'owner_user_id' => $owner->id,
+            'division_id' => $owner->division_id,
+            'department_id' => $owner->department_id,
+            'title' => 'Top Up Kas Kecil Divisi Operasional',
+            'activity_name' => 'Top Up Kas Kecil Divisi Operasional',
+            'description' => 'Seeder workflow baru Kas Kecil.',
+            'period' => '2026-07',
+            'petty_cash_ceiling_snapshot' => $ceiling,
+            'petty_cash_remaining_amount' => $remainingAmount,
+            'petty_cash_top_up_amount' => $topUp,
+            'status' => $status,
+            'current_step' => $this->stepFor($status),
+            'created_by' => $owner->id,
+            'submitted_at' => now()->subDays(8),
+            'scheduled_payment_at' => in_array($status, [TransactionStatus::SCHEDULING_PAYMENT, TransactionStatus::PAID], true) ? now()->subDays(2) : null,
+            'paid_at' => $status === TransactionStatus::PAID ? now()->subDay() : null,
+        ]);
+
+        $this->attachParties($transaction, $owner);
+        $this->seedInvoiceMetadata($transaction, $topUp);
+        $this->seedDocuments($transaction, $owner, null, $status);
+        $this->seedWorkflowArtifacts($transaction, $status, $accountingUser);
+        $this->seedFinanceStateIfNeeded($transaction, $status, $financeUser);
+
+        return $transaction;
+    }
+
+    private function seedInvoiceMetadata(Transaction $transaction, int $amount): void
     {
-        $disk = config('invoice_verification.storage.documents_disk', 'public');
-        $documentCodes = [
-            DocumentCode::PPA_INVOICE,
-            DocumentCode::PPA_KWITANSI,
-            DocumentCode::PPA_FAKTUR_PAJAK,
-            DocumentCode::PPA_BAPP,
-            DocumentCode::PPA_BAST,
-            DocumentCode::PPA_LAMPIRAN_PEKERJAAN,
-            DocumentCode::PPA_LAPORAN_PEKERJAAN,
-        ];
-        $documents = [];
+        InvoiceMetadata::updateOrCreate(
+            ['transaction_id' => $transaction->id],
+            [
+                'vendor_id' => $transaction->vendor_id,
+                'invoice_number' => 'INV-'.$transaction->registration_number,
+                'invoice_date' => now()->subDays(3)->toDateString(),
+                'received_date' => in_array($transaction->status, [
+                    TransactionStatus::RECEIVED,
+                    TransactionStatus::SCHEDULING_PAYMENT,
+                    TransactionStatus::PAID,
+                ], true) ? now()->subDays(2)->toDateString() : null,
+                'account_number' => $transaction->transaction_account_number ?: '1234567890',
+                'account_name' => $transaction->vendor?->name ?? $transaction->owner?->name ?? 'User Divisi Demo',
+                'bank_name' => $transaction->transaction_bank_name ?: 'Bank Mandiri',
+                'memo_number' => $transaction->memoRequest?->memo_number,
+                'contract_number' => $transaction->contract_number,
+                'contract_value' => $transaction->contract_value,
+                'invoice_value' => $amount,
+                'ppn_value' => (int) round($amount * 0.11),
+                'description' => $transaction->description,
+            ],
+        );
+    }
 
-        foreach ($documentCodes as $index => $documentCode) {
-            $documentType = DocumentType::query()
-                ->where('transaction_type_id', $transaction->transaction_type_id)
-                ->where('code', $documentCode->value)
-                ->firstOrFail();
-            $documentNumber = sprintf('%s-%03d/%s/2026', str_replace('PPA_', '', $documentCode->value), $sequence, now()->format('m'));
-            $fileName = Str::lower($scenario['invoice_number'].'-'.$documentCode->value).'.pdf';
-            $path = 'transactions/'.$transaction->id.'/documents/'.$documentCode->value.'/'.$fileName;
-
-            $this->putDemoPdf($disk, $path, $documentType->name, [
-                'Nomor Dokumen: '.$documentNumber,
-                'Nomor Invoice: '.$scenario['invoice_number'],
-                'Registrasi: '.$transaction->registration_number,
-            ]);
-
-            $status = TransactionDocumentStatus::UNDER_REVIEW;
-
-            if ($scenario['mode'] !== 'admin_review') {
-                $status = TransactionDocumentStatus::ACCEPTED;
-            }
-
-            if ($scenario['mode'] === 'vendor_revision' && $index === 0) {
-                $status = TransactionDocumentStatus::REVISION_REQUIRED;
-            }
-
-            $document = TransactionDocument::create([
-                'transaction_id' => $transaction->id,
-                'document_type_id' => $documentType->id,
-                'source_actor' => DocumentSourceActor::VENDOR,
-                'uploaded_by_user_id' => $vendorUser->id,
-                'uploaded_by_vendor_id' => $transaction->vendor_id,
-                'document_label' => $documentType->name,
-                'document_information_json' => [
-                    'document_number' => $documentNumber,
-                    'document_date' => now()->subDays(4 - $sequence)->toDateString(),
-                    'notes' => 'Dokumen demo lengkap untuk '.$documentType->name,
-                ],
-                'file_name' => $fileName,
-                'file_disk' => $disk,
-                'file_path' => $path,
-                'file_extension' => 'pdf',
-                'mime_type' => 'application/pdf',
-                'file_size' => Storage::disk($disk)->size($path),
-                'version' => 1,
-                'status' => $status,
-                'is_latest' => true,
-                'uploaded_at' => now()->subDays(4 - $sequence),
-            ]);
-
-            if ($status !== TransactionDocumentStatus::UNDER_REVIEW) {
-                VendorDocumentReview::create([
-                    'transaction_document_id' => $document->id,
-                    'reviewed_by' => $admin->id,
-                    'status' => $status === TransactionDocumentStatus::ACCEPTED
-                        ? 'ACCEPTED'
-                        : 'REVISION_REQUIRED',
-                    'notes' => $status === TransactionDocumentStatus::REVISION_REQUIRED
-                        ? 'Demo seed: dokumen invoice perlu diperbaiki vendor.'
-                        : 'Demo seed: dokumen sudah sesuai.',
-                    'reviewed_at' => now()->subDays(3 - $sequence),
-                ]);
-            }
-
-            $documents[] = $document;
+    private function seedFinanceStateIfNeeded(Transaction $transaction, TransactionStatus $status, User $financeUser): void
+    {
+        if (! in_array($status, [TransactionStatus::SCHEDULING_PAYMENT, TransactionStatus::PAID], true)) {
+            return;
         }
+
+        $transaction->forceFill([
+            'scheduled_payment_at' => $transaction->scheduled_payment_at ?? now()->addDays($status === TransactionStatus::PAID ? -2 : 2),
+            'paid_at' => $status === TransactionStatus::PAID ? ($transaction->paid_at ?? now()->subDay()) : null,
+        ])->save();
+
+        $this->seedFinanceProof($transaction, $financeUser, paid: $status === TransactionStatus::PAID);
+    }
+
+    private function attachParties(Transaction $transaction, User $owner, ?Vendor $vendor = null): void
+    {
+        TransactionParty::create([
+            'transaction_id' => $transaction->id,
+            'party_type' => 'CREATOR',
+            'user_id' => $owner->id,
+            'status' => 'ACTIVE',
+        ]);
+
+        if ($vendor) {
+            TransactionParty::create([
+                'transaction_id' => $transaction->id,
+                'party_type' => 'VENDOR',
+                'vendor_id' => $vendor->id,
+                'status' => 'ACTIVE',
+            ]);
+        }
+    }
+
+    private function seedDocuments(Transaction $transaction, User $uploader, ?Vendor $vendor, TransactionStatus $status): Collection
+    {
+        if ($status === TransactionStatus::DRAFT) {
+            return collect();
+        }
+
+        $disk = config('invoice_verification.storage.documents_disk', 'public');
+        $documents = collect();
+
+        DocumentType::query()
+            ->where('transaction_type_id', $transaction->transaction_type_id)
+            ->where('source_type', DocumentSourceType::VENDOR->value)
+            ->orderBy('sort_order')
+            ->get()
+            ->each(function (DocumentType $documentType) use ($transaction, $uploader, $vendor, $status, $disk, $documents) {
+                $fileName = Str::lower($transaction->registration_number.'-'.$documentType->code).'.pdf';
+                $path = 'transactions/'.$transaction->id.'/documents/'.$documentType->code.'/'.$fileName;
+
+                $this->putDemoPdf($disk, $path, $documentType->name, [
+                    'Nomor Transaksi: '.$transaction->registration_number,
+                    'Status: '.$transaction->status->label(),
+                    'Seeder: workflow baru Invoice Collector',
+                ]);
+
+                $documentStatus = $status === TransactionStatus::NOT_APPROVED
+                    ? TransactionDocumentStatus::REVISION_REQUIRED
+                    : TransactionDocumentStatus::ACCEPTED;
+
+                if (in_array($status, [TransactionStatus::SUBMITTED, TransactionStatus::IN_REVIEW], true)) {
+                    $documentStatus = TransactionDocumentStatus::UPLOADED;
+                }
+
+                $documents->push(TransactionDocument::create([
+                    'transaction_id' => $transaction->id,
+                    'document_type_id' => $documentType->id,
+                    'source_actor' => DocumentSourceActor::VENDOR,
+                    'uploaded_by_user_id' => $uploader->id,
+                    'uploaded_by_vendor_id' => $vendor?->id,
+                    'document_label' => $documentType->name,
+                    'document_information_json' => [
+                        'document_number' => $transaction->registration_number.'/'.$documentType->code,
+                        'document_date' => now()->subDays(3)->toDateString(),
+                        'notes' => 'Dokumen demo untuk workflow baru.',
+                    ],
+                    'file_name' => $fileName,
+                    'file_disk' => $disk,
+                    'file_path' => $path,
+                    'file_extension' => 'pdf',
+                    'mime_type' => 'application/pdf',
+                    'file_size' => Storage::disk($disk)->size($path),
+                    'version' => 1,
+                    'status' => $documentStatus,
+                    'is_latest' => true,
+                    'uploaded_at' => now()->subDays(3),
+                ]));
+            });
 
         return $documents;
     }
 
-    private function seedAdministrationDocuments(Transaction $transaction, User $admin, string $mode): void
-    {
-        $disk = config('invoice_verification.storage.documents_disk', 'public');
-        $generatedPath = 'transactions/'.$transaction->id.'/generated/lembar-ppa.pdf';
-        $this->putDemoPdf($disk, $generatedPath, 'Lembar PPA', [
-            'Registrasi: '.$transaction->registration_number,
-            'Vendor: '.$transaction->vendor?->name,
-            'Invoice: '.$transaction->invoiceMetadata?->invoice_number,
-        ]);
+    private function seedWorkflowArtifacts(
+        Transaction $transaction,
+        TransactionStatus $status,
+        ?User $accountingUser = null,
+        bool $hasIssue = false,
+    ): void {
+        $this->seedStatusHistory($transaction);
 
-        $generatedDocument = GeneratedDocument::create([
-            'transaction_id' => $transaction->id,
-            'document_code' => DocumentCode::PPA_LEMBAR_AWAL->value,
-            'document_number' => $transaction->registration_number,
-            'file_name' => 'lembar-ppa.pdf',
-            'file_disk' => $disk,
-            'file_path' => $generatedPath,
-            'version' => 1,
-            'approval_mode' => ApprovalMode::MAIN_FLOW,
-            'generation_status' => GeneratedDocumentStatus::GENERATED,
-            'generated_by' => $admin->id,
-            'generated_at' => now()->subDay(),
-        ]);
-
-        $sheetPath = 'transactions/'.$transaction->id.'/generated/lembar-checklist-ppa.pdf';
-        $this->putDemoPdf($disk, $sheetPath, 'Lembar Checklist PPA', [
-            'Registrasi: '.$transaction->registration_number,
-            'Checklist: Semua dokumen tagihan vendor terlampir',
-        ]);
-
-        $sheet = PpaVerificationSheet::create([
-            'transaction_id' => $transaction->id,
-            'status' => $mode === 'accounting_verification'
-                ? PpaVerificationSheetStatus::APPROVED
-                : PpaVerificationSheetStatus::SUBMITTED,
-            'filled_by_user_id' => $admin->id,
-            'submitted_at' => now()->subDay(),
-            'approved_by_user_id' => $mode === 'accounting_verification' ? $admin->id : null,
-            'approved_at' => $mode === 'accounting_verification' ? now()->subHours(6) : null,
-            'file_name' => 'lembar-checklist-ppa.pdf',
-            'file_disk' => $disk,
-            'file_path' => $sheetPath,
-        ]);
-
-        DocumentType::query()
-            ->where('transaction_type_id', $transaction->transaction_type_id)
-            ->whereIn('code', [
-                DocumentCode::PPA_INVOICE->value,
-                DocumentCode::PPA_KWITANSI->value,
-                DocumentCode::PPA_FAKTUR_PAJAK->value,
-                DocumentCode::PPA_BAPP->value,
-                DocumentCode::PPA_BAST->value,
-                DocumentCode::PPA_MEMO_PERMOHONAN->value,
-                DocumentCode::PPA_PERJANJIAN->value,
-                DocumentCode::PPA_LAMPIRAN_PEKERJAAN->value,
-                DocumentCode::PPA_LAPORAN_PEKERJAAN->value,
-            ])
-            ->get()
-            ->each(function (DocumentType $documentType) use ($sheet) {
-                PpaVerificationSheetItem::create([
-                    'verification_sheet_id' => $sheet->id,
-                    'document_type_id' => $documentType->id,
-                    'attachment_status' => AttachmentStatus::ATTACHED,
-                    'notes' => 'Demo seed: dokumen tersedia.',
-                ]);
-            });
-
-        unset($generatedDocument);
-    }
-
-    private function seedTransactionReviewApprovals(Transaction $transaction, string $mode): void
-    {
-        foreach ([
-            [1, RoleCode::KEPALA_DEPARTEMEN, 'Kepala Departemen'],
-            [2, RoleCode::KEPALA_DIVISI, 'Kepala Divisi'],
-        ] as [$stepNo, $roleCode, $stepName]) {
-            $flow = ApprovalFlow::updateOrCreate(
-                [
-                    'transaction_type_id' => $transaction->transaction_type_id,
-                    'document_code' => 'TRANSACTION_REVIEW',
-                    'step_no' => $stepNo,
-                ],
-                [
-                    'step_code' => $roleCode->value,
-                    'step_name' => $stepName,
-                    'is_required' => true,
-                ],
-            );
-            $approver = $this->resolveApprover($flow->step_code, $transaction);
-            $isAccountingScenario = $mode === 'accounting_verification';
-
-            ApprovalTransaction::create([
-                'transaction_id' => $transaction->id,
-                'generated_document_id' => null,
-                'approval_flow_id' => $flow->id,
-                'approver_user_id' => $approver->id,
-                'status' => $isAccountingScenario ? ApprovalStatus::APPROVED : ApprovalStatus::PENDING,
-                'notes' => $isAccountingScenario ? 'Demo seed: sudah disetujui.' : null,
-                'action_at' => $isAccountingScenario ? now()->subHours(8 - $flow->step_no) : null,
-            ]);
+        if (! in_array($status, [
+            TransactionStatus::IN_REVIEW,
+            TransactionStatus::NOT_APPROVED,
+            TransactionStatus::RECEIVED,
+            TransactionStatus::SCHEDULING_PAYMENT,
+            TransactionStatus::PAID,
+        ], true)) {
+            return;
         }
-    }
 
-    private function seedAccountingVerification(Transaction $transaction, User $accounting, array $documents): void
-    {
+        $accountingUser ??= User::query()->where('email', 'akuntansi@demo.local')->firstOrFail();
+        $verificationStatus = match ($status) {
+            TransactionStatus::IN_REVIEW => AccountingVerificationStatus::IN_PROGRESS,
+            TransactionStatus::NOT_APPROVED => AccountingVerificationStatus::REVISION_REQUIRED,
+            default => AccountingVerificationStatus::COMPLETED,
+        };
+
         $verification = AccountingVerification::create([
             'transaction_id' => $transaction->id,
-            'verifier_user_id' => $accounting->id,
-            'status' => AccountingVerificationStatus::IN_PROGRESS,
-            'notes' => 'Demo seed: siap diverifikasi accounting.',
+            'verifier_user_id' => $accountingUser->id,
+            'status' => $verificationStatus,
+            'notes' => $hasIssue
+                ? 'Seeder: dokumen perlu direvisi vendor.'
+                : 'Seeder: dokumen lengkap sesuai workflow baru.',
+            'verified_at' => $status === TransactionStatus::IN_REVIEW ? null : now()->subDays(2),
         ]);
 
-        foreach ($documents as $document) {
+        $transaction->documents()->where('is_latest', true)->get()->each(function (TransactionDocument $document) use ($verification, $hasIssue) {
             AccountingVerificationItem::create([
                 'accounting_verification_id' => $verification->id,
                 'transaction_document_id' => $document->id,
-                'status' => AccountingVerificationItemStatus::VALID,
+                'status' => $hasIssue ? AccountingVerificationItemStatus::REVISION_REQUIRED : AccountingVerificationItemStatus::VALID,
+                'notes' => $hasIssue ? 'Seeder: dokumen belum lengkap.' : 'Seeder: dokumen valid.',
+                'verified_at' => $verification->verified_at,
+            ]);
+        });
+    }
+
+    private function seedFinanceProof(Transaction $transaction, User $financeUser, bool $paid): void
+    {
+        $disk = config('invoice_verification.storage.documents_disk', 'public');
+        $fileName = Str::lower($transaction->registration_number.'-bukti-transfer.pdf');
+        $path = 'transactions/'.$transaction->id.'/payment-proof/'.$fileName;
+
+        $this->putDemoPdf($disk, $path, 'Bukti Transfer Pembayaran', [
+            'Nomor Transaksi: '.$transaction->registration_number,
+            'Status: '.($paid ? 'Paid' : 'Scheduling Payment'),
+        ]);
+
+        $transaction->forceFill([
+            'payment_proof_file_name' => $fileName,
+            'payment_proof_file_disk' => $disk,
+            'payment_proof_file_path' => $path,
+            'payment_proof_mime_type' => 'application/pdf',
+            'payment_proof_file_size' => Storage::disk($disk)->size($path),
+            'payment_proof_uploaded_by' => $financeUser->id,
+            'payment_proof_uploaded_at' => now()->subDay(),
+        ])->save();
+    }
+
+    private function seedStatusHistory(Transaction $transaction): void
+    {
+        $statuses = match ($transaction->status) {
+            TransactionStatus::DRAFT => [TransactionStatus::DRAFT],
+            TransactionStatus::SUBMITTED => [TransactionStatus::DRAFT, TransactionStatus::SUBMITTED],
+            TransactionStatus::IN_REVIEW => [TransactionStatus::DRAFT, TransactionStatus::SUBMITTED, TransactionStatus::IN_REVIEW],
+            TransactionStatus::NOT_APPROVED => [TransactionStatus::DRAFT, TransactionStatus::SUBMITTED, TransactionStatus::IN_REVIEW, TransactionStatus::NOT_APPROVED],
+            TransactionStatus::RECEIVED => [TransactionStatus::DRAFT, TransactionStatus::SUBMITTED, TransactionStatus::IN_REVIEW, TransactionStatus::RECEIVED],
+            TransactionStatus::SCHEDULING_PAYMENT => [TransactionStatus::DRAFT, TransactionStatus::SUBMITTED, TransactionStatus::IN_REVIEW, TransactionStatus::RECEIVED, TransactionStatus::SCHEDULING_PAYMENT],
+            TransactionStatus::PAID => [TransactionStatus::DRAFT, TransactionStatus::SUBMITTED, TransactionStatus::IN_REVIEW, TransactionStatus::RECEIVED, TransactionStatus::SCHEDULING_PAYMENT, TransactionStatus::PAID],
+            default => [$transaction->status],
+        };
+
+        foreach ($statuses as $index => $status) {
+            TransactionStatusHistory::create([
+                'transaction_id' => $transaction->id,
+                'from_status' => $index === 0 ? null : $statuses[$index - 1]->value,
+                'to_status' => $status->value,
+                'from_step' => $index === 0 ? null : $this->stepFor($statuses[$index - 1])->value,
+                'to_step' => $this->stepFor($status)->value,
+                'changed_by' => $transaction->owner_user_id ?? $transaction->created_by,
+                'notes' => 'Seeder workflow baru: '.$status->label(),
+                'created_at' => now()->subDays(max(0, count($statuses) - $index)),
             ]);
         }
     }
 
-    private function resolveApprover(string $roleCode, Transaction $transaction): User
+    private function seedNumberSequences(array $prefixes): void
     {
-        $query = User::query()
-            ->where('role_code', $roleCode)
-            ->where('is_active', true);
-
-        if ($roleCode === RoleCode::KEPALA_DEPARTEMEN->value) {
-            $query->where('department_id', $transaction->department_id);
-        } else {
-            $query->where('division_id', $transaction->division_id);
+        foreach ($prefixes as $prefix => $lastNumber) {
+            DB::table('transaction_number_sequences')->updateOrInsert(
+                ['prefix' => $prefix],
+                [
+                    'last_number' => $lastNumber,
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ],
+            );
         }
+    }
 
-        return $query->first()
-            ?? User::query()->where('role_code', $roleCode)->firstOrFail();
+    private function type(TransactionTypeCode $code): TransactionType
+    {
+        return TransactionType::query()->where('code', $code->value)->firstOrFail();
+    }
+
+    private function stepFor(TransactionStatus $status): TransactionStep
+    {
+        return match ($status) {
+            TransactionStatus::DRAFT => TransactionStep::VENDOR_INVOICE_INPUT,
+            TransactionStatus::SUBMITTED => TransactionStep::ACCOUNTING_ADMINISTRATION,
+            TransactionStatus::IN_REVIEW,
+            TransactionStatus::NOT_APPROVED,
+            TransactionStatus::RECEIVED => TransactionStep::ACCOUNTING_VERIFICATION,
+            TransactionStatus::SCHEDULING_PAYMENT,
+            TransactionStatus::PAID => TransactionStep::FINANCE_PROCESS,
+            default => TransactionStep::VENDOR_INVOICE_INPUT,
+        };
     }
 
     private function putDemoPdf(string $disk, string $path, string $title, array $lines): void

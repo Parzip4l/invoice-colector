@@ -26,7 +26,11 @@ class TransactionPolicy
     {
         if ($user->hasRole(RoleCode::VENDOR)) {
             return $transaction->vendor_id !== null
-                && $transaction->vendor_id === $user->linkedVendor()?->id;
+                && ($transaction->owner_user_id === $user->id || $transaction->vendor_id === $user->linkedVendor()?->id);
+        }
+
+        if ($user->hasRole(RoleCode::USER_DIVISI)) {
+            return $transaction->owner_user_id === $user->id;
         }
 
         return $this->viewAny($user);
@@ -34,29 +38,39 @@ class TransactionPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasRole(RoleCode::ADMIN_DIVISI);
+        return $user->hasRole(RoleCode::VENDOR, RoleCode::USER_DIVISI);
     }
 
     public function update(User $user, Transaction $transaction): bool
     {
-        return $user->hasRole(RoleCode::ADMIN_DIVISI, RoleCode::USER_DIVISI)
-            && $user->division_id === $transaction->division_id;
+        if ($user->hasRole(RoleCode::VENDOR, RoleCode::USER_DIVISI)) {
+            return $transaction->owner_user_id === $user->id
+                && in_array($transaction->status?->value, [
+                    TransactionStatus::DRAFT->value,
+                    TransactionStatus::NOT_APPROVED->value,
+                ], true);
+        }
+
+        return false;
     }
 
     public function uploadDocuments(User $user, Transaction $transaction): bool
     {
         if ($transaction->isPpa()) {
             return $user->hasRole(RoleCode::VENDOR)
-                && $transaction->vendor_id === $user->linkedVendor()?->id
+                && ($transaction->owner_user_id === $user->id || $transaction->vendor_id === $user->linkedVendor()?->id)
                 && in_array($transaction->status?->value, [
                     TransactionStatus::DRAFT->value,
-                    TransactionStatus::VENDOR_INPUT->value,
-                    TransactionStatus::REVISION_IN_PROGRESS->value,
+                    TransactionStatus::NOT_APPROVED->value,
                 ], true);
         }
 
-        return $user->hasRole(RoleCode::ADMIN_DIVISI, RoleCode::USER_DIVISI, RoleCode::VENDOR)
-            && ($user->division_id === $transaction->division_id || $user->hasRole(RoleCode::VENDOR));
+        return $user->hasRole(RoleCode::USER_DIVISI)
+            && $transaction->owner_user_id === $user->id
+            && in_array($transaction->status?->value, [
+                TransactionStatus::DRAFT->value,
+                TransactionStatus::NOT_APPROVED->value,
+            ], true);
     }
 
     public function verifyAccounting(User $user, Transaction $transaction): bool

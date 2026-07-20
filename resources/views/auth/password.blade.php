@@ -32,8 +32,10 @@ class="authentication-bg"
                                     placeholder="Enter your email">
                             </div>
                             <div class="d-grid">
-                                <button class="btn btn-dark btn-lg fw-medium" type="submit">Reset
-                                    Password</button>
+                                <button class="btn btn-auth-primary btn-lg fw-semibold d-inline-flex align-items-center justify-content-center gap-2" type="submit">
+                                    <span>Reset Password</span>
+                                    <iconify-icon icon="solar:letter-unread-outline" class="fs-20"></iconify-icon>
+                                </button>
                             </div>
                         </form>
                     </div>

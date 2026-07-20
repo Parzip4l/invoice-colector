@@ -18,7 +18,16 @@ class Transaction extends InvoiceVerificationModel
             'current_step' => TransactionStep::class,
             'submitted_at' => 'datetime',
             'completed_at' => 'datetime',
+            'scheduled_payment_at' => 'datetime',
+            'payment_proof_uploaded_at' => 'datetime',
+            'paid_at' => 'datetime',
             'contract_value' => 'decimal:2',
+            'spu_amount' => 'decimal:2',
+            'accountability_amount' => 'decimal:2',
+            'remaining_amount' => 'decimal:2',
+            'petty_cash_ceiling_snapshot' => 'decimal:2',
+            'petty_cash_remaining_amount' => 'decimal:2',
+            'petty_cash_top_up_amount' => 'decimal:2',
         ];
     }
 
@@ -55,6 +64,16 @@ class Transaction extends InvoiceVerificationModel
     public function creator(): BelongsTo
     {
         return $this->belongsTo(\App\Models\User::class, 'created_by');
+    }
+
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'owner_user_id');
+    }
+
+    public function parentSpuTransaction(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_spu_transaction_id');
     }
 
     public function parties(): HasMany
@@ -120,6 +139,26 @@ class Transaction extends InvoiceVerificationModel
     public function isPpa(): bool
     {
         return $this->transactionType?->code === TransactionTypeCode::PPA;
+    }
+
+    public function isPpaNonContract(): bool
+    {
+        return $this->transactionType?->code === TransactionTypeCode::PPA_NON_CONTRACT;
+    }
+
+    public function isSpu(): bool
+    {
+        return $this->transactionType?->code === TransactionTypeCode::SPU;
+    }
+
+    public function isSpuk(): bool
+    {
+        return $this->transactionType?->code === TransactionTypeCode::SPUK;
+    }
+
+    public function isPettyCash(): bool
+    {
+        return $this->transactionType?->code === TransactionTypeCode::KAS_KECIL;
     }
 
     public function usesCombinedUpload(): bool

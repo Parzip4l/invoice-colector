@@ -3,6 +3,7 @@
 namespace App\Modules\InvoiceVerification\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
 use App\Modules\InvoiceVerification\Http\Requests\StoreAccountingVerificationRequest;
 use App\Modules\InvoiceVerification\Services\AccountingVerificationService;
@@ -17,6 +18,10 @@ class AccountingVerificationController extends Controller
     public function edit(Transaction $transaction)
     {
         $this->authorize('verifyAccounting', $transaction);
+
+        if (in_array($transaction->status, [TransactionStatus::SUBMITTED, TransactionStatus::ACCOUNTING_VERIFICATION], true)) {
+            $this->accountingVerificationService->startReview($transaction, request()->user());
+        }
 
         $transaction->load(['generatedDocuments', 'ppaVerificationSheet']);
         $verification = $this->accountingVerificationService->getOrCreate($transaction, request()->user());

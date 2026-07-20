@@ -8,6 +8,7 @@ class Division extends InvoiceVerificationModel
 {
     protected $casts = [
         'is_active' => 'boolean',
+        'petty_cash_ceiling' => 'decimal:2',
         'last_synced_at' => 'datetime',
     ];
 

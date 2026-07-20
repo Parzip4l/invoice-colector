@@ -47,8 +47,8 @@ html[data-bs-theme="dark"],
 html[data-sidebar-color="light"] {
     --#{$prefix}sidebar-bg: #ffffff;
     --#{$prefix}sidebar-item-color: #6e708c;
-    --#{$prefix}sidebar-item-hover-bg: #f4f3f6;
-    --#{$prefix}sidebar-item-hover-color: #3d4756;
+    --#{$prefix}sidebar-item-hover-bg: rgba(226, 26, 26, .08);
+    --#{$prefix}sidebar-item-hover-color: #e21a1a;
     --#{$prefix}sidebar-border-color: #eaedf1;
 }
 
@@ -57,7 +57,7 @@ html[data-sidebar-color="light"] {
 html[data-sidebar-color="dark"] {
     --#{$prefix}sidebar-bg: #393f4a;
     --#{$prefix}sidebar-item-color: #afb9cf;
-    --#{$prefix}sidebar-item-hover-bg: #4697ce;
+    --#{$prefix}sidebar-item-hover-bg: #e21a1a;
     --#{$prefix}sidebar-item-hover-color: #{$white};
     --#{$prefix}sidebar-border-color: #2f3944;
 }

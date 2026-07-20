@@ -14,11 +14,15 @@
 
      .logo-sm {
           display: none;
-          height: $logo-sm-height;
+          height: 42px;
+          width: 42px;
+          object-fit: contain;
      }
 
      .logo-lg {
-          height: $logo-lg-height;
+          max-width: 170px;
+          max-height: 46px;
+          object-fit: contain;
      }
 
      .logo-light {
@@ -121,6 +125,7 @@
                     &.active {
                          background-color: $sidebar-item-hover-bg;
                          font-weight: $font-weight-medium;
+                         box-shadow: inset 3px 0 0 $primary;
                     }
 
                     .nav-icon {
@@ -128,6 +133,7 @@
                          align-items: center;
                          justify-content: center;
                          font-size: $sidebar-item-icon-size;
+                         width: 24px;
                     }
 
                     .badge {
@@ -139,6 +145,7 @@
           .sub-navbar-nav {
                flex-direction: column;
                padding-left: $sidebar-item-padding-x;
+               margin: 2px 0 8px;
 
                .menu-arrow {
                     &::after {
@@ -157,10 +164,12 @@
                          transition: all 0.3s ease-in-out;
                          color: $sidebar-item-color;
                          font-size: calc($sidebar-item-font-size * 0.95);
-                         padding: calc($sidebar-item-padding-y * 0.25) $sidebar-item-padding-x;
+                         padding: calc($sidebar-item-padding-y * 0.35) $sidebar-item-padding-x;
+                         border-radius: 7px;
 
                          &.active {
                               font-weight: $font-weight-medium;
+                              background-color: rgba($primary, .08);
                          }
 
                          .badge {

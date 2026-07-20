@@ -1,13 +1,13 @@
 <meta charset="utf-8" />
-<title><?php echo e($subtitle); ?> | DICE - Digital Invoice Collection Engine</title>
+<title><?php echo e($subtitle ?? 'Sistem Verifikasi'); ?> | SIGNAL</title>
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<meta name="description" content="DICE (Digital Invoice Collection Engine) adalah platform modern untuk otomatisasi penagihan invoice, membantu bisnis mempercepat cashflow dan meningkatkan efisiensi collection." />
+<meta name="description" content="SIGNAL adalah sistem verifikasi invoice untuk memantau transaksi, approval, dokumen, dan finalisasi secara terstruktur." />
 
-<meta name="author" content="DICE Platform" />
+<meta name="author" content="SIGNAL" />
 
-<meta name="keywords" content="DICE, invoice collection, billing system, receivable management, digital collection, SaaS finance, automation, cashflow management" />
+<meta name="keywords" content="SIGNAL, invoice verification, sistem verifikasi, approval invoice, dokumen invoice" />
 
 <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 <meta name="robots" content="index, follow" />
@@ -16,4 +16,6 @@
 <meta name="theme-color" content="#e21a1a">
 
 <!-- App favicon -->
-<link rel="shortcut icon" href="/images/logogram.png"><?php /**PATH /Users/muhamadsobirin/Public/LRTJ App/invoice-colector/resources/views/layouts/partials/title-meta.blade.php ENDPATH**/ ?>
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="shortcut icon" type="image/png" href="/favicon.png">
+<?php /**PATH /Users/muhamadsobirin/Public/LRTJ App/invoice-colector/resources/views/layouts/partials/title-meta.blade.php ENDPATH**/ ?>

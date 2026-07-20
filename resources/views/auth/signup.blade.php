@@ -52,8 +52,10 @@ class="authentication-bg"
                             </div>
 
                             <div class="mb-1 text-center d-grid">
-                                <button class="btn btn-dark btn-lg fw-medium" type="submit">Sign
-                                    Up</button>
+                                <button class="btn btn-auth-primary btn-lg fw-semibold d-inline-flex align-items-center justify-content-center gap-2" type="submit">
+                                    <span>Sign Up</span>
+                                    <iconify-icon icon="solar:user-plus-outline" class="fs-20"></iconify-icon>
+                                </button>
                             </div>
                         </form>
                     </div>

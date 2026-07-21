@@ -4,6 +4,7 @@ namespace App\Modules\InvoiceVerification\Services;
 
 use App\Models\User;
 use App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus;
+use App\Modules\InvoiceVerification\Domain\Models\AgreementReference;
 use App\Modules\InvoiceVerification\Domain\Models\AuditLog;
 use App\Modules\InvoiceVerification\Domain\Models\CompiledDocument;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
@@ -163,6 +164,7 @@ class DashboardService
             ->sortByDesc('value')
             ->take(5)
             ->values();
+        $agreementSummary = $this->agreementSummary();
 
         return [
             'trend' => $trend->values()->all(),
@@ -170,17 +172,12 @@ class DashboardService
             'amount_weekly' => $this->amountTrend('weekly'),
             'amount_monthly' => $this->amountTrend('monthly'),
             'amount_yearly' => $this->amountTrend('yearly'),
-            'top_vendors' => $topVendors->isNotEmpty() ? $topVendors->all() : [
-                ['label' => 'PT Sarana Integrasi', 'value' => 28],
-                ['label' => 'CV Metro Teknologi', 'value' => 22],
-                ['label' => 'PT Lintas Prima', 'value' => 18],
-                ['label' => 'PT Cipta Solusi', 'value' => 15],
-                ['label' => 'PT Daya Rekayasa', 'value' => 11],
-            ],
+            'top_vendors' => $topVendors->all(),
+            'agreement_summary' => $agreementSummary,
             'insights' => [
                 'period_change' => $this->percentageChange($currentPeriodTransactions, $previousPeriodTransactions),
                 'total_pending' => $pendingTransactions,
-                'completion_rate' => $totalTransactions > 0 ? round(($completedTransactions / $totalTransactions) * 100, 1) : 76.4,
+                'completion_rate' => $totalTransactions > 0 ? round(($completedTransactions / $totalTransactions) * 100, 1) : 0,
                 'nominal_total' => $this->transactionAmountTotal(),
             ],
         ];
@@ -233,6 +230,41 @@ class DashboardService
             ->with('invoiceMetadata')
             ->get()
             ->sum(fn (Transaction $transaction) => $this->transactionAmount($transaction));
+    }
+
+    private function agreementSummary(): array
+    {
+        $totalValue = (float) AgreementReference::query()->sum('contract_value');
+        $agreementTransactions = Transaction::query()
+            ->with('invoiceMetadata')
+            ->whereNotNull('agreement_reference_id')
+            ->get();
+        $billedValue = (float) $agreementTransactions
+            ->sum(fn (Transaction $transaction) => $this->transactionAmount($transaction));
+        $paidValue = (float) $agreementTransactions
+            ->filter(fn (Transaction $transaction) => in_array($transaction->status, [
+                TransactionStatus::PAID,
+                TransactionStatus::COMPLETED,
+                TransactionStatus::ARCHIVED,
+            ], true))
+            ->sum(fn (Transaction $transaction) => $this->transactionAmount($transaction));
+
+        return [
+            'total_value' => $totalValue,
+            'billed_value' => $billedValue,
+            'paid_value' => $paidValue,
+            'unbilled_value' => max($totalValue - $billedValue, 0),
+            'outstanding_value' => max($billedValue - $paidValue, 0),
+            'agreement_count' => AgreementReference::query()->count(),
+            'billed_transaction_count' => $agreementTransactions->count(),
+            'paid_transaction_count' => $agreementTransactions
+                ->filter(fn (Transaction $transaction) => in_array($transaction->status, [
+                    TransactionStatus::PAID,
+                    TransactionStatus::COMPLETED,
+                    TransactionStatus::ARCHIVED,
+                ], true))
+                ->count(),
+        ];
     }
 
     private function transactionAmount(Transaction $transaction): float

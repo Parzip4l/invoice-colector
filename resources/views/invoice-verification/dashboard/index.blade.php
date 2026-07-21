@@ -4,6 +4,8 @@
 @php
     $periodChange = $analytics['insights']['period_change'];
     $periodTone = $periodChange >= 0 ? 'success' : 'danger';
+    $agreementSummary = $analytics['agreement_summary'];
+    $formatRupiah = fn (float|int|string|null $value) => 'Rp ' . number_format((float) $value, 0, ',', '.');
     $summaryCards = [
         [
             'label' => 'Total Transaksi',
@@ -32,6 +34,43 @@
             'icon' => 'solar:chart-2-outline',
             'tone' => 'success',
             'meta' => $summary['completed_transactions'] . ' transaksi selesai',
+        ],
+    ];
+    $agreementCards = [
+        [
+            'label' => 'Nilai PO / Agreement',
+            'value' => $formatRupiah($agreementSummary['total_value']),
+            'meta' => $agreementSummary['agreement_count'] . ' agreement tersedia',
+            'tone' => 'primary',
+            'icon' => 'solar:document-text-outline',
+        ],
+        [
+            'label' => 'Sudah Ditagihkan',
+            'value' => $formatRupiah($agreementSummary['billed_value']),
+            'meta' => $agreementSummary['billed_transaction_count'] . ' transaksi memakai agreement',
+            'tone' => 'info',
+            'icon' => 'solar:bill-list-outline',
+        ],
+        [
+            'label' => 'Sudah Dibayar',
+            'value' => $formatRupiah($agreementSummary['paid_value']),
+            'meta' => $agreementSummary['paid_transaction_count'] . ' transaksi paid',
+            'tone' => 'success',
+            'icon' => 'solar:wallet-money-outline',
+        ],
+        [
+            'label' => 'Belum Ditagihkan',
+            'value' => $formatRupiah($agreementSummary['unbilled_value']),
+            'meta' => 'Sisa nilai agreement belum jadi transaksi',
+            'tone' => 'warning',
+            'icon' => 'solar:hourglass-line-outline',
+        ],
+        [
+            'label' => 'Outstanding',
+            'value' => $formatRupiah($agreementSummary['outstanding_value']),
+            'meta' => 'Sudah ditagihkan, belum paid',
+            'tone' => 'danger',
+            'icon' => 'solar:danger-triangle-outline',
         ],
     ];
 @endphp
@@ -127,6 +166,29 @@
         padding: 14px 16px;
     }
 
+    .invoice-dashboard .agreement-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .invoice-dashboard .agreement-metric {
+        border: 1px solid var(--iv-border);
+        border-radius: 14px;
+        background: #fff;
+        padding: 16px;
+        min-height: 132px;
+    }
+
+    .invoice-dashboard .agreement-icon {
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+    }
+
     .invoice-dashboard .clean-table thead th {
         border-top: 0;
         border-bottom: 1px solid var(--iv-border);
@@ -163,13 +225,15 @@
     }
 
     @media (max-width: 991.98px) {
-        .invoice-dashboard .stat-strip {
+        .invoice-dashboard .stat-strip,
+        .invoice-dashboard .agreement-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
     }
 
     @media (max-width: 575.98px) {
-        .invoice-dashboard .stat-strip {
+        .invoice-dashboard .stat-strip,
+        .invoice-dashboard .agreement-grid {
             grid-template-columns: 1fr;
         }
 
@@ -235,6 +299,30 @@
         @endforeach
     </div>
 
+    <div class="card analytics-card mb-4">
+        <div class="card-header">
+            <div class="chart-kicker text-primary mb-1">Agreement / PO</div>
+            <h5 class="card-title mb-1">Nilai agreement dan realisasi transaksi</h5>
+            <p class="text-muted mb-0">Nilai agreement menunjukkan PO tersedia; dibayar dihitung setelah transaksi masuk proses finance.</p>
+        </div>
+        <div class="card-body">
+            <div class="agreement-grid">
+                @foreach ($agreementCards as $card)
+                    <div class="agreement-metric">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                            <div class="metric-label text-{{ $card['tone'] }}">{{ $card['label'] }}</div>
+                            <span class="agreement-icon bg-{{ $card['tone'] }}-subtle text-{{ $card['tone'] }}">
+                                <iconify-icon icon="{{ $card['icon'] }}" class="fs-20"></iconify-icon>
+                            </span>
+                        </div>
+                        <div class="h5 fw-bold mb-1">{{ $card['value'] }}</div>
+                        <div class="text-muted small">{{ $card['meta'] }}</div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    </div>
+
     <div class="row g-4">
         <div class="col-xl-8">
             <div class="card analytics-card h-100 mb-0">
@@ -259,7 +347,7 @@
                 <div class="card-header">
                     <div class="chart-kicker text-primary mb-1">Distribusi Status</div>
                     <h5 class="card-title mb-1">Komposisi transaksi aktif</h5>
-                    <p class="text-muted mb-0">Status real-time dengan fallback data demo.</p>
+                    <p class="text-muted mb-0">Status real-time berdasarkan transaksi tersimpan.</p>
                 </div>
                 <div class="card-body">
                     <div id="iv-status-donut" class="apex-charts"></div>

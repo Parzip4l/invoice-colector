@@ -43,6 +43,17 @@ function renderChart(selector, options) {
     new ApexCharts(target, options).render();
 }
 
+function renderNoData(selector, message = "Belum ada data.") {
+    const target = document.querySelector(selector);
+
+    if (!target) {
+        return;
+    }
+
+    target.classList.add("d-flex", "align-items-center", "justify-content-center", "text-muted");
+    target.innerHTML = `<div>${message}</div>`;
+}
+
 renderChart("#iv-transaction-trend", {
     chart: {
         ...chartDefaults,
@@ -97,41 +108,45 @@ renderChart("#iv-transaction-trend", {
     },
 });
 
-renderChart("#iv-status-donut", {
-    chart: {
-        ...chartDefaults,
-        type: "donut",
-        height: 288,
-    },
-    series: values(analytics.status_distribution),
-    labels: labels(analytics.status_distribution),
-    colors: [palette.primary, palette.warning, palette.info, palette.success, palette.danger, "#8b5cf6"],
-    stroke: {
-        width: 3,
-        colors: ["#ffffff"],
-    },
-    plotOptions: {
-        pie: {
-            donut: {
-                size: "68%",
-                labels: {
-                    show: true,
-                    total: {
+if (values(analytics.status_distribution).some((value) => value > 0)) {
+    renderChart("#iv-status-donut", {
+        chart: {
+            ...chartDefaults,
+            type: "donut",
+            height: 288,
+        },
+        series: values(analytics.status_distribution),
+        labels: labels(analytics.status_distribution),
+        colors: [palette.primary, palette.warning, palette.info, palette.success, palette.danger, "#8b5cf6"],
+        stroke: {
+            width: 3,
+            colors: ["#ffffff"],
+        },
+        plotOptions: {
+            pie: {
+                donut: {
+                    size: "68%",
+                    labels: {
                         show: true,
-                        label: "Total",
-                        formatter: (chart) => chart.globals.seriesTotals.reduce((total, value) => total + value, 0),
+                        total: {
+                            show: true,
+                            label: "Total",
+                            formatter: (chart) => chart.globals.seriesTotals.reduce((total, value) => total + value, 0),
+                        },
                     },
                 },
             },
         },
-    },
-    legend: {
-        position: "bottom",
-        fontSize: "12px",
-        markers: { radius: 8 },
-    },
-    dataLabels: { enabled: false },
-});
+        legend: {
+            position: "bottom",
+            fontSize: "12px",
+            markers: { radius: 8 },
+        },
+        dataLabels: { enabled: false },
+    });
+} else {
+    renderNoData("#iv-status-donut", "Belum ada transaksi.");
+}
 
 function renderAmountChart(selector, items, title, color, type = "bar") {
     renderChart(selector, {

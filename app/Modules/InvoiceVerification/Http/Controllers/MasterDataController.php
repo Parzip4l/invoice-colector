@@ -298,6 +298,41 @@ class MasterDataController extends Controller
 
         abort_if($user->hasRole(RoleCode::VENDOR), 404);
 
+        if ($request->hasAny(['name', 'email', 'role_code', 'division_id', 'department_id', 'ldap_uid', 'employee_number'])) {
+            $payload = $request->validate([
+                'name' => ['required', 'string', 'max:255'],
+                'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+                'ldap_uid' => ['nullable', 'string', 'max:255'],
+                'employee_number' => ['nullable', 'string', 'max:255'],
+                'role_code' => [
+                    'required',
+                    Rule::in(
+                        collect(RoleCode::cases())
+                            ->reject(fn (RoleCode $role) => $role === RoleCode::VENDOR)
+                            ->map(fn (RoleCode $role) => $role->value)
+                            ->all(),
+                    ),
+                ],
+                'division_id' => ['nullable', 'exists:divisions,id'],
+                'department_id' => ['nullable', 'exists:departments,id'],
+                'is_active' => ['nullable', 'boolean'],
+            ]);
+
+            $user->forceFill([
+                'name' => $payload['name'],
+                'email' => Str::lower($payload['email']),
+                'ldap_uid' => $payload['ldap_uid'] ?? null,
+                'employee_number' => $payload['employee_number'] ?? null,
+                'role_code' => $payload['role_code'],
+                'division_id' => $payload['division_id'] ?? null,
+                'department_id' => $payload['department_id'] ?? null,
+                'is_active' => $request->boolean('is_active'),
+                'last_synced_at' => now(),
+            ])->save();
+
+            return back()->with('success', 'Whitelist LDAP berhasil diperbarui.');
+        }
+
         $payload = $request->validate([
             'is_active' => ['required', 'boolean'],
         ]);

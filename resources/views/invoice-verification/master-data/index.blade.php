@@ -558,7 +558,23 @@
                                             </span>
                                         </td>
                                         <td class="text-end">
-                                            <button class="btn btn-sm btn-light table-action" type="button" title="Edit" data-bs-toggle="offcanvas" data-bs-target="#ldapDrawer">
+                                            <button
+                                                class="btn btn-sm btn-light table-action"
+                                                type="button"
+                                                title="Edit"
+                                                data-bs-toggle="offcanvas"
+                                                data-bs-target="#ldapDrawer"
+                                                data-ldap-edit
+                                                data-action="{{ route('invoice-verification.master-data.ldap-whitelist.update', $internalUser) }}"
+                                                data-name="{{ $internalUser->name }}"
+                                                data-email="{{ $internalUser->email }}"
+                                                data-role-code="{{ $internalUser->role_code?->value }}"
+                                                data-division-id="{{ $internalUser->division_id }}"
+                                                data-department-id="{{ $internalUser->department_id }}"
+                                                data-ldap-uid="{{ $internalUser->ldap_uid }}"
+                                                data-employee-number="{{ $internalUser->employee_number }}"
+                                                data-is-active="{{ $internalUser->is_active ? '1' : '0' }}"
+                                            >
                                                 <iconify-icon icon="solar:pen-outline" class="fs-18"></iconify-icon>
                                             </button>
                                             <form method="POST" action="{{ route('invoice-verification.master-data.ldap-whitelist.update', $internalUser) }}" class="d-inline" data-confirm-form data-confirm-message="{{ $internalUser->is_active ? 'Nonaktifkan akses LDAP user ini?' : 'Aktifkan akses LDAP user ini?' }}">
@@ -859,23 +875,24 @@
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
-    <form method="POST" action="{{ route('invoice-verification.master-data.ldap-whitelist.store') }}" class="d-flex flex-column h-100">
+    <form method="POST" action="{{ route('invoice-verification.master-data.ldap-whitelist.store') }}" class="d-flex flex-column h-100" id="ldapForm" data-store-action="{{ route('invoice-verification.master-data.ldap-whitelist.store') }}">
         @csrf
+        <input type="hidden" name="_method" value="PATCH" data-ldap-method disabled>
         <div class="offcanvas-body">
             <div class="row g-3">
-                <div class="col-12"><label class="form-label">Nama User</label><input class="form-control @error('name') is-invalid @enderror" name="name" value="{{ old('name') }}">@error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
-                <div class="col-12"><label class="form-label">Email LDAP</label><input class="form-control @error('email') is-invalid @enderror" type="email" name="email" value="{{ old('email') }}">@error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
-                <div class="col-12"><label class="form-label">Role</label><select class="form-select @error('role_code') is-invalid @enderror" name="role_code">@foreach ($roleOptions as $role)<option value="{{ $role->value }}" @selected(old('role_code') === $role->value)>{{ $role->label() }}</option>@endforeach</select>@error('role_code')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
-                <div class="col-12"><label class="form-label">Divisi</label><select class="form-select" name="division_id"><option value="">Pilih divisi</option>@foreach ($divisions as $division)<option value="{{ $division->id }}" @selected(old('division_id') === $division->id)>{{ $division->name }}</option>@endforeach</select></div>
-                <div class="col-12"><label class="form-label">Departemen</label><select class="form-select" name="department_id"><option value="">Pilih departemen</option>@foreach ($departments as $department)<option value="{{ $department->id }}" @selected(old('department_id') === $department->id)>{{ $department->name }}</option>@endforeach</select></div>
-                <div class="col-6"><label class="form-label">LDAP UID</label><input class="form-control" name="ldap_uid" value="{{ old('ldap_uid') }}"></div>
-                <div class="col-6"><label class="form-label">NIP</label><input class="form-control" name="employee_number" value="{{ old('employee_number') }}"></div>
-                <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="is_active" value="1" id="ldap-user-active" @checked(old('is_active', '1'))><label class="form-check-label" for="ldap-user-active">Active</label></div></div>
+                <div class="col-12"><label class="form-label">Nama User</label><input class="form-control @error('name') is-invalid @enderror" name="name" value="{{ old('name') }}" data-ldap-field="name">@error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
+                <div class="col-12"><label class="form-label">Email LDAP</label><input class="form-control @error('email') is-invalid @enderror" type="email" name="email" value="{{ old('email') }}" data-ldap-field="email">@error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
+                <div class="col-12"><label class="form-label">Role</label><select class="form-select @error('role_code') is-invalid @enderror" name="role_code" data-ldap-field="roleCode">@foreach ($roleOptions as $role)<option value="{{ $role->value }}" @selected(old('role_code') === $role->value)>{{ $role->label() }}</option>@endforeach</select>@error('role_code')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
+                <div class="col-12"><label class="form-label">Divisi</label><select class="form-select" name="division_id" data-ldap-field="divisionId"><option value="">Pilih divisi</option>@foreach ($divisions as $division)<option value="{{ $division->id }}" @selected(old('division_id') === $division->id)>{{ $division->name }}</option>@endforeach</select></div>
+                <div class="col-12"><label class="form-label">Departemen</label><select class="form-select" name="department_id" data-ldap-field="departmentId"><option value="">Pilih departemen</option>@foreach ($departments as $department)<option value="{{ $department->id }}" @selected(old('department_id') === $department->id)>{{ $department->name }}</option>@endforeach</select></div>
+                <div class="col-6"><label class="form-label">LDAP UID</label><input class="form-control" name="ldap_uid" value="{{ old('ldap_uid') }}" data-ldap-field="ldapUid"></div>
+                <div class="col-6"><label class="form-label">NIP</label><input class="form-control" name="employee_number" value="{{ old('employee_number') }}" data-ldap-field="employeeNumber"></div>
+                <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="is_active" value="1" id="ldap-user-active" @checked(old('is_active', '1')) data-ldap-field="isActive"><label class="form-check-label" for="ldap-user-active">Active</label></div></div>
             </div>
         </div>
         <div class="drawer-footer d-flex justify-content-end gap-2">
             <button type="button" class="btn btn-light" data-bs-dismiss="offcanvas">Cancel</button>
-            <button type="submit" class="btn btn-primary">Simpan Whitelist</button>
+            <button type="submit" class="btn btn-primary" data-ldap-submit>Simpan Whitelist</button>
         </div>
     </form>
 </div>
@@ -977,6 +994,9 @@
         const vendorForm = document.getElementById('vendorForm');
         const vendorMethod = document.querySelector('[data-vendor-method]');
         const vendorSubmit = document.querySelector('[data-vendor-submit]');
+        const ldapForm = document.getElementById('ldapForm');
+        const ldapMethod = document.querySelector('[data-ldap-method]');
+        const ldapSubmit = document.querySelector('[data-ldap-submit]');
         let activeTab = 'vendors';
         let pendingForm = null;
 
@@ -1098,6 +1118,45 @@
             });
         }
 
+        function setLdapModeCreate() {
+            if (!ldapForm) return;
+            ldapForm.action = ldapForm.dataset.storeAction;
+            ldapForm.reset();
+            if (ldapMethod) ldapMethod.disabled = true;
+            const active = ldapForm.querySelector('[data-ldap-field="isActive"]');
+            if (active) active.checked = true;
+            const title = document.getElementById('ldapDrawerLabel');
+            if (title) title.textContent = 'Tambah LDAP User';
+            if (ldapSubmit) ldapSubmit.textContent = 'Simpan Whitelist';
+        }
+
+        function setLdapModeEdit(button) {
+            if (!ldapForm) return;
+            ldapForm.action = button.dataset.action;
+            if (ldapMethod) ldapMethod.disabled = false;
+            const title = document.getElementById('ldapDrawerLabel');
+            if (title) title.textContent = 'Edit LDAP User';
+            if (ldapSubmit) ldapSubmit.textContent = 'Simpan Perubahan';
+
+            const fields = {
+                name: button.dataset.name || '',
+                email: button.dataset.email || '',
+                roleCode: button.dataset.roleCode || '',
+                divisionId: button.dataset.divisionId || '',
+                departmentId: button.dataset.departmentId || '',
+                ldapUid: button.dataset.ldapUid || '',
+                employeeNumber: button.dataset.employeeNumber || '',
+            };
+
+            Object.entries(fields).forEach(function ([key, value]) {
+                const input = ldapForm.querySelector('[data-ldap-field="' + key + '"]');
+                if (input) input.value = value;
+            });
+
+            const active = ldapForm.querySelector('[data-ldap-field="isActive"]');
+            if (active) active.checked = button.dataset.isActive === '1';
+        }
+
         function filterRows() {
             const panel = activePanel();
             if (!panel) return;
@@ -1158,6 +1217,8 @@
                     setVendorModeCreate();
                 } else if (activeTab === 'organization') {
                     setDepartmentModeCreate();
+                } else if (activeTab === 'ldap') {
+                    setLdapModeCreate();
                 }
             });
         });
@@ -1185,6 +1246,12 @@
         document.querySelectorAll('[data-vendor-edit]').forEach(function (button) {
             button.addEventListener('click', function () {
                 setVendorModeEdit(button);
+            });
+        });
+
+        document.querySelectorAll('[data-ldap-edit]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                setLdapModeEdit(button);
             });
         });
 

@@ -4,7 +4,6 @@ namespace App\Modules\InvoiceVerification\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
-use App\Modules\InvoiceVerification\Http\Requests\PpaVerificationDecisionRequest;
 use App\Modules\InvoiceVerification\Http\Requests\SavePpaVerificationSheetRequest;
 use App\Modules\InvoiceVerification\Services\PpaVerificationSheetService;
 use Illuminate\Support\Facades\Storage;
@@ -67,20 +66,7 @@ class PpaVerificationSheetController extends Controller
 
         return redirect()
             ->route('invoice-verification.transactions.show', $transaction)
-            ->with('success', 'Lembar verifikasi PPA berhasil diajukan untuk approval.');
+            ->with('success', 'Lembar verifikasi PPA berhasil disubmit.');
     }
 
-    public function decision(PpaVerificationDecisionRequest $request, Transaction $transaction)
-    {
-        $this->ppaVerificationSheetService->approve(
-            $transaction,
-            $request->user(),
-            $request->validated('decision') === 'APPROVED',
-            $request->validated('notes'),
-        );
-
-        return redirect()
-            ->route('invoice-verification.transactions.show', $transaction)
-            ->with('success', 'Keputusan lembar verifikasi PPA berhasil disimpan.');
-    }
 }

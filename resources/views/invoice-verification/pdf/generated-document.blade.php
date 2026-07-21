@@ -85,13 +85,13 @@
     <table class="signatures">
         <tr>
             <td>
-                Kepala Departemen<br>{{ $transaction->department?->name ?? '-' }}
+                Admin Divisi<br>{{ $transaction->department?->name ?? '-' }}
                 <br><br><br><br>
                 <strong class="muted">________________________</strong>
             </td>
             <td>
                 Jakarta, {{ $generatedAt->format('d M Y') }}<br>
-                Kepala Divisi<br>{{ $transaction->division?->name ?? '-' }}
+                Akuntansi<br>{{ $transaction->division?->name ?? '-' }}
                 <br><br><br><br>
                 <strong class="muted">________________________</strong>
             </td>

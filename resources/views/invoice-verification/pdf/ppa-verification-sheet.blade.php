@@ -73,7 +73,7 @@
 <table class="signatures">
     <tr>
         <td>
-            Kepala Divisi<br>{{ $transaction?->division?->name ?? '-' }}
+            Admin Divisi<br>{{ $transaction?->division?->name ?? '-' }}
             <br><br><br><br>
             ________________________
         </td>

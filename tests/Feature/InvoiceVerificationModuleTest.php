@@ -167,7 +167,7 @@ class InvoiceVerificationModuleTest extends TestCase
         Storage::disk($memoRequest->file_disk)->assertExists($memoRequest->file_path);
     }
 
-    public function test_admin_review_starts_kadep_kadiv_then_admin_generates_ppa_documents(): void
+    public function test_admin_review_sends_transaction_directly_to_admin_document_generation(): void
     {
         Storage::fake(config('invoice_verification.storage.documents_disk', 'public'));
 
@@ -183,34 +183,10 @@ class InvoiceVerificationModuleTest extends TestCase
         $response->assertRedirect(route('invoice-verification.vendor-reviews.index'));
 
         $transaction->refresh();
-        $this->assertSame('WAITING_APPROVAL', $transaction->status->value);
-        $this->assertSame('KADEP_REVIEW', $transaction->current_step->value);
-        $this->assertSame(0, $transaction->generatedDocuments()->count());
-        $this->assertSame(2, $transaction->approvalTransactions()->count());
-
-        $kadepApproval = $transaction->approvalTransactions()
-            ->whereHas('approvalFlow', fn ($query) => $query->where('step_code', 'KEPALA_DEPARTEMEN'))
-            ->firstOrFail();
-        $kadep = User::where('email', 'kepala.departemen@demo.local')->firstOrFail();
-
-        $this->actingAs($kadep)->put(route('invoice-verification.approvals.update', $kadepApproval), [
-            'status' => 'APPROVED',
-        ])->assertRedirect(route('invoice-verification.approvals.index'));
-
-        $transaction->refresh();
-        $this->assertSame('KADIV_REVIEW', $transaction->current_step->value);
-
-        $kadivApproval = $transaction->approvalTransactions()
-            ->whereHas('approvalFlow', fn ($query) => $query->where('step_code', 'KEPALA_DIVISI'))
-            ->firstOrFail();
-        $kadiv = User::where('email', 'kepala.divisi@demo.local')->firstOrFail();
-
-        $this->actingAs($kadiv)->put(route('invoice-verification.approvals.update', $kadivApproval), [
-            'status' => 'APPROVED',
-        ])->assertRedirect(route('invoice-verification.approvals.index'));
-
-        $transaction->refresh();
         $this->assertSame('ADMIN_GENERATE_DOCUMENTS', $transaction->status->value);
+        $this->assertSame('INITIAL_DOCUMENT_GENERATION', $transaction->current_step->value);
+        $this->assertSame(0, $transaction->generatedDocuments()->count());
+        $this->assertSame(0, $transaction->approvalTransactions()->count());
 
         $this->actingAs($admin)->post(route('invoice-verification.transactions.admin-documents.generate', $transaction))
             ->assertRedirect(route('invoice-verification.transactions.show', $transaction));
@@ -253,7 +229,7 @@ class InvoiceVerificationModuleTest extends TestCase
             'status' => 'ACCEPTED',
         ]);
 
-        $this->approveKadepKadivAndGenerateAdminDocuments($transaction->fresh(), $admin);
+        $this->generateAdminDocuments($transaction->fresh(), $admin);
 
         $generatedDocument = $transaction->fresh('generatedDocuments')->generatedDocuments()->firstOrFail();
 
@@ -654,26 +630,8 @@ class InvoiceVerificationModuleTest extends TestCase
             ->firstOrFail();
     }
 
-    protected function approveKadepKadivAndGenerateAdminDocuments(Transaction $transaction, User $admin): void
+    protected function generateAdminDocuments(Transaction $transaction, User $admin): void
     {
-        $kadepApproval = $transaction->approvalTransactions()
-            ->whereHas('approvalFlow', fn ($query) => $query->where('step_code', 'KEPALA_DEPARTEMEN'))
-            ->firstOrFail();
-        $kadep = User::where('email', 'kepala.departemen@demo.local')->firstOrFail();
-
-        $this->actingAs($kadep)->put(route('invoice-verification.approvals.update', $kadepApproval), [
-            'status' => 'APPROVED',
-        ])->assertRedirect(route('invoice-verification.approvals.index'));
-
-        $kadivApproval = $transaction->approvalTransactions()
-            ->whereHas('approvalFlow', fn ($query) => $query->where('step_code', 'KEPALA_DIVISI'))
-            ->firstOrFail();
-        $kadiv = User::where('email', 'kepala.divisi@demo.local')->firstOrFail();
-
-        $this->actingAs($kadiv)->put(route('invoice-verification.approvals.update', $kadivApproval), [
-            'status' => 'APPROVED',
-        ])->assertRedirect(route('invoice-verification.approvals.index'));
-
         $this->actingAs($admin)->post(route('invoice-verification.transactions.admin-documents.generate', $transaction->fresh()))
             ->assertRedirect(route('invoice-verification.transactions.show', $transaction));
     }

@@ -11,7 +11,7 @@
             'can' => [
                 'Mengelola vendor, organisasi, LDAP whitelist, memo, agreement, dan template dokumen.',
                 'Melihat seluruh transaksi yang relevan untuk proses verifikasi.',
-                'Generate dokumen administrasi saat approval Kepala Departemen dan Kepala Divisi selesai.',
+                'Generate dokumen administrasi setelah dokumen vendor dinyatakan lengkap.',
                 'Mengelola numbering register, dokumen kompilasi, arsip, dan log audit.',
             ],
             'steps' => [
@@ -91,40 +91,6 @@
                 'Isi atau perbarui jadwal pembayaran sesuai rencana bayar.',
                 'Upload bukti pembayaran setelah pembayaran dilakukan.',
                 'Tandai Paid agar nilai transaksi dihitung sebagai sudah dibayar di dashboard.',
-            ],
-        ],
-        [
-            'role' => 'Kepala Departemen',
-            'badge' => 'KEPALA_DEPARTEMEN',
-            'icon' => 'solar:user-check-outline',
-            'summary' => 'Memberikan approval tahap departemen untuk transaksi PPA atau review transaksi yang ditugaskan.',
-            'can' => [
-                'Melihat daftar approval yang ditugaskan.',
-                'Menyetujui transaksi atau dokumen yang menunggu review Kepala Departemen.',
-                'Menolak approval dengan catatan agar transaksi dikembalikan untuk revisi.',
-            ],
-            'steps' => [
-                'Buka menu Approval atau Kadep Review.',
-                'Periksa detail transaksi, nominal, vendor, dan dokumen pendukung.',
-                'Pilih Approve jika sesuai.',
-                'Pilih Reject jika perlu revisi, lalu isi catatan agar pihak pembuat memahami perbaikannya.',
-            ],
-        ],
-        [
-            'role' => 'Kepala Divisi',
-            'badge' => 'KEPALA_DIVISI',
-            'icon' => 'solar:user-check-rounded-outline',
-            'summary' => 'Memberikan approval tahap divisi setelah approval Kepala Departemen selesai.',
-            'can' => [
-                'Melihat approval yang ditugaskan pada level divisi.',
-                'Menyetujui transaksi setelah tahap Kepala Departemen selesai.',
-                'Menolak approval dengan catatan untuk revisi.',
-            ],
-            'steps' => [
-                'Buka menu Approval atau Kadiv Review.',
-                'Cek detail transaksi, dokumen, dan catatan approval sebelumnya.',
-                'Approve jika transaksi sudah sesuai kebijakan divisi.',
-                'Reject dengan catatan jika transaksi perlu dikembalikan.',
             ],
         ],
     ];

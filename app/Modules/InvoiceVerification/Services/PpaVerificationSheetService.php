@@ -18,7 +18,6 @@ use Illuminate\Validation\ValidationException;
 class PpaVerificationSheetService
 {
     public function __construct(
-        protected ApprovalWorkflowService $approvalWorkflowService,
         protected AuditLogService $auditLogService,
         protected TransactionLifecycleService $transactionLifecycleService,
         protected PpaVerificationSheetPdfGenerator $pdfGenerator,
@@ -128,13 +127,12 @@ class PpaVerificationSheetService
         $pdf = $this->pdfGenerator->generate($sheet->fresh('transaction', 'items.documentType'));
         $sheet->update($pdf);
 
-        $this->approvalWorkflowService->bootstrapForPpaVerificationSheet($transaction);
         $this->transactionLifecycleService->transition(
             $transaction,
-            TransactionStatus::WAITING_APPROVAL,
-            TransactionStep::INITIAL_APPROVAL,
+            TransactionStatus::DOCUMENT_COLLECTION,
+            TransactionStep::INTERNAL_DOCUMENT_UPLOAD,
             $actor,
-            'Lembar verifikasi PPA diajukan untuk approval Kepala Divisi.',
+            'Lembar verifikasi PPA disubmit. Transaksi lanjut ke pengumpulan dokumen internal.',
         );
 
         $this->auditLogService->log(
@@ -185,38 +183,6 @@ class PpaVerificationSheetService
 
             return $sheet->fresh('items.documentType');
         });
-    }
-
-    public function approve(Transaction $transaction, User $actor, bool $approved, ?string $notes = null): PpaVerificationSheet
-    {
-        $sheet = $transaction->ppaVerificationSheet()->firstOrFail();
-
-        $sheet->update([
-            'status' => $approved ? PpaVerificationSheetStatus::APPROVED : PpaVerificationSheetStatus::REJECTED,
-            'approved_by_user_id' => $actor->id,
-            'approved_at' => $approved ? now() : null,
-            'rejection_notes' => $approved ? null : $notes,
-        ]);
-
-        $this->transactionLifecycleService->transition(
-            $transaction,
-            $approved ? TransactionStatus::DOCUMENT_COLLECTION : TransactionStatus::REVISION_IN_PROGRESS,
-            $approved ? TransactionStep::INTERNAL_DOCUMENT_UPLOAD : TransactionStep::INITIAL_APPROVAL,
-            $actor,
-            $approved ? 'Lembar verifikasi PPA disetujui.' : ($notes ?: 'Lembar verifikasi PPA ditolak.'),
-        );
-
-        $this->auditLogService->log(
-            module: 'ppa-verification-sheet',
-            action: $approved ? 'approve' : 'reject',
-            actor: $actor,
-            transaction: $transaction,
-            referenceType: PpaVerificationSheet::class,
-            referenceId: $sheet->id,
-            newValue: ['status' => $sheet->status->value, 'notes' => $notes],
-        );
-
-        return $sheet->fresh('items.documentType');
     }
 
     public function mismatchSummary(Transaction $transaction): array

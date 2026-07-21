@@ -24,8 +24,6 @@ return [
     ],
     'roles' => [
         'ADMIN_DIVISI' => 'Admin Divisi',
-        'KEPALA_DEPARTEMEN' => 'Kepala Departemen',
-        'KEPALA_DIVISI' => 'Kepala Divisi',
         'USER_DIVISI' => 'User Divisi',
         'VENDOR' => 'Vendor',
         'AKUNTANSI' => 'Akuntansi',

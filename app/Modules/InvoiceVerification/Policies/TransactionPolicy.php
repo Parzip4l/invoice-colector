@@ -13,8 +13,6 @@ class TransactionPolicy
     {
         return $user->hasRole(
             RoleCode::ADMIN_DIVISI,
-            RoleCode::KEPALA_DEPARTEMEN,
-            RoleCode::KEPALA_DIVISI,
             RoleCode::USER_DIVISI,
             RoleCode::VENDOR,
             RoleCode::AKUNTANSI,

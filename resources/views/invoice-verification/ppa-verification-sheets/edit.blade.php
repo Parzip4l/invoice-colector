@@ -13,21 +13,8 @@
         <div class="d-flex gap-2">
             <form method="POST" action="{{ route('invoice-verification.transactions.ppa-verification-sheets.submit', $transaction) }}">
                 @csrf
-                <button class="btn btn-primary">Submit for Approval</button>
+                <button class="btn btn-primary">Submit Checklist</button>
             </form>
-            @if (auth()->user()?->role_code?->value === 'KEPALA_DIVISI')
-                <form method="POST" action="{{ route('invoice-verification.transactions.ppa-verification-sheets.decision', $transaction) }}">
-                    @csrf
-                    <input type="hidden" name="decision" value="APPROVED">
-                    <button class="btn btn-success">Approve</button>
-                </form>
-                <form method="POST" action="{{ route('invoice-verification.transactions.ppa-verification-sheets.decision', $transaction) }}">
-                    @csrf
-                    <input type="hidden" name="decision" value="REJECTED">
-                    <input type="hidden" name="notes" value="Checklist belum sesuai dengan dokumen pendukung.">
-                    <button class="btn btn-outline-danger">Reject</button>
-                </form>
-            @endif
         </div>
     </div>
     <div class="card-body">

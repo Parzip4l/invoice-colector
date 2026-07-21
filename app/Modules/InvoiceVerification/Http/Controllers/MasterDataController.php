@@ -146,7 +146,11 @@ class MasterDataController extends Controller
             'vendorOptions' => Vendor::query()->orderBy('name')->get(['id', 'name']),
             'internalUsers' => $internalUsers,
             'roleOptions' => collect(RoleCode::cases())
-                ->reject(fn (RoleCode $role) => $role === RoleCode::VENDOR)
+                ->reject(fn (RoleCode $role) => in_array($role, [
+                    RoleCode::VENDOR,
+                    RoleCode::KEPALA_DEPARTEMEN,
+                    RoleCode::KEPALA_DIVISI,
+                ], true))
                 ->values(),
             'memoRequests' => $memoRequests,
             'agreementReferences' => $agreementReferences,
@@ -341,7 +345,11 @@ class MasterDataController extends Controller
                 'required',
                 Rule::in(
                     collect(RoleCode::cases())
-                        ->reject(fn (RoleCode $role) => $role === RoleCode::VENDOR)
+                        ->reject(fn (RoleCode $role) => in_array($role, [
+                            RoleCode::VENDOR,
+                            RoleCode::KEPALA_DEPARTEMEN,
+                            RoleCode::KEPALA_DIVISI,
+                        ], true))
                         ->map(fn (RoleCode $role) => $role->value)
                         ->all(),
                 ),
@@ -403,7 +411,11 @@ class MasterDataController extends Controller
                     'required',
                     Rule::in(
                         collect(RoleCode::cases())
-                            ->reject(fn (RoleCode $role) => $role === RoleCode::VENDOR)
+                            ->reject(fn (RoleCode $role) => in_array($role, [
+                                RoleCode::VENDOR,
+                                RoleCode::KEPALA_DEPARTEMEN,
+                                RoleCode::KEPALA_DIVISI,
+                            ], true))
                             ->map(fn (RoleCode $role) => $role->value)
                             ->all(),
                     ),

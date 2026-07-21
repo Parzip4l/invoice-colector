@@ -14,7 +14,6 @@ use App\Modules\InvoiceVerification\Domain\Models\Transaction;
 class GeneratedDocumentService
 {
     public function __construct(
-        protected ApprovalWorkflowService $approvalWorkflowService,
         protected AuditLogService $auditLogService,
         protected GeneratedDocumentPdfService $generatedDocumentPdfService,
     ) {

@@ -16,7 +16,6 @@ class VendorDocumentReviewService
     public function __construct(
         protected AuditLogService $auditLogService,
         protected TransactionLifecycleService $transactionLifecycleService,
-        protected ApprovalWorkflowService $approvalWorkflowService,
     ) {
     }
 
@@ -53,20 +52,16 @@ class VendorDocumentReviewService
                 ->where('status', TransactionDocumentStatus::REVISION_REQUIRED)
                 ->exists();
 
-            if ($status === VendorDocumentReviewStatus::ACCEPTED && $pendingVendorDocuments === 0 && ! $hasRejectedVendorDocuments) {
-                $this->approvalWorkflowService->bootstrapForTransactionReview($transaction->fresh('transactionType'));
-            }
-
             $this->transactionLifecycleService->transition(
                 $transaction,
                 $status === VendorDocumentReviewStatus::REVISION_REQUIRED
                     ? TransactionStatus::REVISION_IN_PROGRESS
-                    : ($pendingVendorDocuments > 0 ? TransactionStatus::ADMIN_REVIEW : TransactionStatus::WAITING_APPROVAL),
+                    : ($pendingVendorDocuments > 0 ? TransactionStatus::ADMIN_REVIEW : TransactionStatus::ADMIN_GENERATE_DOCUMENTS),
                 $status === VendorDocumentReviewStatus::REVISION_REQUIRED
                     ? TransactionStep::VENDOR_DOCUMENT_REVIEW
-                    : ($pendingVendorDocuments > 0 ? TransactionStep::ADMIN_DOCUMENT_REVIEW : TransactionStep::KADEP_REVIEW),
+                    : ($pendingVendorDocuments > 0 ? TransactionStep::ADMIN_DOCUMENT_REVIEW : TransactionStep::INITIAL_DOCUMENT_GENERATION),
                 $actor,
-                $notes ?: ($pendingVendorDocuments > 0 ? 'Review dokumen vendor diperbarui.' : 'Seluruh dokumen vendor disetujui. Transaksi diajukan ke Kepala Departemen.'),
+                $notes ?: ($pendingVendorDocuments > 0 ? 'Review dokumen vendor diperbarui.' : 'Seluruh dokumen vendor disetujui. Transaksi siap generate dokumen administrasi.'),
             );
 
             $this->auditLogService->log(

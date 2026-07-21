@@ -18,9 +18,4 @@ class PpaVerificationSheetPolicy
         return $user->hasRole(RoleCode::USER_DIVISI);
     }
 
-    public function approve(User $user, PpaVerificationSheet $sheet): bool
-    {
-        return $user->hasRole(RoleCode::KEPALA_DIVISI)
-            && $user->division_id === $sheet->transaction->division_id;
-    }
 }

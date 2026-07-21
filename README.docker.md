@@ -59,3 +59,35 @@ docker compose --env-file .env.production -f docker-compose.prod.yml exec app ph
   --division-code=DIV-OPS \
   --department-code=DEP-OPS-ADM
 ```
+
+## Import Data E-Procurement Sementara
+
+Selama API e-proc belum tersedia, export Excel bisa dikonversi ke CSV lalu diimport ke master data lokal:
+
+- `eproc_vendors.csv` mengisi `vendors` dari data vendor aktif.
+- `eproc_purchasing_po.csv` mengisi `agreement_references` dari ringkasan PO/pengadaan.
+
+Copy CSV ke server host:
+
+```sh
+scp eproc_vendors.csv eproc_purchasing_po.csv root@SERVER:/var/www/invoice-colector/storage/app/imports/
+```
+
+Masukkan CSV ke container production:
+
+```sh
+docker compose --env-file .env.production -f docker-compose.prod.yml exec app mkdir -p /var/www/html/storage/app/imports
+docker cp storage/app/imports/eproc_vendors.csv invoice-collector-production-app:/var/www/html/storage/app/imports/eproc_vendors.csv
+docker cp storage/app/imports/eproc_purchasing_po.csv invoice-collector-production-app:/var/www/html/storage/app/imports/eproc_purchasing_po.csv
+```
+
+Jalankan import di server:
+
+```sh
+docker compose --env-file .env.production -f docker-compose.prod.yml exec app php artisan eproc:import-csv \
+  --vendors=/var/www/html/storage/app/imports/eproc_vendors.csv \
+  --purchasing=/var/www/html/storage/app/imports/eproc_purchasing_po.csv \
+  --division-code=EPROC \
+  --division-name="E-Procurement" \
+  --created-by=muhamad.sobirin@lrtjakarta.co.id
+```

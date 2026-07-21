@@ -84,6 +84,7 @@ Route::group(['prefix' => '/', 'middleware' => 'auth'], function () {
             Route::get('/master-data/memo-requests/{memoRequest}/preview', [MasterDataController::class, 'previewMemo'])->name('master-data.memo-requests.preview');
             Route::get('/master-data/memo-requests/{memoRequest}/download', [MasterDataController::class, 'downloadMemo'])->name('master-data.memo-requests.download');
             Route::post('/master-data/agreement-references', [MasterDataController::class, 'storeAgreement'])->name('master-data.agreement-references.store');
+            Route::post('/master-data/agreement-references/{agreementReference}/file', [MasterDataController::class, 'updateAgreementFile'])->name('master-data.agreement-references.file.update');
             Route::get('/master-data/agreement-references/{agreementReference}/preview', [MasterDataController::class, 'previewAgreement'])->name('master-data.agreement-references.preview');
             Route::get('/master-data/agreement-references/{agreementReference}/download', [MasterDataController::class, 'downloadAgreement'])->name('master-data.agreement-references.download');
             Route::post('/master-data/template-references', [MasterDataController::class, 'storeTemplate'])->name('master-data.template-references.store');

@@ -701,6 +701,17 @@
                                         <td>{{ $agreement->vendor?->name ?? '-' }}</td>
                                         <td>{{ number_format((float) $agreement->contract_value, 2, ',', '.') }}</td>
                                         <td class="text-end">
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm btn-light table-action"
+                                                title="Detail"
+                                                data-bs-toggle="offcanvas"
+                                                data-bs-target="#vendorDetailDrawer"
+                                                data-detail-title="Agreement - {{ $agreement->contract_number }}"
+                                                data-detail-body="Vendor: {{ $agreement->vendor?->name ?? '-' }}|Divisi: {{ $agreement->division?->name ?? '-' }}|Department: {{ $agreement->department?->name ?? '-' }}|Nilai: {{ number_format((float) $agreement->contract_value, 2, ',', '.') }}|Tanggal Efektif: {{ $agreement->effective_date?->format('d M Y') ?? '-' }}|File: {{ $agreement->file_name ?? 'Belum ada file' }}"
+                                            >
+                                                <iconify-icon icon="solar:document-text-outline" class="fs-18"></iconify-icon>
+                                            </button>
                                             @if($agreement->file_path)
                                                 <button
                                                     type="button"
@@ -710,6 +721,19 @@
                                                     data-file-preview-title="Kontrak - {{ $agreement->contract_number }}"
                                                 >
                                                     <iconify-icon icon="solar:eye-outline" class="fs-18"></iconify-icon>
+                                                </button>
+                                            @else
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-sm btn-light table-action"
+                                                    title="Upload File"
+                                                    data-bs-toggle="offcanvas"
+                                                    data-bs-target="#agreementFileDrawer"
+                                                    data-agreement-file-upload
+                                                    data-action="{{ route('invoice-verification.master-data.agreement-references.file.update', $agreement) }}"
+                                                    data-contract-number="{{ $agreement->contract_number }}"
+                                                >
+                                                    <iconify-icon icon="solar:upload-outline" class="fs-18"></iconify-icon>
                                                 </button>
                                             @endif
                                         </td>
@@ -1018,6 +1042,34 @@
     </form>
 </div>
 
+<div class="offcanvas offcanvas-end reference-master-drawer" tabindex="-1" id="agreementFileDrawer" aria-labelledby="agreementFileDrawerLabel" style="width: min(520px, 100vw);">
+    <div class="offcanvas-header border-bottom">
+        <div>
+            <h5 class="offcanvas-title" id="agreementFileDrawerLabel">Upload File Agreement</h5>
+            <p class="text-muted mb-0 small" data-agreement-file-subtitle>Lengkapi file untuk reference PO.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <form method="POST" action="#" enctype="multipart/form-data" class="d-flex flex-column h-100" id="agreementFileForm">
+        @csrf
+        <div class="offcanvas-body">
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label">File Agreement</label>
+                    <input class="form-control" type="file" name="agreement_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" required>
+                </div>
+            </div>
+        </div>
+        <div class="drawer-footer d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-light" data-bs-dismiss="offcanvas">Cancel</button>
+            <button class="btn btn-primary d-inline-flex align-items-center gap-2">
+                <iconify-icon icon="solar:upload-outline" class="fs-18"></iconify-icon>
+                Upload
+            </button>
+        </div>
+    </form>
+</div>
+
 <div class="offcanvas offcanvas-end reference-master-drawer" tabindex="-1" id="vendorDetailDrawer" aria-labelledby="vendorDetailDrawerLabel" style="width: min(440px, 100vw);">
     <div class="offcanvas-header border-bottom"><h5 class="offcanvas-title" id="vendorDetailDrawerLabel">Detail Vendor</h5><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button></div>
     <div class="offcanvas-body" data-detail-content></div>
@@ -1065,6 +1117,8 @@
         const ldapForm = document.getElementById('ldapForm');
         const ldapMethod = document.querySelector('[data-ldap-method]');
         const ldapSubmit = document.querySelector('[data-ldap-submit]');
+        const agreementFileForm = document.getElementById('agreementFileForm');
+        const agreementFileSubtitle = document.querySelector('[data-agreement-file-subtitle]');
         let activeTab = @json($activeTab);
         let pendingForm = null;
         let filterTimer = null;
@@ -1287,6 +1341,18 @@
         document.querySelectorAll('[data-ldap-edit]').forEach(function (button) {
             button.addEventListener('click', function () {
                 setLdapModeEdit(button);
+            });
+        });
+
+        document.querySelectorAll('[data-agreement-file-upload]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                if (agreementFileForm) {
+                    agreementFileForm.action = button.dataset.action || '#';
+                    agreementFileForm.reset();
+                }
+                if (agreementFileSubtitle) {
+                    agreementFileSubtitle.textContent = button.dataset.contractNumber || 'Lengkapi file untuk reference PO.';
+                }
             });
         });
 

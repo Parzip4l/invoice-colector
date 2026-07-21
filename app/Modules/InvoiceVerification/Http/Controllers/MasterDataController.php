@@ -592,6 +592,53 @@ class MasterDataController extends Controller
         return $this->redirectToMasterData('agreements', 'Referensi kontrak berhasil ditambahkan dan dapat dipilih kembali untuk tagihan berikutnya.');
     }
 
+    public function updateAgreementFile(Request $request, AgreementReference $agreementReference)
+    {
+        $this->authorize('manageMasterData', Transaction::class);
+
+        $payload = $request->validate([
+            'agreement_file' => [
+                'required',
+                'file',
+                'mimes:'.implode(',', config('invoice_verification.storage.allowed_mimes', ['pdf'])),
+                'max:'.config('invoice_verification.storage.max_upload_kb', 10240),
+            ],
+        ]);
+
+        $uploadedFile = $payload['agreement_file'];
+        $disk = config('invoice_verification.storage.documents_disk', 'public');
+
+        if ($agreementReference->file_path && $agreementReference->file_disk) {
+            Storage::disk($agreementReference->file_disk)->delete($agreementReference->file_path);
+        }
+
+        $path = $uploadedFile->store('master-data/agreement-references', $disk);
+
+        $agreementReference->forceFill([
+            'file_name' => $uploadedFile->getClientOriginalName(),
+            'file_path' => $path,
+            'file_disk' => $disk,
+            'file_extension' => $uploadedFile->getClientOriginalExtension(),
+            'mime_type' => $uploadedFile->getMimeType(),
+            'file_size' => $uploadedFile->getSize(),
+            'uploaded_at' => now(),
+        ])->save();
+
+        $this->auditLogService->log(
+            module: 'agreement-references',
+            action: 'upload_file',
+            actor: $request->user(),
+            referenceType: AgreementReference::class,
+            referenceId: $agreementReference->id,
+            newValue: [
+                'contract_number' => $agreementReference->contract_number,
+                'file_name' => $agreementReference->file_name,
+            ],
+        );
+
+        return $this->redirectToMasterData('agreements', 'File agreement berhasil diunggah.');
+    }
+
     public function storeTemplate(StoreTemplateReferenceRequest $request)
     {
         TemplateReference::create($request->validated());

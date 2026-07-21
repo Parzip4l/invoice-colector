@@ -25,6 +25,15 @@
                </li>
 
                <li class="nav-item">
+                    <a class="nav-link" href="{{ route('invoice-verification.manual-guide') }}">
+                         <span class="nav-icon">
+                              <iconify-icon icon="solar:notebook-bookmark-outline"></iconify-icon>
+                         </span>
+                         <span class="nav-text"> Panduan </span>
+                    </a>
+               </li>
+
+               <li class="nav-item">
                     <a class="nav-link menu-arrow" href="#sidebarTransactions" data-bs-toggle="collapse" role="button"
                          aria-expanded="false" aria-controls="sidebarTransactions">
                          <span class="nav-icon">

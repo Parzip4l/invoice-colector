@@ -29,6 +29,7 @@ Route::group(['prefix' => '/', 'middleware' => 'auth'], function () {
         ->as('invoice-verification.')
         ->group(function () {
             Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+            Route::view('/manual-guide', 'invoice-verification.manual-guide')->name('manual-guide');
 
             Route::prefix('transactions')->as('transactions.')->group(function () {
                 Route::get('/', [TransactionController::class, 'index'])->name('index');

@@ -16,7 +16,7 @@
         --ref-border: rgba(33, 37, 41, .08);
         --ref-shadow: 0 12px 30px rgba(27, 36, 54, .07);
         color: #1f2937;
-        padding-bottom: 32px;
+        padding-bottom: 12px;
     }
 
     .reference-page .page-kicker {

@@ -986,7 +986,7 @@
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
-    <form method="POST" action="{{ route('invoice-verification.master-data.eproc-import', ['tab' => 'vendors']) }}" enctype="multipart/form-data" class="d-flex flex-column h-100">
+    <form method="POST" action="{{ route('invoice-verification.master-data.eproc-import') }}" enctype="multipart/form-data" class="d-flex flex-column h-100">
         @csrf
         <div class="offcanvas-body">
             <div class="row g-3">

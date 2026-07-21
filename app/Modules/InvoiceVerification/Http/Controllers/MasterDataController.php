@@ -43,7 +43,6 @@ class MasterDataController extends Controller
     {
         $this->authorize('manageMasterData', Transaction::class);
 
-        $user = auth()->user();
         $activeTab = in_array(request('tab'), ['vendors', 'organization', 'ldap', 'memo', 'agreements', 'templates'], true)
             ? request('tab')
             : 'vendors';
@@ -65,10 +64,6 @@ class MasterDataController extends Controller
 
         $memoRequests = MemoRequest::query()
             ->with(['creator', 'division', 'department'])
-            ->when(! $user?->hasRole(RoleCode::AKUNTANSI), function ($query) use ($user) {
-                $query->where('division_id', $user?->division_id)
-                    ->where('department_id', $user?->department_id);
-            })
             ->when($activeTab === 'memo', function ($query) use ($filterSearch, $status) {
                 $filterSearch($query, ['memo_number', 'subject']);
                 $query->when($status === 'active', fn ($query) => $query->whereNotNull('file_path'));
@@ -80,10 +75,6 @@ class MasterDataController extends Controller
 
         $agreementReferences = AgreementReference::query()
             ->with(['creator', 'division', 'department', 'vendor'])
-            ->when(! $user?->hasRole(RoleCode::AKUNTANSI), function ($query) use ($user) {
-                $query->where('division_id', $user?->division_id)
-                    ->where('department_id', $user?->department_id);
-            })
             ->when($activeTab === 'agreements', function ($query) use ($filterSearch, $status) {
                 $filterSearch($query, ['contract_number', 'title']);
                 $query->when($status === 'active', fn ($query) => $query->whereNotNull('file_path'));
@@ -649,7 +640,9 @@ class MasterDataController extends Controller
             divisionName: $payload['division_name'] ?? 'E-Procurement',
         );
 
-        return $this->redirectToMasterData('vendors', sprintf(
+        $targetTab = $request->hasFile('purchasing_file') ? 'agreements' : 'vendors';
+
+        return $this->redirectToMasterData($targetTab, sprintf(
             'Import E-Proc selesai. Vendor baru %d, vendor update %d, PO baru %d, PO update %d, department baru %d.',
             $stats['vendors_created'],
             $stats['vendors_updated'],

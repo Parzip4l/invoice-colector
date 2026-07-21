@@ -10,6 +10,7 @@ RUN apt-get update \
         libldap2-dev \
         libpng-dev \
         libpq-dev \
+        libzip-dev \
         unzip \
         zip \
     && docker-php-ext-configure ldap --with-libdir="lib/$(dpkg-architecture --query DEB_HOST_MULTIARCH)" \
@@ -20,6 +21,7 @@ RUN apt-get update \
         ldap \
         pdo_pgsql \
         pgsql \
+        zip \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

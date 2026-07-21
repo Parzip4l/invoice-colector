@@ -2,14 +2,12 @@
 
 use App\Models\User;
 use App\Modules\InvoiceVerification\Domain\Enums\RoleCode;
-use App\Modules\InvoiceVerification\Domain\Models\AgreementReference;
-use App\Modules\InvoiceVerification\Domain\Models\Bank;
 use App\Modules\InvoiceVerification\Domain\Models\Department;
 use App\Modules\InvoiceVerification\Domain\Models\Division;
-use App\Modules\InvoiceVerification\Domain\Models\Vendor;
+use App\Modules\InvoiceVerification\Services\Eproc\EprocImportService;
+use App\Modules\InvoiceVerification\Services\Eproc\SpreadsheetImportReader;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Symfony\Component\Console\Command\Command;
@@ -306,209 +304,22 @@ Artisan::command('eproc:import-csv
         }
     }
 
-    $stats = DB::transaction(function () use ($vendorPath, $purchasingPath, $createdBy, $divisionCode, $divisionName) {
-        $stats = [
-            'vendors_created' => 0,
-            'vendors_updated' => 0,
-            'banks_created' => 0,
-            'agreements_created' => 0,
-            'agreements_updated' => 0,
-            'departments_created' => 0,
-        ];
+    $reader = app(SpreadsheetImportReader::class);
+    $importer = app(EprocImportService::class);
+    $vendorRows = $vendorPath !== '' ? $reader->read($vendorPath, pathinfo($vendorPath, PATHINFO_EXTENSION) ?: 'csv') : [];
+    $purchasingRows = $purchasingPath !== '' ? $reader->read($purchasingPath, pathinfo($purchasingPath, PATHINFO_EXTENSION) ?: 'csv') : [];
 
-        if ($vendorPath !== '') {
-            foreach (readCsvRows($vendorPath) as $row) {
-                $vendorName = cleanImportValue($row['Nama Vendor'] ?? null);
-
-                if ($vendorName === null) {
-                    continue;
-                }
-
-                $bank = null;
-                $bankName = cleanImportValue($row['Nama Bank'] ?? $row['Bank'] ?? null);
-
-                if ($bankName !== null) {
-                    $bank = Bank::query()->firstOrCreate(
-                        ['name' => $bankName],
-                        ['code' => makeImportCode($bankName)],
-                    );
-
-                    if ($bank->wasRecentlyCreated) {
-                        $stats['banks_created']++;
-                    }
-                }
-
-                $vendor = Vendor::query()
-                    ->where('vendor_code', cleanImportValue($row['Nomor Eproc'] ?? null))
-                    ->when(cleanImportValue($row['Nomor Eproc'] ?? null) === null, fn ($query) => $query->whereRaw('LOWER(name) = ?', [Str::lower($vendorName)]))
-                    ->first();
-
-                $payload = [
-                    'vendor_code' => cleanImportValue($row['Nomor Eproc'] ?? null),
-                    'name' => $vendorName,
-                    'npwp' => cleanImportValue($row['NPWP'] ?? null),
-                    'address' => cleanImportValue($row['Alamat Vendor'] ?? $row['Alamat Operasional'] ?? null),
-                    'contact_name' => cleanImportValue($row['Nama PIC'] ?? null),
-                    'contact_email' => Str::lower((string) cleanImportValue($row['Email PIC'] ?? $row['Email'] ?? null)) ?: null,
-                    'contact_phone' => cleanImportValue($row['Nomor PIC'] ?? $row['Nomor Telpon'] ?? null),
-                    'default_bank_id' => $bank?->id,
-                    'default_account_number' => cleanImportValue($row['Nomor Rekening'] ?? $row['Account Number'] ?? null),
-                ];
-
-                if ($vendor) {
-                    $vendor->forceFill($payload)->save();
-                    $stats['vendors_updated']++;
-                } else {
-                    Vendor::query()->create($payload);
-                    $stats['vendors_created']++;
-                }
-            }
-        }
-
-        if ($purchasingPath !== '') {
-            $division = Division::query()->firstOrCreate(
-                ['ldap_code' => $divisionCode],
-                [
-                    'name' => $divisionName,
-                    'is_active' => true,
-                    'last_synced_at' => now(),
-                ],
-            );
-
-            foreach (readCsvRows($purchasingPath) as $row) {
-                $contractNumber = cleanImportValue($row['Nomor PO'] ?? null);
-
-                if ($contractNumber === null) {
-                    continue;
-                }
-
-                $vendorName = cleanImportValue($row['Nama Vendor'] ?? null);
-                $vendor = $vendorName
-                    ? Vendor::query()->whereRaw('LOWER(name) = ?', [Str::lower($vendorName)])->first()
-                    : null;
-
-                if (! $vendor && $vendorName) {
-                    $vendor = Vendor::query()->create([
-                        'name' => $vendorName,
-                    ]);
-                    $stats['vendors_created']++;
-                }
-
-                $departmentName = cleanImportValue($row['Departemen'] ?? null) ?: 'E-Procurement';
-                $department = Department::query()
-                    ->where('division_id', $division->id)
-                    ->whereRaw('LOWER(name) = ?', [Str::lower($departmentName)])
-                    ->first();
-
-                if (! $department) {
-                    $department = Department::query()->create([
-                        'division_id' => $division->id,
-                        'ldap_code' => null,
-                        'name' => $departmentName,
-                        'is_active' => true,
-                        'last_synced_at' => now(),
-                    ]);
-                    $stats['departments_created']++;
-                }
-
-                $agreement = AgreementReference::query()->where('contract_number', $contractNumber)->first();
-                $payload = [
-                    'vendor_id' => $vendor?->id,
-                    'division_id' => $division->id,
-                    'department_id' => $department->id,
-                    'contract_number' => $contractNumber,
-                    'title' => cleanImportValue($row['Nama Pengadaan'] ?? null) ?: $contractNumber,
-                    'contract_value' => parseImportNumber($row['Total Harga'] ?? null),
-                    'effective_date' => parseImportDate($row['Tanggal PO'] ?? null),
-                    'created_by' => $createdBy?->id,
-                ];
-
-                if ($agreement) {
-                    $agreement->forceFill($payload)->save();
-                    $stats['agreements_updated']++;
-                } else {
-                    AgreementReference::query()->create($payload);
-                    $stats['agreements_created']++;
-                }
-            }
-        }
-
-        return $stats;
-    });
+    $stats = $importer->import(
+        vendorRows: $vendorRows,
+        purchasingRows: $purchasingRows,
+        createdBy: $createdBy,
+        divisionCode: $divisionCode,
+        divisionName: $divisionName,
+    );
 
     foreach ($stats as $label => $count) {
         $this->line($label.': '.$count);
     }
 
     return Command::SUCCESS;
-})->purpose('Import temporary e-procurement vendor and purchasing CSV data.');
-
-function readCsvRows(string $path): Generator
-{
-    if (! is_file($path) || ! is_readable($path)) {
-        throw new RuntimeException('CSV tidak bisa dibaca: '.$path);
-    }
-
-    $handle = fopen($path, 'rb');
-    $headers = null;
-
-    while (($row = fgetcsv($handle)) !== false) {
-        if ($headers === null) {
-            $headers = array_map(fn ($header) => trim((string) $header), $row);
-
-            continue;
-        }
-
-        if ($row === [null] || $row === false) {
-            continue;
-        }
-
-        yield array_combine($headers, array_slice(array_pad($row, count($headers), null), 0, count($headers)));
-    }
-
-    fclose($handle);
-}
-
-function cleanImportValue(mixed $value): ?string
-{
-    if ($value === null) {
-        return null;
-    }
-
-    $value = trim((string) $value);
-
-    return $value === '' ? null : $value;
-}
-
-function parseImportNumber(mixed $value): ?string
-{
-    $value = cleanImportValue($value);
-
-    if ($value === null) {
-        return null;
-    }
-
-    $number = preg_replace('/[^0-9.-]/', '', $value);
-
-    return $number === '' ? null : number_format((float) $number, 2, '.', '');
-}
-
-function parseImportDate(mixed $value): ?string
-{
-    $value = cleanImportValue($value);
-
-    if ($value === null) {
-        return null;
-    }
-
-    try {
-        return \Carbon\Carbon::parse($value)->toDateString();
-    } catch (Throwable) {
-        return null;
-    }
-}
-
-function makeImportCode(string $value): string
-{
-    return strtoupper(Str::of($value)->slug('_')->limit(30, '')->toString());
-}
+})->purpose('Import temporary e-procurement vendor and purchasing CSV/XLSX data.');

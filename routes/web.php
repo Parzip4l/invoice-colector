@@ -88,6 +88,7 @@ Route::group(['prefix' => '/', 'middleware' => 'auth'], function () {
             Route::get('/master-data/agreement-references/{agreementReference}/download', [MasterDataController::class, 'downloadAgreement'])->name('master-data.agreement-references.download');
             Route::post('/master-data/template-references', [MasterDataController::class, 'storeTemplate'])->name('master-data.template-references.store');
             Route::post('/master-data/ldap-sync', [MasterDataController::class, 'syncLdap'])->name('master-data.ldap-sync');
+            Route::post('/master-data/eproc-import', [MasterDataController::class, 'importEproc'])->name('master-data.eproc-import');
             Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
         });
 

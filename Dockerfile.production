@@ -22,6 +22,7 @@ RUN apt-get update \
         libldap2-dev \
         libpng-dev \
         libpq-dev \
+        libzip-dev \
         unzip \
         zip \
     && docker-php-ext-configure ldap --with-libdir="lib/$(dpkg-architecture --query DEB_HOST_MULTIARCH)" \
@@ -32,6 +33,7 @@ RUN apt-get update \
         ldap \
         pdo_pgsql \
         pgsql \
+        zip \
     && a2enmod rewrite headers \
     && rm -rf /var/lib/apt/lists/*
 

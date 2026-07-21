@@ -21,6 +21,8 @@ use App\Modules\InvoiceVerification\Http\Requests\StoreTemplateReferenceRequest;
 use App\Modules\InvoiceVerification\Http\Requests\StoreVendorRequest;
 use App\Modules\InvoiceVerification\Services\AuditLogService;
 use App\Modules\InvoiceVerification\Services\Contracts\LdapDirectorySynchronizer;
+use App\Modules\InvoiceVerification\Services\Eproc\EprocImportService;
+use App\Modules\InvoiceVerification\Services\Eproc\SpreadsheetImportReader;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -511,6 +513,48 @@ class MasterDataController extends Controller
         $result = $this->ldapDirectorySynchronizer->syncAll();
 
         return back()->with('success', $result['message']);
+    }
+
+    public function importEproc(Request $request, SpreadsheetImportReader $reader, EprocImportService $importer)
+    {
+        $this->authorize('manageMasterData', Transaction::class);
+
+        $payload = $request->validate([
+            'vendor_file' => ['nullable', 'required_without:purchasing_file', 'file', 'mimes:csv,txt,xlsx', 'max:20480'],
+            'purchasing_file' => ['nullable', 'file', 'mimes:csv,txt,xlsx', 'max:20480'],
+            'division_code' => ['nullable', 'string', 'max:255'],
+            'division_name' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $vendorRows = [];
+        $purchasingRows = [];
+
+        if ($request->hasFile('vendor_file')) {
+            $vendorFile = $request->file('vendor_file');
+            $vendorRows = $reader->read($vendorFile->getRealPath(), $vendorFile->getClientOriginalExtension());
+        }
+
+        if ($request->hasFile('purchasing_file')) {
+            $purchasingFile = $request->file('purchasing_file');
+            $purchasingRows = $reader->read($purchasingFile->getRealPath(), $purchasingFile->getClientOriginalExtension());
+        }
+
+        $stats = $importer->import(
+            vendorRows: $vendorRows,
+            purchasingRows: $purchasingRows,
+            createdBy: $request->user(),
+            divisionCode: $payload['division_code'] ?? 'EPROC',
+            divisionName: $payload['division_name'] ?? 'E-Procurement',
+        );
+
+        return back()->with('success', sprintf(
+            'Import E-Proc selesai. Vendor baru %d, vendor update %d, PO baru %d, PO update %d, department baru %d.',
+            $stats['vendors_created'],
+            $stats['vendors_updated'],
+            $stats['agreements_created'],
+            $stats['agreements_updated'],
+            $stats['departments_created'],
+        ));
     }
 
     public function downloadMemo(MemoRequest $memoRequest): StreamedResponse

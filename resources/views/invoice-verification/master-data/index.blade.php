@@ -220,6 +220,10 @@
             </nav>
         </div>
         <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-outline-primary d-inline-flex align-items-center gap-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#eprocImportDrawer">
+                <iconify-icon icon="solar:upload-outline" class="fs-18"></iconify-icon>
+                Import E-Proc
+            </button>
             <form method="POST" action="{{ route('invoice-verification.master-data.ldap-sync') }}">
                 @csrf
                 <button class="btn btn-outline-primary d-inline-flex align-items-center gap-2">
@@ -948,6 +952,46 @@
             </div>
         </div>
         <div class="drawer-footer d-flex justify-content-end gap-2"><button type="button" class="btn btn-light" data-bs-dismiss="offcanvas">Cancel</button><button class="btn btn-primary">Simpan Template</button></div>
+    </form>
+</div>
+
+<div class="offcanvas offcanvas-end reference-master-drawer" tabindex="-1" id="eprocImportDrawer" aria-labelledby="eprocImportDrawerLabel" style="width: min(560px, 100vw);">
+    <div class="offcanvas-header border-bottom">
+        <div>
+            <h5 class="offcanvas-title" id="eprocImportDrawerLabel">Import E-Proc</h5>
+            <p class="text-muted mb-0 small">Upload export vendor aktif dan list purchasing.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <form method="POST" action="{{ route('invoice-verification.master-data.eproc-import') }}" enctype="multipart/form-data" class="d-flex flex-column h-100">
+        @csrf
+        <div class="offcanvas-body">
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label">Vendor Aktif</label>
+                    <input class="form-control" type="file" name="vendor_file" accept=".xlsx,.csv,.txt">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">List Purchasing</label>
+                    <input class="form-control" type="file" name="purchasing_file" accept=".xlsx,.csv,.txt">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Kode Divisi</label>
+                    <input class="form-control" name="division_code" value="{{ old('division_code', 'EPROC') }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Nama Divisi</label>
+                    <input class="form-control" name="division_name" value="{{ old('division_name', 'E-Procurement') }}">
+                </div>
+            </div>
+        </div>
+        <div class="drawer-footer d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-light" data-bs-dismiss="offcanvas">Cancel</button>
+            <button class="btn btn-primary d-inline-flex align-items-center gap-2">
+                <iconify-icon icon="solar:upload-outline" class="fs-18"></iconify-icon>
+                Import
+            </button>
+        </div>
     </form>
 </div>
 

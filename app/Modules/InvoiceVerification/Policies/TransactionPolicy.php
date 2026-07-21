@@ -36,16 +36,27 @@ class TransactionPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasRole(RoleCode::VENDOR, RoleCode::USER_DIVISI);
+        return $user->hasRole(RoleCode::ADMIN_DIVISI, RoleCode::USER_DIVISI);
     }
 
     public function update(User $user, Transaction $transaction): bool
     {
-        if ($user->hasRole(RoleCode::VENDOR, RoleCode::USER_DIVISI)) {
+        if ($user->hasRole(RoleCode::VENDOR)) {
+            return $transaction->vendor_id !== null
+                && ($transaction->owner_user_id === $user->id || $transaction->vendor_id === $user->linkedVendor()?->id)
+                && in_array($transaction->status?->value, [
+                    TransactionStatus::DRAFT->value,
+                    TransactionStatus::NOT_APPROVED->value,
+                    TransactionStatus::REVISION_IN_PROGRESS->value,
+                ], true);
+        }
+
+        if ($user->hasRole(RoleCode::USER_DIVISI)) {
             return $transaction->owner_user_id === $user->id
                 && in_array($transaction->status?->value, [
                     TransactionStatus::DRAFT->value,
                     TransactionStatus::NOT_APPROVED->value,
+                    TransactionStatus::REVISION_IN_PROGRESS->value,
                 ], true);
         }
 
@@ -60,6 +71,7 @@ class TransactionPolicy
                 && in_array($transaction->status?->value, [
                     TransactionStatus::DRAFT->value,
                     TransactionStatus::NOT_APPROVED->value,
+                    TransactionStatus::REVISION_IN_PROGRESS->value,
                 ], true);
         }
 

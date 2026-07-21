@@ -56,13 +56,51 @@ class InvoiceVerificationModuleTest extends TestCase
     public function test_vendor_can_view_transaction_index(): void
     {
         $vendor = User::where('email', 'vendor@demo.local')->firstOrFail();
+        $linkedVendor = $vendor->linkedVendor() ?? Vendor::firstOrFail();
+        $agreementReference = AgreementReference::query()
+            ->where('vendor_id', $linkedVendor->id)
+            ->firstOrFail();
 
-        $transaction = $this->createTransactionOfType('PPA', 'INV-VENDOR-LIST-001', $vendor);
+        Transaction::query()
+            ->where('vendor_id', $linkedVendor->id)
+            ->where('agreement_reference_id', $agreementReference->id)
+            ->delete();
 
         $response = $this->actingAs($vendor)->get(route('invoice-verification.transactions.index'));
 
         $response->assertOk();
-        $response->assertSee($transaction->registration_number);
+        $response->assertSee('Daftar Kontrak Vendor');
+        $response->assertSee($agreementReference->contract_number);
+        $response->assertSee('Upload Tagihan');
+        $response->assertDontSee(route('invoice-verification.transactions.create'));
+    }
+
+    public function test_vendor_can_start_upload_from_contract(): void
+    {
+        $vendorUser = User::where('email', 'vendor@demo.local')->firstOrFail();
+        $vendor = $vendorUser->linkedVendor() ?? Vendor::firstOrFail();
+        $agreementReference = AgreementReference::query()
+            ->where('vendor_id', $vendor->id)
+            ->firstOrFail();
+
+        Transaction::query()
+            ->where('vendor_id', $vendor->id)
+            ->where('agreement_reference_id', $agreementReference->id)
+            ->delete();
+
+        $response = $this->actingAs($vendorUser)
+            ->post(route('invoice-verification.transactions.agreements.start', $agreementReference));
+
+        $transaction = Transaction::query()
+            ->where('vendor_id', $vendor->id)
+            ->where('agreement_reference_id', $agreementReference->id)
+            ->where('status', 'DRAFT')
+            ->firstOrFail();
+
+        $response->assertRedirect(route('invoice-verification.transactions.documents.show', $transaction));
+        $this->assertNull($transaction->memo_request_id);
+        $this->assertSame($vendorUser->id, $transaction->owner_user_id);
+        $this->assertSame($agreementReference->contract_number, $transaction->contract_number);
     }
 
     public function test_admin_creates_draft_and_vendor_uploads_invoice_documents(): void

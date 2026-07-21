@@ -5,6 +5,7 @@ namespace App\Modules\InvoiceVerification\Actions;
 use App\Models\User;
 use App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus;
 use App\Modules\InvoiceVerification\Domain\Enums\TransactionStep;
+use App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode;
 use App\Modules\InvoiceVerification\Domain\Models\AgreementReference;
 use App\Modules\InvoiceVerification\Domain\Models\MemoRequest;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
@@ -15,6 +16,7 @@ use App\Modules\InvoiceVerification\Services\Contracts\EprocDataProviderInterfac
 use App\Modules\InvoiceVerification\Services\RegistrationNumberService;
 use App\Modules\InvoiceVerification\Services\TransactionLifecycleService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CreateTransactionAction
 {
@@ -122,6 +124,105 @@ class CreateTransactionAction
                 'division',
                 'department',
                 'memoRequest',
+                'invoiceMetadata',
+                'generatedDocuments',
+            ]);
+        });
+    }
+
+    public function executeFromAgreement(AgreementReference $agreementReference, User $actor): Transaction
+    {
+        return DB::transaction(function () use ($agreementReference, $actor) {
+            $agreementReference->loadMissing('vendor.defaultBank', 'division', 'department');
+            $transactionType = TransactionType::query()
+                ->where('code', TransactionTypeCode::PPA->value)
+                ->firstOrFail();
+            $vendor = $actor->linkedVendor();
+            $divisionId = $agreementReference->division_id ?? $actor->division_id;
+            $departmentId = $agreementReference->department_id ?? $actor->department_id;
+
+            if (! $vendor || $agreementReference->vendor_id !== $vendor->id) {
+                throw ValidationException::withMessages([
+                    'agreement' => 'Kontrak tidak terhubung dengan akun vendor ini.',
+                ]);
+            }
+
+            if (! $divisionId || ! $departmentId) {
+                throw ValidationException::withMessages([
+                    'agreement' => 'Kontrak belum memiliki divisi dan departemen. Hubungi Admin Divisi untuk melengkapi master agreement.',
+                ]);
+            }
+
+            $title = sprintf(
+                '%s - %s',
+                $agreementReference->contract_number,
+                $agreementReference->title ?: 'Tagihan Vendor'
+            );
+
+            $transaction = Transaction::create([
+                'registration_number' => $this->registrationNumberService->generateTransactionNumber($transactionType),
+                'transaction_type_id' => $transactionType->id,
+                'vendor_id' => $vendor->id,
+                'division_id' => $divisionId,
+                'department_id' => $departmentId,
+                'memo_request_id' => null,
+                'agreement_reference_id' => $agreementReference->id,
+                'parent_spu_transaction_id' => null,
+                'title' => $title,
+                'activity_name' => $agreementReference->title,
+                'transaction_bank_name' => $vendor->defaultBank?->name,
+                'transaction_account_number' => $vendor->default_account_number,
+                'description' => $agreementReference->title,
+                'contract_number' => $agreementReference->contract_number,
+                'contract_value' => $agreementReference->contract_value,
+                'spu_amount' => null,
+                'accountability_amount' => null,
+                'remaining_amount' => null,
+                'petty_cash_ceiling_snapshot' => null,
+                'petty_cash_remaining_amount' => null,
+                'petty_cash_top_up_amount' => null,
+                'period' => null,
+                'status' => TransactionStatus::DRAFT,
+                'current_step' => TransactionStep::VENDOR_INVOICE_INPUT,
+                'created_by' => $actor->id,
+                'owner_user_id' => $actor->id,
+                'submitted_at' => null,
+            ]);
+
+            TransactionParty::create([
+                'transaction_id' => $transaction->id,
+                'party_type' => 'CREATOR',
+                'user_id' => $actor->id,
+                'status' => 'ACTIVE',
+            ]);
+
+            TransactionParty::create([
+                'transaction_id' => $transaction->id,
+                'party_type' => 'VENDOR',
+                'vendor_id' => $vendor->id,
+                'status' => 'ACTIVE',
+            ]);
+
+            $this->auditLogService->log(
+                module: 'transactions',
+                action: 'create_vendor_contract_transaction',
+                actor: $actor,
+                transaction: $transaction,
+                referenceType: AgreementReference::class,
+                referenceId: $agreementReference->id,
+                newValue: [
+                    'registration_number' => $transaction->registration_number,
+                    'contract_number' => $agreementReference->contract_number,
+                    'status' => TransactionStatus::DRAFT->value,
+                ],
+            );
+
+            return $transaction->fresh([
+                'transactionType',
+                'vendor',
+                'division',
+                'department',
+                'agreementReference',
                 'invoiceMetadata',
                 'generatedDocuments',
             ]);

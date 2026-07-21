@@ -23,6 +23,7 @@ use App\Modules\InvoiceVerification\Services\AuditLogService;
 use App\Modules\InvoiceVerification\Services\Contracts\EprocDataProviderInterface;
 use App\Modules\InvoiceVerification\Services\PpaVerificationSheetService;
 use App\Modules\InvoiceVerification\Services\TransactionLifecycleService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class TransactionController extends Controller
@@ -49,6 +50,13 @@ class TransactionController extends Controller
         $search = trim((string) $request->query('search', ''));
         $status = (string) $request->query('status', '');
         $transactionTypeId = (string) $request->query('transaction_type_id', '');
+        $linkedVendor = $user?->linkedVendor();
+        $vendorAgreements = null;
+        $finalStatuses = [
+            TransactionStatus::PAID->value,
+            TransactionStatus::COMPLETED->value,
+            TransactionStatus::ARCHIVED->value,
+        ];
 
         $transactionsQuery = Transaction::query()
             ->select('transactions.*')
@@ -73,6 +81,33 @@ class TransactionController extends Controller
                 });
             });
 
+        if ($user?->hasRole(RoleCode::VENDOR)) {
+            $vendorAgreements = AgreementReference::query()
+                ->with([
+                    'vendor',
+                    'division',
+                    'department',
+                    'transactions' => fn ($query) => $query
+                        ->whereNotIn('status', $finalStatuses)
+                        ->latest('created_at'),
+                ])
+                ->when($linkedVendor, fn ($query) => $query->where('vendor_id', $linkedVendor->id))
+                ->when(! $linkedVendor, fn ($query) => $query->whereRaw('1 = 0'))
+                ->whereDoesntHave('transactions', fn ($query) => $query->whereIn('status', $finalStatuses))
+                ->when($search !== '', function ($query) use ($search) {
+                    $needle = '%'.mb_strtolower($search).'%';
+
+                    $query->where(function ($innerQuery) use ($needle) {
+                        $innerQuery->whereRaw('LOWER(contract_number) LIKE ?', [$needle])
+                            ->orWhereRaw('LOWER(title) LIKE ?', [$needle])
+                            ->orWhereHas('department', fn ($departmentQuery) => $departmentQuery->whereRaw('LOWER(name) LIKE ?', [$needle]));
+                    });
+                })
+                ->orderBy('contract_number')
+                ->paginate(10)
+                ->withQueryString();
+        }
+
         if ($sort === 'vendor') {
             $transactionsQuery
                 ->leftJoin('vendors', 'vendors.id', '=', 'transactions.vendor_id')
@@ -94,7 +129,7 @@ class TransactionController extends Controller
         $transactionTypes = TransactionType::query()->orderBy('name')->get();
         $statusOptions = TransactionStatus::workflowCases();
 
-        return view('invoice-verification.transactions.index', compact('transactions', 'transactionTypes', 'statusOptions', 'sort', 'direction', 'search', 'status', 'transactionTypeId'));
+        return view('invoice-verification.transactions.index', compact('transactions', 'transactionTypes', 'statusOptions', 'sort', 'direction', 'search', 'status', 'transactionTypeId', 'linkedVendor', 'vendorAgreements'));
     }
 
     public function create()
@@ -172,6 +207,35 @@ class TransactionController extends Controller
         return redirect()
             ->route('invoice-verification.transactions.show', $transaction)
             ->with('success', 'Draft transaksi berhasil dibuat. Vendor dapat mengisi data tagihan dan upload dokumen dari Daftar Transaksi.');
+    }
+
+    public function startFromAgreement(Request $request, AgreementReference $agreementReference): RedirectResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user?->hasRole(RoleCode::VENDOR), 403);
+
+        $linkedVendor = $user->linkedVendor();
+
+        abort_unless($linkedVendor && $agreementReference->vendor_id === $linkedVendor->id, 404);
+
+        $transaction = $agreementReference->transactions()
+            ->where('vendor_id', $linkedVendor->id)
+            ->whereNotIn('status', [
+                TransactionStatus::PAID->value,
+                TransactionStatus::COMPLETED->value,
+                TransactionStatus::ARCHIVED->value,
+            ])
+            ->latest('created_at')
+            ->first();
+
+        if (! $transaction) {
+            $transaction = $this->createTransactionAction->executeFromAgreement($agreementReference, $user);
+        }
+
+        return redirect()
+            ->route('invoice-verification.transactions.documents.show', $transaction)
+            ->with('success', 'Silakan lengkapi data tagihan dan upload dokumen untuk kontrak ini.');
     }
 
     public function submit(Request $request, Transaction $transaction)

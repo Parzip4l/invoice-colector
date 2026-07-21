@@ -34,6 +34,7 @@ Route::group(['prefix' => '/', 'middleware' => 'auth'], function () {
                 Route::get('/', [TransactionController::class, 'index'])->name('index');
                 Route::get('/create', [TransactionController::class, 'create'])->name('create');
                 Route::post('/', [TransactionController::class, 'store'])->name('store');
+                Route::post('/agreements/{agreementReference}/start', [TransactionController::class, 'startFromAgreement'])->name('agreements.start');
                 Route::get('/{transaction}', [TransactionController::class, 'show'])->name('show');
                 Route::post('/{transaction}/submit', [TransactionController::class, 'submit'])->name('submit');
                 Route::put('/{transaction}/invoice-metadata', [TransactionController::class, 'updateInvoiceMetadata'])->name('invoice-metadata.update');

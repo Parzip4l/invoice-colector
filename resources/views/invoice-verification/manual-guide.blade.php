@@ -165,10 +165,17 @@
     .manual-guide-page .role-icon {
         width: 42px;
         height: 42px;
+        min-width: 42px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         border-radius: 12px;
+    }
+
+    .manual-guide-page .role-icon iconify-icon {
+        width: 24px;
+        height: 24px;
+        line-height: 1;
     }
 
     .manual-guide-page .guide-list {
@@ -188,8 +195,11 @@
     }
 
     .manual-guide-page .guide-list iconify-icon {
+        width: 18px;
+        height: 18px;
         flex: 0 0 auto;
         margin-top: 2px;
+        line-height: 1;
     }
 
     .manual-guide-page .workflow-grid {

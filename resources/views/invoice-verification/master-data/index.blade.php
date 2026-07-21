@@ -3,11 +3,12 @@
 @section('content')
 @php
     $summaryCards = [
-        ['label' => 'Total Vendors', 'value' => $vendors->count(), 'icon' => 'solar:buildings-2-outline', 'tone' => 'primary'],
-        ['label' => 'LDAP Whitelist', 'value' => $internalUsers->count(), 'icon' => 'solar:users-group-rounded-outline', 'tone' => 'success'],
-        ['label' => 'Org Units', 'value' => $divisions->where('is_active', true)->count().' / '.$departments->where('is_active', true)->count(), 'icon' => 'solar:hierarchy-2-outline', 'tone' => 'warning'],
-        ['label' => 'Active Templates', 'value' => $templateReferences->where('is_active', true)->count(), 'icon' => 'solar:document-text-outline', 'tone' => 'secondary'],
+        ['label' => 'Total Vendors', 'value' => $vendorTotal, 'icon' => 'solar:buildings-2-outline', 'tone' => 'primary'],
+        ['label' => 'LDAP Whitelist', 'value' => $internalUserTotal, 'icon' => 'solar:users-group-rounded-outline', 'tone' => 'success'],
+        ['label' => 'Org Units', 'value' => $activeDivisionTotal.' / '.$activeDepartmentTotal, 'icon' => 'solar:hierarchy-2-outline', 'tone' => 'warning'],
+        ['label' => 'Active Templates', 'value' => $activeTemplateTotal, 'icon' => 'solar:document-text-outline', 'tone' => 'secondary'],
     ];
+    $tabRoute = fn (string $tab) => route('invoice-verification.master-data.index', ['tab' => $tab]);
 @endphp
 
 <style>
@@ -224,7 +225,7 @@
                 <iconify-icon icon="solar:upload-outline" class="fs-18"></iconify-icon>
                 Import E-Proc
             </button>
-            <form method="POST" action="{{ route('invoice-verification.master-data.ldap-sync') }}">
+            <form method="POST" action="{{ route('invoice-verification.master-data.ldap-sync', ['tab' => 'ldap']) }}">
                 @csrf
                 <button class="btn btn-outline-primary d-inline-flex align-items-center gap-2">
                     <iconify-icon icon="solar:refresh-outline" class="fs-18"></iconify-icon>
@@ -268,43 +269,44 @@
                 <span class="badge bg-primary-subtle text-primary px-3 py-2">Data Management</span>
             </div>
             <ul class="nav nav-tabs reference-tabs" role="tablist">
-                <li class="nav-item"><a href="#vendors" data-bs-toggle="tab" class="nav-link active" data-reference-tab="vendors" role="tab">Vendors</a></li>
-                <li class="nav-item"><a href="#organization" data-bs-toggle="tab" class="nav-link" data-reference-tab="organization" role="tab">Organization</a></li>
-                <li class="nav-item"><a href="#ldap-whitelist" data-bs-toggle="tab" class="nav-link" data-reference-tab="ldap" role="tab">LDAP Whitelist</a></li>
-                <li class="nav-item"><a href="#memo" data-bs-toggle="tab" class="nav-link" data-reference-tab="memo" role="tab">Memo</a></li>
-                <li class="nav-item"><a href="#agreements" data-bs-toggle="tab" class="nav-link" data-reference-tab="agreements" role="tab">Agreements</a></li>
-                <li class="nav-item"><a href="#templates" data-bs-toggle="tab" class="nav-link" data-reference-tab="templates" role="tab">Templates</a></li>
+                <li class="nav-item"><a href="{{ $tabRoute('vendors') }}" class="nav-link {{ $activeTab === 'vendors' ? 'active' : '' }}" data-reference-tab="vendors" role="tab">Vendors</a></li>
+                <li class="nav-item"><a href="{{ $tabRoute('organization') }}" class="nav-link {{ $activeTab === 'organization' ? 'active' : '' }}" data-reference-tab="organization" role="tab">Organization</a></li>
+                <li class="nav-item"><a href="{{ $tabRoute('ldap') }}" class="nav-link {{ $activeTab === 'ldap' ? 'active' : '' }}" data-reference-tab="ldap" role="tab">LDAP Whitelist</a></li>
+                <li class="nav-item"><a href="{{ $tabRoute('memo') }}" class="nav-link {{ $activeTab === 'memo' ? 'active' : '' }}" data-reference-tab="memo" role="tab">Memo</a></li>
+                <li class="nav-item"><a href="{{ $tabRoute('agreements') }}" class="nav-link {{ $activeTab === 'agreements' ? 'active' : '' }}" data-reference-tab="agreements" role="tab">Agreements</a></li>
+                <li class="nav-item"><a href="{{ $tabRoute('templates') }}" class="nav-link {{ $activeTab === 'templates' ? 'active' : '' }}" data-reference-tab="templates" role="tab">Templates</a></li>
             </ul>
         </div>
 
         <div class="card-body p-4">
-            <div class="reference-toolbar mb-3">
+            <form class="reference-toolbar mb-3" method="GET" action="{{ route('invoice-verification.master-data.index') }}" data-reference-filter-form>
+                <input type="hidden" name="tab" value="{{ $activeTab }}" data-reference-tab-input>
                 <div class="input-group search-control">
                     <span class="input-group-text"><iconify-icon icon="solar:magnifer-outline" class="fs-18"></iconify-icon></span>
-                    <input type="search" class="form-control" placeholder="Search current table..." data-reference-search>
+                    <input type="search" class="form-control" name="q" value="{{ $search }}" placeholder="Search current table..." data-reference-search>
                 </div>
-                <select class="form-select" data-reference-status>
+                <select class="form-select" name="status" data-reference-status>
                     <option value="">All Status</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="draft">Draft</option>
-                    <option value="pending">Pending</option>
+                    <option value="active" @selected($statusFilter === 'active')>Active</option>
+                    <option value="inactive" @selected($statusFilter === 'inactive')>Inactive</option>
+                    <option value="draft" @selected($statusFilter === 'draft')>Draft</option>
+                    <option value="pending" @selected($statusFilter === 'pending')>Pending</option>
                 </select>
-                <select class="form-select" data-reference-type>
+                <select class="form-select" name="type" data-reference-type>
                     <option value="">All Type</option>
-                    <option value="vendor">Vendor</option>
-                    <option value="division">Division</option>
-                    <option value="department">Department</option>
-                    <option value="ldap">LDAP</option>
-                    <option value="memo">Memo</option>
-                    <option value="agreement">Agreement</option>
-                    <option value="template">Template</option>
+                    <option value="vendor" @selected($typeFilter === 'vendor')>Vendor</option>
+                    <option value="division" @selected($typeFilter === 'division')>Division</option>
+                    <option value="department" @selected($typeFilter === 'department')>Department</option>
+                    <option value="ldap" @selected($typeFilter === 'ldap')>LDAP</option>
+                    <option value="memo" @selected($typeFilter === 'memo')>Memo</option>
+                    <option value="agreement" @selected($typeFilter === 'agreement')>Agreement</option>
+                    <option value="template" @selected($typeFilter === 'template')>Template</option>
                 </select>
                 <button class="btn btn-primary d-inline-flex align-items-center justify-content-center gap-2" type="button" data-master-add-button data-bs-toggle="offcanvas" data-bs-target="#vendorDrawer">
                     <iconify-icon icon="solar:add-circle-outline" class="fs-18"></iconify-icon>
                     <span data-master-add-label>Tambah Vendor</span>
                 </button>
-            </div>
+            </form>
 
             <div class="reference-loading" data-reference-loading>
                 <div class="skeleton-line mb-2" style="width: 94%;"></div>
@@ -313,7 +315,7 @@
             </div>
 
             <div class="tab-content">
-                <div class="tab-pane show active" id="vendors" data-reference-panel="vendors" role="tabpanel">
+                <div class="tab-pane {{ $activeTab === 'vendors' ? 'show active' : '' }}" id="vendors" data-reference-panel="vendors" role="tabpanel">
                     <div class="table-responsive">
                         <table class="table reference-table table-nowrap mb-0">
                             <thead>
@@ -348,7 +350,7 @@
                                             </button>
                                             <button class="btn btn-sm btn-light table-action" type="button" title="Edit" data-bs-toggle="offcanvas" data-bs-target="#vendorDrawer"
                                                 data-vendor-edit
-                                                data-action="{{ route('invoice-verification.master-data.vendors.update', $vendor) }}"
+                                                data-action="{{ route('invoice-verification.master-data.vendors.update', [$vendor, 'tab' => 'vendors']) }}"
                                                 data-name="{{ $vendor->name }}"
                                                 data-npwp="{{ $vendor->npwp }}"
                                                 data-contact-name="{{ $vendor->contact_name }}"
@@ -380,9 +382,12 @@
                             </tbody>
                         </table>
                     </div>
+                    <div class="pt-3">
+                        {{ $vendors->links() }}
+                    </div>
                 </div>
 
-                <div class="tab-pane" id="organization" data-reference-panel="organization" role="tabpanel">
+                <div class="tab-pane {{ $activeTab === 'organization' ? 'show active' : '' }}" id="organization" data-reference-panel="organization" role="tabpanel">
                     <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
                         <div>
                             <h6 class="mb-1">Master Divisi & Department</h6>
@@ -404,9 +409,9 @@
                                 <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
                                     <div>
                                         <div class="fw-semibold">Divisi</div>
-                                        <div class="text-muted small">{{ $divisions->count() }} data terdaftar</div>
+                                        <div class="text-muted small">{{ $divisions->total() }} data terdaftar</div>
                                     </div>
-                                    <span class="status-badge bg-primary-subtle text-primary">{{ $divisions->where('is_active', true)->count() }} Active</span>
+                                    <span class="status-badge bg-primary-subtle text-primary">{{ $activeDivisionTotal }} Active</span>
                                 </div>
                                 <div class="table-responsive">
                                     <table class="table reference-table table-nowrap mb-0">
@@ -440,7 +445,7 @@
                                                             data-bs-toggle="offcanvas"
                                                             data-bs-target="#divisionDrawer"
                                                             data-division-edit
-                                                            data-action="{{ route('invoice-verification.master-data.divisions.update', $division) }}"
+                                                            data-action="{{ route('invoice-verification.master-data.divisions.update', [$division, 'tab' => 'organization']) }}"
                                                             data-name="{{ $division->name }}"
                                                             data-ldap-code="{{ $division->ldap_code }}"
                                                             data-petty-cash-ceiling="{{ $division->petty_cash_ceiling }}"
@@ -457,6 +462,9 @@
                                         </tbody>
                                     </table>
                                 </div>
+                                <div class="p-3 border-top">
+                                    {{ $divisions->links() }}
+                                </div>
                             </div>
                         </div>
 
@@ -465,9 +473,9 @@
                                 <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
                                     <div>
                                         <div class="fw-semibold">Department</div>
-                                        <div class="text-muted small">{{ $departments->count() }} data terdaftar</div>
+                                        <div class="text-muted small">{{ $departments->total() }} data terdaftar</div>
                                     </div>
-                                    <span class="status-badge bg-primary-subtle text-primary">{{ $departments->where('is_active', true)->count() }} Active</span>
+                                    <span class="status-badge bg-primary-subtle text-primary">{{ $activeDepartmentTotal }} Active</span>
                                 </div>
                                 <div class="table-responsive">
                                     <table class="table reference-table table-nowrap mb-0">
@@ -499,7 +507,7 @@
                                                             data-bs-toggle="offcanvas"
                                                             data-bs-target="#departmentDrawer"
                                                             data-department-edit
-                                                            data-action="{{ route('invoice-verification.master-data.departments.update', $department) }}"
+                                                            data-action="{{ route('invoice-verification.master-data.departments.update', [$department, 'tab' => 'organization']) }}"
                                                             data-name="{{ $department->name }}"
                                                             data-division-id="{{ $department->division_id }}"
                                                             data-ldap-code="{{ $department->ldap_code }}"
@@ -516,6 +524,9 @@
                                         </tbody>
                                     </table>
                                 </div>
+                                <div class="p-3 border-top">
+                                    {{ $departments->links() }}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -530,7 +541,7 @@
                     </div>
                 </div>
 
-                <div class="tab-pane" id="ldap-whitelist" data-reference-panel="ldap" role="tabpanel">
+                <div class="tab-pane {{ $activeTab === 'ldap' ? 'show active' : '' }}" id="ldap-whitelist" data-reference-panel="ldap" role="tabpanel">
                     <div class="table-responsive">
                         <table class="table reference-table table-nowrap mb-0">
                             <thead>
@@ -569,7 +580,7 @@
                                                 data-bs-toggle="offcanvas"
                                                 data-bs-target="#ldapDrawer"
                                                 data-ldap-edit
-                                                data-action="{{ route('invoice-verification.master-data.ldap-whitelist.update', $internalUser) }}"
+                                                data-action="{{ route('invoice-verification.master-data.ldap-whitelist.update', [$internalUser, 'tab' => 'ldap']) }}"
                                                 data-name="{{ $internalUser->name }}"
                                                 data-email="{{ $internalUser->email }}"
                                                 data-role-code="{{ $internalUser->role_code?->value }}"
@@ -581,7 +592,7 @@
                                             >
                                                 <iconify-icon icon="solar:pen-outline" class="fs-18"></iconify-icon>
                                             </button>
-                                            <form method="POST" action="{{ route('invoice-verification.master-data.ldap-whitelist.update', $internalUser) }}" class="d-inline" data-confirm-form data-confirm-message="{{ $internalUser->is_active ? 'Nonaktifkan akses LDAP user ini?' : 'Aktifkan akses LDAP user ini?' }}">
+                                            <form method="POST" action="{{ route('invoice-verification.master-data.ldap-whitelist.update', [$internalUser, 'tab' => 'ldap']) }}" class="d-inline" data-confirm-form data-confirm-message="{{ $internalUser->is_active ? 'Nonaktifkan akses LDAP user ini?' : 'Aktifkan akses LDAP user ini?' }}">
                                                 @csrf
                                                 @method('PATCH')
                                                 <input type="hidden" name="is_active" value="{{ $internalUser->is_active ? '0' : '1' }}">
@@ -608,9 +619,12 @@
                             </tbody>
                         </table>
                     </div>
+                    <div class="pt-3">
+                        {{ $internalUsers->links() }}
+                    </div>
                 </div>
 
-                <div class="tab-pane" id="memo" data-reference-panel="memo" role="tabpanel">
+                <div class="tab-pane {{ $activeTab === 'memo' ? 'show active' : '' }}" id="memo" data-reference-panel="memo" role="tabpanel">
                     <div class="table-responsive">
                         <table class="table reference-table table-nowrap mb-0">
                             <thead>
@@ -655,9 +669,12 @@
                             </tbody>
                         </table>
                     </div>
+                    <div class="pt-3">
+                        {{ $memoRequests->links() }}
+                    </div>
                 </div>
 
-                <div class="tab-pane" id="agreements" data-reference-panel="agreements" role="tabpanel">
+                <div class="tab-pane {{ $activeTab === 'agreements' ? 'show active' : '' }}" id="agreements" data-reference-panel="agreements" role="tabpanel">
                     <div class="table-responsive">
                         <table class="table reference-table table-nowrap mb-0">
                             <thead>
@@ -704,9 +721,12 @@
                             </tbody>
                         </table>
                     </div>
+                    <div class="pt-3">
+                        {{ $agreementReferences->links() }}
+                    </div>
                 </div>
 
-                <div class="tab-pane" id="templates" data-reference-panel="templates" role="tabpanel">
+                <div class="tab-pane {{ $activeTab === 'templates' ? 'show active' : '' }}" id="templates" data-reference-panel="templates" role="tabpanel">
                     <div class="table-responsive">
                         <table class="table reference-table table-nowrap mb-0">
                             <thead>
@@ -747,6 +767,9 @@
                             </tbody>
                         </table>
                     </div>
+                    <div class="pt-3">
+                        {{ $templateReferences->links() }}
+                    </div>
                 </div>
             </div>
         </div>
@@ -761,7 +784,7 @@
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
-    <form method="POST" action="{{ route('invoice-verification.master-data.divisions.store') }}" class="d-flex flex-column h-100" id="divisionForm" data-store-action="{{ route('invoice-verification.master-data.divisions.store') }}">
+    <form method="POST" action="{{ route('invoice-verification.master-data.divisions.store', ['tab' => 'organization']) }}" class="d-flex flex-column h-100" id="divisionForm" data-store-action="{{ route('invoice-verification.master-data.divisions.store', ['tab' => 'organization']) }}">
         @csrf
         <input type="hidden" name="_method" value="PUT" data-division-method disabled>
         <div class="offcanvas-body">
@@ -802,7 +825,7 @@
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
-    <form method="POST" action="{{ route('invoice-verification.master-data.departments.store') }}" class="d-flex flex-column h-100" id="departmentForm" data-store-action="{{ route('invoice-verification.master-data.departments.store') }}">
+    <form method="POST" action="{{ route('invoice-verification.master-data.departments.store', ['tab' => 'organization']) }}" class="d-flex flex-column h-100" id="departmentForm" data-store-action="{{ route('invoice-verification.master-data.departments.store', ['tab' => 'organization']) }}">
         @csrf
         <input type="hidden" name="_method" value="PUT" data-department-method disabled>
         <div class="offcanvas-body">
@@ -811,7 +834,7 @@
                     <label class="form-label">Divisi</label>
                     <select class="form-select" name="division_id" data-department-field="divisionId" required>
                         <option value="">Pilih divisi</option>
-                        @foreach ($divisions as $division)
+                        @foreach ($divisionOptions as $division)
                             <option value="{{ $division->id }}">{{ $division->name }}</option>
                         @endforeach
                     </select>
@@ -848,7 +871,7 @@
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
-    <form method="POST" action="{{ route('invoice-verification.master-data.vendors.store') }}" class="d-flex flex-column h-100" id="vendorForm" data-store-action="{{ route('invoice-verification.master-data.vendors.store') }}">
+    <form method="POST" action="{{ route('invoice-verification.master-data.vendors.store', ['tab' => 'vendors']) }}" class="d-flex flex-column h-100" id="vendorForm" data-store-action="{{ route('invoice-verification.master-data.vendors.store', ['tab' => 'vendors']) }}">
         @csrf
         <input type="hidden" name="_method" value="PUT" data-vendor-method disabled>
         <div class="offcanvas-body">
@@ -879,7 +902,7 @@
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
-    <form method="POST" action="{{ route('invoice-verification.master-data.ldap-whitelist.store') }}" class="d-flex flex-column h-100" id="ldapForm" data-store-action="{{ route('invoice-verification.master-data.ldap-whitelist.store') }}">
+    <form method="POST" action="{{ route('invoice-verification.master-data.ldap-whitelist.store', ['tab' => 'ldap']) }}" class="d-flex flex-column h-100" id="ldapForm" data-store-action="{{ route('invoice-verification.master-data.ldap-whitelist.store', ['tab' => 'ldap']) }}">
         @csrf
         <input type="hidden" name="_method" value="PATCH" data-ldap-method disabled>
         <div class="offcanvas-body">
@@ -887,8 +910,8 @@
                 <div class="col-12"><label class="form-label">Nama User</label><input class="form-control @error('name') is-invalid @enderror" name="name" value="{{ old('name') }}" data-ldap-field="name">@error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
                 <div class="col-12"><label class="form-label">Email LDAP</label><input class="form-control @error('email') is-invalid @enderror" type="email" name="email" value="{{ old('email') }}" data-ldap-field="email">@error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
                 <div class="col-12"><label class="form-label">Role</label><select class="form-select @error('role_code') is-invalid @enderror" name="role_code" data-ldap-field="roleCode">@foreach ($roleOptions as $role)<option value="{{ $role->value }}" @selected(old('role_code') === $role->value)>{{ $role->label() }}</option>@endforeach</select>@error('role_code')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
-                <div class="col-12"><label class="form-label">Divisi</label><select class="form-select" name="division_id" data-ldap-field="divisionId"><option value="">Pilih divisi</option>@foreach ($divisions as $division)<option value="{{ $division->id }}" @selected(old('division_id') === $division->id)>{{ $division->name }}</option>@endforeach</select></div>
-                <div class="col-12"><label class="form-label">Departemen</label><select class="form-select" name="department_id" data-ldap-field="departmentId"><option value="">Pilih departemen</option>@foreach ($departments as $department)<option value="{{ $department->id }}" @selected(old('department_id') === $department->id)>{{ $department->name }}</option>@endforeach</select></div>
+                <div class="col-12"><label class="form-label">Divisi</label><select class="form-select" name="division_id" data-ldap-field="divisionId"><option value="">Pilih divisi</option>@foreach ($divisionOptions as $division)<option value="{{ $division->id }}" @selected(old('division_id') === $division->id)>{{ $division->name }}</option>@endforeach</select></div>
+                <div class="col-12"><label class="form-label">Departemen</label><select class="form-select" name="department_id" data-ldap-field="departmentId"><option value="">Pilih departemen</option>@foreach ($departmentOptions as $department)<option value="{{ $department->id }}" @selected(old('department_id') === $department->id)>{{ $department->name }}</option>@endforeach</select></div>
                 <div class="col-6"><label class="form-label">LDAP UID</label><input class="form-control" name="ldap_uid" value="{{ old('ldap_uid') }}" data-ldap-field="ldapUid"></div>
                 <div class="col-6"><label class="form-label">NIP</label><input class="form-control" name="employee_number" value="{{ old('employee_number') }}" data-ldap-field="employeeNumber"></div>
                 <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="is_active" value="1" id="ldap-user-active" @checked(old('is_active', '1')) data-ldap-field="isActive"><label class="form-check-label" for="ldap-user-active">Active</label></div></div>
@@ -903,15 +926,15 @@
 
 <div class="offcanvas offcanvas-end reference-master-drawer" tabindex="-1" id="memoDrawer" aria-labelledby="memoDrawerLabel" style="width: min(560px, 100vw);">
     <div class="offcanvas-header border-bottom"><div><h5 class="offcanvas-title" id="memoDrawerLabel">Tambah Memo</h5><p class="text-muted mb-0 small">Upload memo permohonan sebagai referensi transaksi.</p></div><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button></div>
-    <form method="POST" action="{{ route('invoice-verification.master-data.memo-requests.store') }}" enctype="multipart/form-data" class="d-flex flex-column h-100">
+    <form method="POST" action="{{ route('invoice-verification.master-data.memo-requests.store', ['tab' => 'memo']) }}" enctype="multipart/form-data" class="d-flex flex-column h-100">
         @csrf
         <div class="offcanvas-body">
             <div class="row g-3">
                 <div class="col-12"><label class="form-label">Nomor Memo</label><input class="form-control" name="memo_number" value="{{ old('memo_number') }}"></div>
                 <div class="col-12"><label class="form-label">Tanggal Memo</label><input class="form-control" type="date" name="memo_date" value="{{ old('memo_date') }}"></div>
                 <div class="col-12"><label class="form-label">Perihal</label><input class="form-control" name="subject" value="{{ old('subject') }}"></div>
-                <div class="col-12"><label class="form-label">Divisi</label><select class="form-select" name="division_id">@foreach ($divisions as $division)<option value="{{ $division->id }}" @selected(old('division_id', auth()->user()?->division_id) === $division->id)>{{ $division->name }}</option>@endforeach</select></div>
-                <div class="col-12"><label class="form-label">Departemen</label><select class="form-select" name="department_id">@foreach ($departments as $department)<option value="{{ $department->id }}" @selected(old('department_id', auth()->user()?->department_id) === $department->id)>{{ $department->name }}</option>@endforeach</select></div>
+                <div class="col-12"><label class="form-label">Divisi</label><select class="form-select" name="division_id">@foreach ($divisionOptions as $division)<option value="{{ $division->id }}" @selected(old('division_id', auth()->user()?->division_id) === $division->id)>{{ $division->name }}</option>@endforeach</select></div>
+                <div class="col-12"><label class="form-label">Departemen</label><select class="form-select" name="department_id">@foreach ($departmentOptions as $department)<option value="{{ $department->id }}" @selected(old('department_id', auth()->user()?->department_id) === $department->id)>{{ $department->name }}</option>@endforeach</select></div>
                 <div class="col-12"><label class="form-label">File Memo</label><input class="form-control" type="file" name="memo_file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"></div>
                 <div class="col-12"><label class="form-label">Keterangan Tambahan</label><textarea class="form-control" rows="3" name="description">{{ old('description') }}</textarea></div>
             </div>
@@ -922,11 +945,11 @@
 
 <div class="offcanvas offcanvas-end reference-master-drawer" tabindex="-1" id="agreementDrawer" aria-labelledby="agreementDrawerLabel" style="width: min(560px, 100vw);">
     <div class="offcanvas-header border-bottom"><div><h5 class="offcanvas-title" id="agreementDrawerLabel">Tambah Agreement</h5><p class="text-muted mb-0 small">Upload kontrak vendor sebagai referensi tagihan.</p></div><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button></div>
-    <form method="POST" action="{{ route('invoice-verification.master-data.agreement-references.store') }}" enctype="multipart/form-data" class="d-flex flex-column h-100">
+    <form method="POST" action="{{ route('invoice-verification.master-data.agreement-references.store', ['tab' => 'agreements']) }}" enctype="multipart/form-data" class="d-flex flex-column h-100">
         @csrf
         <div class="offcanvas-body">
             <div class="row g-3">
-                <div class="col-12"><label class="form-label">Vendor</label><select class="form-select" name="vendor_id"><option value="">Pilih vendor</option>@foreach ($vendors as $vendor)<option value="{{ $vendor->id }}" @selected(old('vendor_id') === $vendor->id)>{{ $vendor->name }}</option>@endforeach</select></div>
+                <div class="col-12"><label class="form-label">Vendor</label><select class="form-select" name="vendor_id"><option value="">Pilih vendor</option>@foreach ($vendorOptions as $vendor)<option value="{{ $vendor->id }}" @selected(old('vendor_id') === $vendor->id)>{{ $vendor->name }}</option>@endforeach</select></div>
                 <div class="col-12"><label class="form-label">Nomor Kontrak</label><input class="form-control" name="contract_number" value="{{ old('contract_number') }}"></div>
                 <div class="col-12"><label class="form-label">Nilai Kontrak</label><input class="form-control" name="contract_value" value="{{ old('contract_value') }}"></div>
                 <div class="col-6"><label class="form-label">Tanggal Berlaku</label><input class="form-control" type="date" name="effective_date" value="{{ old('effective_date') }}"></div>
@@ -940,7 +963,7 @@
 
 <div class="offcanvas offcanvas-end reference-master-drawer" tabindex="-1" id="templateDrawer" aria-labelledby="templateDrawerLabel" style="width: min(520px, 100vw);">
     <div class="offcanvas-header border-bottom"><div><h5 class="offcanvas-title" id="templateDrawerLabel">Tambah Template</h5><p class="text-muted mb-0 small">Kelola referensi template dokumen.</p></div><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button></div>
-    <form method="POST" action="{{ route('invoice-verification.master-data.template-references.store') }}" class="d-flex flex-column h-100">
+    <form method="POST" action="{{ route('invoice-verification.master-data.template-references.store', ['tab' => 'templates']) }}" class="d-flex flex-column h-100">
         @csrf
         <div class="offcanvas-body">
             <div class="row g-3">
@@ -963,7 +986,7 @@
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
-    <form method="POST" action="{{ route('invoice-verification.master-data.eproc-import') }}" enctype="multipart/form-data" class="d-flex flex-column h-100">
+    <form method="POST" action="{{ route('invoice-verification.master-data.eproc-import', ['tab' => 'vendors']) }}" enctype="multipart/form-data" class="d-flex flex-column h-100">
         @csrf
         <div class="offcanvas-body">
             <div class="row g-3">
@@ -1027,6 +1050,7 @@
         const searchInput = document.querySelector('[data-reference-search]');
         const statusFilter = document.querySelector('[data-reference-status]');
         const typeFilter = document.querySelector('[data-reference-type]');
+        const filterForm = document.querySelector('[data-reference-filter-form]');
         const loading = document.querySelector('[data-reference-loading]');
         const addButtons = document.querySelectorAll('[data-master-add-button]');
         const divisionForm = document.getElementById('divisionForm');
@@ -1041,12 +1065,9 @@
         const ldapForm = document.getElementById('ldapForm');
         const ldapMethod = document.querySelector('[data-ldap-method]');
         const ldapSubmit = document.querySelector('[data-ldap-submit]');
-        let activeTab = 'vendors';
+        let activeTab = @json($activeTab);
         let pendingForm = null;
-
-        function activePanel() {
-            return document.querySelector('[data-reference-panel="' + activeTab + '"]');
-        }
+        let filterTimer = null;
 
         function updateContext() {
             const config = tabConfig[activeTab];
@@ -1056,9 +1077,6 @@
                 button.setAttribute('data-bs-target', config.target);
             });
             if (searchInput) searchInput.placeholder = config.placeholder;
-            if (typeFilter) typeFilter.value = '';
-            if (searchInput) searchInput.value = '';
-            filterRows();
         }
 
         function setDivisionModeCreate() {
@@ -1201,45 +1219,18 @@
             if (active) active.checked = button.dataset.isActive === '1';
         }
 
-        function filterRows() {
-            const panel = activePanel();
-            if (!panel) return;
-            const query = (searchInput?.value || '').toLowerCase().trim();
-            const status = statusFilter?.value || '';
-            const type = typeFilter?.value || '';
-            const rows = Array.from(panel.querySelectorAll('[data-reference-row]'));
-            const noResults = panel.querySelector('[data-no-results-row]');
-            let visibleCount = 0;
-
-            rows.forEach(function (row) {
-                const matchesQuery = !query || (row.dataset.search || '').includes(query);
-                const matchesStatus = !status || row.dataset.status === status;
-                const matchesType = !type || row.dataset.type === type;
-                const show = matchesQuery && matchesStatus && matchesType;
-                row.classList.toggle('d-none', !show);
-                if (show) visibleCount++;
-            });
-
-            if (noResults) {
-                noResults.classList.toggle('d-none', visibleCount > 0 || rows.length === 0);
-            }
+        function submitFilters(delay) {
+            if (!filterForm) return;
+            window.clearTimeout(filterTimer);
+            filterTimer = window.setTimeout(function () {
+                if (loading) loading.classList.add('is-visible');
+                filterForm.submit();
+            }, delay);
         }
 
-        document.querySelectorAll('[data-reference-tab]').forEach(function (tab) {
-            tab.addEventListener('shown.bs.tab', function (event) {
-                activeTab = event.target.dataset.referenceTab;
-                if (loading) {
-                    loading.classList.add('is-visible');
-                    window.setTimeout(function () { loading.classList.remove('is-visible'); }, 260);
-                }
-                updateContext();
-            });
-        });
-
-        [searchInput, statusFilter, typeFilter].forEach(function (element) {
-            element?.addEventListener('input', filterRows);
-            element?.addEventListener('change', filterRows);
-        });
+        searchInput?.addEventListener('input', function () { submitFilters(420); });
+        statusFilter?.addEventListener('change', function () { submitFilters(0); });
+        typeFilter?.addEventListener('change', function () { submitFilters(0); });
 
         document.querySelectorAll('[data-detail-title]').forEach(function (button) {
             button.addEventListener('click', function () {

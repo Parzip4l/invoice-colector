@@ -44,14 +44,39 @@ class MasterDataController extends Controller
         $this->authorize('manageMasterData', Transaction::class);
 
         $user = auth()->user();
+        $activeTab = in_array(request('tab'), ['vendors', 'organization', 'ldap', 'memo', 'agreements', 'templates'], true)
+            ? request('tab')
+            : 'vendors';
+        $search = Str::lower(trim((string) request('q', '')));
+        $status = (string) request('status', '');
+        $type = (string) request('type', '');
+        $perPage = 25;
+        $filterSearch = function ($query, array $columns) use ($search) {
+            if ($search === '') {
+                return;
+            }
+
+            $query->where(function ($nested) use ($columns, $search) {
+                foreach ($columns as $column) {
+                    $nested->orWhereRaw('LOWER('.$column.') LIKE ?', ['%'.$search.'%']);
+                }
+            });
+        };
+
         $memoRequests = MemoRequest::query()
             ->with(['creator', 'division', 'department'])
             ->when(! $user?->hasRole(RoleCode::AKUNTANSI), function ($query) use ($user) {
                 $query->where('division_id', $user?->division_id)
                     ->where('department_id', $user?->department_id);
             })
+            ->when($activeTab === 'memo', function ($query) use ($filterSearch, $status) {
+                $filterSearch($query, ['memo_number', 'subject']);
+                $query->when($status === 'active', fn ($query) => $query->whereNotNull('file_path'));
+                $query->when($status === 'pending', fn ($query) => $query->whereNull('file_path'));
+            })
             ->latest('memo_date')
-            ->get();
+            ->paginate($perPage, ['*'], 'memo_page')
+            ->withQueryString();
 
         $agreementReferences = AgreementReference::query()
             ->with(['creator', 'division', 'department', 'vendor'])
@@ -59,34 +84,111 @@ class MasterDataController extends Controller
                 $query->where('division_id', $user?->division_id)
                     ->where('department_id', $user?->department_id);
             })
+            ->when($activeTab === 'agreements', function ($query) use ($filterSearch, $status) {
+                $filterSearch($query, ['contract_number', 'title']);
+                $query->when($status === 'active', fn ($query) => $query->whereNotNull('file_path'));
+                $query->when($status === 'pending', fn ($query) => $query->whereNull('file_path'));
+            })
             ->orderBy('contract_number')
-            ->get();
+            ->paginate($perPage, ['*'], 'agreements_page')
+            ->withQueryString();
+
+        $vendors = Vendor::query()
+            ->with('defaultBank')
+            ->when($activeTab === 'vendors', function ($query) use ($filterSearch, $status) {
+                $filterSearch($query, ['name', 'npwp', 'contact_name', 'contact_email']);
+                $query->when($status === 'inactive', fn ($query) => $query->whereRaw('1 = 0'));
+            })
+            ->orderBy('name')
+            ->paginate($perPage, ['*'], 'vendors_page')
+            ->withQueryString();
+
+        $internalUsers = User::query()
+            ->with(['division', 'department'])
+            ->where('role_code', '!=', RoleCode::VENDOR->value)
+            ->when($activeTab === 'ldap', function ($query) use ($filterSearch, $status) {
+                $filterSearch($query, ['name', 'email', 'ldap_uid', 'employee_number']);
+                $query->when($status === 'active', fn ($query) => $query->where('is_active', true));
+                $query->when($status === 'inactive', fn ($query) => $query->where('is_active', false));
+            })
+            ->orderBy('name')
+            ->paginate($perPage, ['*'], 'ldap_page')
+            ->withQueryString();
+
+        $divisions = Division::query()
+            ->withCount('departments')
+            ->when($activeTab === 'organization', function ($query) use ($filterSearch, $status, $type) {
+                $filterSearch($query, ['name', 'ldap_code']);
+                $query->when($status === 'active', fn ($query) => $query->where('is_active', true));
+                $query->when($status === 'inactive', fn ($query) => $query->where('is_active', false));
+                $query->when($type !== '' && $type !== 'division', fn ($query) => $query->whereRaw('1 = 0'));
+            })
+            ->orderBy('name')
+            ->paginate($perPage, ['*'], 'divisions_page')
+            ->withQueryString();
+
+        $departments = Department::query()
+            ->with('division')
+            ->when($activeTab === 'organization', function ($query) use ($filterSearch, $status, $type) {
+                $filterSearch($query, ['departments.name', 'departments.ldap_code']);
+                $query->when($status === 'active', fn ($query) => $query->where('departments.is_active', true));
+                $query->when($status === 'inactive', fn ($query) => $query->where('departments.is_active', false));
+                $query->when($type !== '' && $type !== 'department', fn ($query) => $query->whereRaw('1 = 0'));
+            })
+            ->orderBy('name')
+            ->paginate($perPage, ['*'], 'departments_page')
+            ->withQueryString();
+
+        $templateReferences = TemplateReference::query()
+            ->when($activeTab === 'templates', function ($query) use ($filterSearch, $status) {
+                $filterSearch($query, ['code', 'name', 'document_code']);
+                $query->when($status === 'active', fn ($query) => $query->where('is_active', true));
+                $query->when($status === 'inactive', fn ($query) => $query->where('is_active', false));
+            })
+            ->orderBy('code')
+            ->paginate($perPage, ['*'], 'templates_page')
+            ->withQueryString();
 
         return view('invoice-verification.master-data.index', [
             'banks' => Bank::query()->orderBy('name')->get(),
-            'vendors' => Vendor::query()->with('defaultBank')->orderBy('name')->get(),
-            'internalUsers' => User::query()
-                ->with(['division', 'department'])
-                ->where('role_code', '!=', RoleCode::VENDOR->value)
-                ->orderBy('name')
-                ->get(),
+            'vendors' => $vendors,
+            'vendorOptions' => Vendor::query()->orderBy('name')->get(['id', 'name']),
+            'internalUsers' => $internalUsers,
             'roleOptions' => collect(RoleCode::cases())
                 ->reject(fn (RoleCode $role) => $role === RoleCode::VENDOR)
                 ->values(),
             'memoRequests' => $memoRequests,
             'agreementReferences' => $agreementReferences,
-            'templateReferences' => TemplateReference::query()->orderBy('code')->get(),
+            'templateReferences' => $templateReferences,
             'transactionTypes' => TransactionType::query()->orderBy('name')->get(),
-            'divisions' => Division::query()->withCount('departments')->orderBy('name')->get(),
-            'departments' => Department::query()->with('division')->orderBy('name')->get(),
+            'divisions' => $divisions,
+            'departmentOptions' => Department::query()->with('division')->orderBy('name')->get(),
+            'divisionOptions' => Division::query()->orderBy('name')->get(),
+            'departments' => $departments,
+            'activeTab' => $activeTab,
+            'search' => $search,
+            'statusFilter' => $status,
+            'typeFilter' => $type,
+            'vendorTotal' => Vendor::query()->count(),
+            'internalUserTotal' => User::query()->where('role_code', '!=', RoleCode::VENDOR->value)->count(),
+            'activeDivisionTotal' => Division::query()->where('is_active', true)->count(),
+            'activeDepartmentTotal' => Department::query()->where('is_active', true)->count(),
+            'activeTemplateTotal' => TemplateReference::query()->where('is_active', true)->count(),
         ]);
+    }
+
+    private function redirectToMasterData(string $tab, string $message)
+    {
+        return redirect()
+            ->route('invoice-verification.master-data.index', ['tab' => $tab])
+            ->with('success', $message);
     }
 
     public function storeBank(StoreBankRequest $request)
     {
         Bank::create($request->validated());
 
-        return back()->with('success', 'Master bank berhasil ditambahkan.');
+        return $this->redirectToMasterData('vendors', 'Master bank berhasil ditambahkan.');
     }
 
     public function storeVendor(StoreVendorRequest $request)
@@ -142,7 +244,7 @@ class MasterDataController extends Controller
             );
         }
 
-        return back()->with('success', 'Master vendor berhasil ditambahkan.');
+        return $this->redirectToMasterData('vendors', 'Master vendor berhasil ditambahkan.');
     }
 
     public function updateVendor(Request $request, Vendor $vendor)
@@ -232,7 +334,7 @@ class MasterDataController extends Controller
             }
         }
 
-        return back()->with('success', 'Master vendor berhasil diperbarui.');
+        return $this->redirectToMasterData('vendors', 'Master vendor berhasil diperbarui.');
     }
 
     public function storeLdapWhitelist(Request $request)
@@ -291,7 +393,7 @@ class MasterDataController extends Controller
             ]);
         }
 
-        return back()->with('success', 'Whitelist LDAP berhasil disimpan.');
+        return $this->redirectToMasterData('ldap', 'Whitelist LDAP berhasil disimpan.');
     }
 
     public function updateLdapWhitelist(Request $request, User $user)
@@ -332,7 +434,7 @@ class MasterDataController extends Controller
                 'last_synced_at' => now(),
             ])->save();
 
-            return back()->with('success', 'Whitelist LDAP berhasil diperbarui.');
+            return $this->redirectToMasterData('ldap', 'Whitelist LDAP berhasil diperbarui.');
         }
 
         $payload = $request->validate([
@@ -343,7 +445,7 @@ class MasterDataController extends Controller
             'is_active' => (bool) $payload['is_active'],
         ])->save();
 
-        return back()->with('success', 'Status whitelist LDAP berhasil diperbarui.');
+        return $this->redirectToMasterData('ldap', 'Status whitelist LDAP berhasil diperbarui.');
     }
 
     public function storeDivision(Request $request)
@@ -364,7 +466,7 @@ class MasterDataController extends Controller
             'is_active' => $request->boolean('is_active', true),
         ]);
 
-        return back()->with('success', 'Master divisi berhasil disimpan.');
+        return $this->redirectToMasterData('organization', 'Master divisi berhasil disimpan.');
     }
 
     public function updateDivision(Request $request, Division $division)
@@ -385,7 +487,7 @@ class MasterDataController extends Controller
             'is_active' => (bool) $payload['is_active'],
         ]);
 
-        return back()->with('success', 'Master divisi berhasil diperbarui.');
+        return $this->redirectToMasterData('organization', 'Master divisi berhasil diperbarui.');
     }
 
     public function storeDepartment(Request $request)
@@ -406,7 +508,7 @@ class MasterDataController extends Controller
             'is_active' => $request->boolean('is_active', true),
         ]);
 
-        return back()->with('success', 'Master department berhasil disimpan.');
+        return $this->redirectToMasterData('organization', 'Master department berhasil disimpan.');
     }
 
     public function updateDepartment(Request $request, Department $department)
@@ -427,7 +529,7 @@ class MasterDataController extends Controller
             'is_active' => (bool) $payload['is_active'],
         ]);
 
-        return back()->with('success', 'Master department berhasil diperbarui.');
+        return $this->redirectToMasterData('organization', 'Master department berhasil diperbarui.');
     }
 
     public function storeMemo(StoreMemoRequest $request)
@@ -461,7 +563,7 @@ class MasterDataController extends Controller
             ],
         );
 
-        return back()->with('success', 'Memo permohonan berhasil ditambahkan dan file sudah diunggah.');
+        return $this->redirectToMasterData('memo', 'Memo permohonan berhasil ditambahkan dan file sudah diunggah.');
     }
 
     public function storeAgreement(StoreAgreementReferenceRequest $request)
@@ -496,14 +598,14 @@ class MasterDataController extends Controller
             ],
         );
 
-        return back()->with('success', 'Referensi kontrak berhasil ditambahkan dan dapat dipilih kembali untuk tagihan berikutnya.');
+        return $this->redirectToMasterData('agreements', 'Referensi kontrak berhasil ditambahkan dan dapat dipilih kembali untuk tagihan berikutnya.');
     }
 
     public function storeTemplate(StoreTemplateReferenceRequest $request)
     {
         TemplateReference::create($request->validated());
 
-        return back()->with('success', 'Template reference berhasil ditambahkan.');
+        return $this->redirectToMasterData('templates', 'Template reference berhasil ditambahkan.');
     }
 
     public function syncLdap()
@@ -512,7 +614,7 @@ class MasterDataController extends Controller
 
         $result = $this->ldapDirectorySynchronizer->syncAll();
 
-        return back()->with('success', $result['message']);
+        return $this->redirectToMasterData('ldap', $result['message']);
     }
 
     public function importEproc(Request $request, SpreadsheetImportReader $reader, EprocImportService $importer)
@@ -547,7 +649,7 @@ class MasterDataController extends Controller
             divisionName: $payload['division_name'] ?? 'E-Procurement',
         );
 
-        return back()->with('success', sprintf(
+        return $this->redirectToMasterData('vendors', sprintf(
             'Import E-Proc selesai. Vendor baru %d, vendor update %d, PO baru %d, PO update %d, department baru %d.',
             $stats['vendors_created'],
             $stats['vendors_updated'],

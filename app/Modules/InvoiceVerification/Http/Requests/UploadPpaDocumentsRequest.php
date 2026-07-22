@@ -2,8 +2,10 @@
 
 namespace App\Modules\InvoiceVerification\Http\Requests;
 
+use App\Modules\InvoiceVerification\Domain\Models\DocumentType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class UploadPpaDocumentsRequest extends FormRequest
 {
@@ -50,6 +52,66 @@ class UploadPpaDocumentsRequest extends FormRequest
             'documents.*.document_information.document_date' => ['required', 'date'],
             'documents.*.document_information.notes' => ['nullable', 'string'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            $submittedDocuments = collect($this->input('documents', []));
+
+            if ($submittedDocuments->isEmpty()) {
+                return;
+            }
+
+            $documentTypeIds = $submittedDocuments
+                ->pluck('document_type_id')
+                ->filter()
+                ->values();
+
+            if ($documentTypeIds->isEmpty()) {
+                return;
+            }
+
+            $documentTypes = DocumentType::query()
+                ->whereIn('id', $documentTypeIds)
+                ->pluck('code', 'id');
+
+            $requiredDateCodes = [
+                'PPA_INVOICE' => 'Invoice',
+                'PPA_FAKTUR_PAJAK' => 'Faktur Pajak',
+                'PPA_KWITANSI' => 'Kwitansi',
+            ];
+            $dates = [];
+
+            foreach ($submittedDocuments as $index => $document) {
+                $code = (string) ($documentTypes[$document['document_type_id'] ?? null] ?? '');
+
+                if (! array_key_exists($code, $requiredDateCodes)) {
+                    continue;
+                }
+
+                $date = data_get($document, 'document_information.document_date');
+
+                if ($date) {
+                    $dates[$code] = [
+                        'index' => $index,
+                        'date' => $date,
+                        'label' => $requiredDateCodes[$code],
+                    ];
+                }
+            }
+
+            if (count($dates) < count($requiredDateCodes) || count(array_unique(array_column($dates, 'date'))) <= 1) {
+                return;
+            }
+
+            foreach ($dates as $item) {
+                $validator->errors()->add(
+                    "documents.{$item['index']}.document_information.document_date",
+                    'Tanggal Invoice, Faktur Pajak, dan Kwitansi harus sama.',
+                );
+            }
+        });
     }
 
     public function messages(): array

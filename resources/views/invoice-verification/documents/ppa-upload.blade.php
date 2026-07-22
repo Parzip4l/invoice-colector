@@ -148,6 +148,12 @@
         font-weight: 700;
     }
 
+    .ppa-upload-page .required-mark {
+        color: var(--signal-primary);
+        font-weight: 800;
+        margin-left: 3px;
+    }
+
     .ppa-upload-page .form-control,
     .ppa-upload-page .form-select {
         min-height: 44px;
@@ -481,12 +487,12 @@
                 <p class="text-muted mb-3">Data ini akan digunakan untuk generate Lembar PPA, Lembar Verifikasi, compile dokumen, dan penomoran.</p>
                 <div class="billing-grid">
                     <div class="billing-field">
-                        <label class="form-label">Nomor Invoice</label>
+                        <label class="form-label">Nomor Invoice<span class="required-mark">*</span></label>
                         <input type="text" class="form-control @error('invoice_number') is-invalid @enderror" name="invoice_number" value="{{ old('invoice_number', $transaction->invoiceMetadata?->invoice_number) }}" required>
                         @error('invoice_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="billing-field">
-                        <label class="form-label">Tanggal Invoice</label>
+                        <label class="form-label">Tanggal Invoice<span class="required-mark">*</span></label>
                         <input type="date" class="form-control @error('invoice_date') is-invalid @enderror" name="invoice_date" value="{{ old('invoice_date', optional($transaction->invoiceMetadata?->invoice_date)->format('Y-m-d')) }}" required>
                         @error('invoice_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
@@ -511,7 +517,7 @@
                         @error('account_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="billing-field">
-                        <label class="form-label">Nilai Invoice</label>
+                        <label class="form-label">Nilai Invoice<span class="required-mark">*</span></label>
                         <input type="text" inputmode="numeric" class="form-control @error('invoice_value') is-invalid @enderror" name="invoice_value" value="{{ old('invoice_value', $transaction->invoiceMetadata?->invoice_value) }}" data-rupiah-input required>
                         @error('invoice_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
@@ -664,7 +670,7 @@
                                         @endif
                                         <div class="vendor-document-grid">
                                             <div data-required-group>
-                                                <label class="form-label">Nomor Dokumen</label>
+                                                <label class="form-label">Nomor Dokumen@if($documentType->is_required)<span class="required-mark">*</span>@endif</label>
                                                 <input
                                                     type="text"
                                                     class="form-control @error("documents.$documentType->id.document_information.document_number") is-invalid @enderror"
@@ -677,7 +683,7 @@
                                                 <div class="validation-message">Nomor dokumen wajib diisi.</div>
                                             </div>
                                             <div data-required-group>
-                                                <label class="form-label">Tanggal Dokumen</label>
+                                                <label class="form-label">Tanggal Dokumen@if($documentType->is_required)<span class="required-mark">*</span>@endif</label>
                                                 <input
                                                     type="date"
                                                     class="form-control @error("documents.$documentType->id.document_information.document_date") is-invalid @enderror"
@@ -699,7 +705,7 @@
                                                 @error("documents.$documentType->id.document_information.notes")<div class="invalid-feedback">{{ $message }}</div>@enderror
                                             </div>
                                             <div class="full" data-required-group>
-                                                <label class="form-label">File Dokumen</label>
+                                                <label class="form-label">File Dokumen@if($documentType->is_required)<span class="required-mark">*</span>@endif</label>
                                                 <div class="upload-box @if($existingDocument?->file_name) has-file @endif" data-upload-box>
                                                     <input
                                                         type="file"

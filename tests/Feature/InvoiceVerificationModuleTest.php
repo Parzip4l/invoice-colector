@@ -128,6 +128,83 @@ class InvoiceVerificationModuleTest extends TestCase
         $response->assertRedirect(route('invoice-verification.transactions.documents.show', $transaction));
     }
 
+    public function test_vendor_invoice_tax_invoice_and_receipt_dates_must_match(): void
+    {
+        Storage::fake(config('invoice_verification.storage.documents_disk', 'public'));
+
+        $vendorUser = User::where('email', 'vendor@demo.local')->firstOrFail();
+        $vendor = $vendorUser->linkedVendor() ?? Vendor::firstOrFail();
+        $agreementReference = AgreementReference::query()
+            ->where('vendor_id', $vendor->id)
+            ->firstOrFail();
+
+        Transaction::query()
+            ->where('vendor_id', $vendor->id)
+            ->where('agreement_reference_id', $agreementReference->id)
+            ->delete();
+
+        $this->actingAs($vendorUser)
+            ->post(route('invoice-verification.transactions.agreements.start', $agreementReference))
+            ->assertRedirect();
+
+        $transaction = Transaction::query()
+            ->where('vendor_id', $vendor->id)
+            ->where('agreement_reference_id', $agreementReference->id)
+            ->where('status', 'DRAFT')
+            ->latest()
+            ->firstOrFail();
+        $documentTypes = DocumentType::query()
+            ->where('transaction_type_id', $transaction->transaction_type_id)
+            ->whereIn('code', ['PPA_INVOICE', 'PPA_FAKTUR_PAJAK', 'PPA_KWITANSI'])
+            ->get()
+            ->keyBy('code');
+        $invoice = $documentTypes->get('PPA_INVOICE');
+        $taxInvoice = $documentTypes->get('PPA_FAKTUR_PAJAK');
+        $receipt = $documentTypes->get('PPA_KWITANSI');
+
+        $response = $this->actingAs($vendorUser)
+            ->from(route('invoice-verification.transactions.documents.show', $transaction))
+            ->post(route('invoice-verification.transactions.documents.ppa.store', $transaction), [
+                'invoice_number' => 'INV-DATE-MISMATCH-001',
+                'invoice_date' => '2026-07-22',
+                'received_date' => '2026-07-22',
+                'invoice_value' => 10000000,
+                'documents' => [
+                    $invoice->id => [
+                        'document_type_id' => $invoice->id,
+                        'document_information' => [
+                            'document_number' => 'INV-DOC-001',
+                            'document_date' => '2026-07-22',
+                        ],
+                        'file' => UploadedFile::fake()->create('invoice.pdf', 128, 'application/pdf'),
+                    ],
+                    $taxInvoice->id => [
+                        'document_type_id' => $taxInvoice->id,
+                        'document_information' => [
+                            'document_number' => 'FP-001',
+                            'document_date' => '2026-07-21',
+                        ],
+                        'file' => UploadedFile::fake()->create('faktur-pajak.pdf', 128, 'application/pdf'),
+                    ],
+                    $receipt->id => [
+                        'document_type_id' => $receipt->id,
+                        'document_information' => [
+                            'document_number' => 'KW-001',
+                            'document_date' => '2026-07-22',
+                        ],
+                        'file' => UploadedFile::fake()->create('kwitansi.pdf', 128, 'application/pdf'),
+                    ],
+                ],
+            ]);
+
+        $response->assertRedirect(route('invoice-verification.transactions.documents.show', $transaction));
+        $response->assertSessionHasErrors([
+            "documents.{$invoice->id}.document_information.document_date",
+            "documents.{$taxInvoice->id}.document_information.document_date",
+            "documents.{$receipt->id}.document_information.document_date",
+        ]);
+    }
+
     public function test_admin_creates_draft_and_vendor_uploads_invoice_documents(): void
     {
         Storage::fake(config('invoice_verification.storage.documents_disk', 'public'));

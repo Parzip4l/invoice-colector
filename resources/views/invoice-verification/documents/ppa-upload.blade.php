@@ -670,7 +670,7 @@
                                         @endif
                                         <div class="vendor-document-grid">
                                             <div data-required-group>
-                                                <label class="form-label">Nomor Dokumen@if($documentType->is_required)<span class="required-mark">*</span>@endif</label>
+                                                <label class="form-label">Nomor Dokumen<span class="required-mark {{ $documentType->is_required ? '' : 'd-none' }}">*</span></label>
                                                 <input
                                                     type="text"
                                                     class="form-control @error("documents.$documentType->id.document_information.document_number") is-invalid @enderror"
@@ -683,7 +683,7 @@
                                                 <div class="validation-message">Nomor dokumen wajib diisi.</div>
                                             </div>
                                             <div data-required-group>
-                                                <label class="form-label">Tanggal Dokumen@if($documentType->is_required)<span class="required-mark">*</span>@endif</label>
+                                                <label class="form-label">Tanggal Dokumen<span class="required-mark {{ $documentType->is_required ? '' : 'd-none' }}">*</span></label>
                                                 <input
                                                     type="date"
                                                     class="form-control @error("documents.$documentType->id.document_information.document_date") is-invalid @enderror"
@@ -705,7 +705,7 @@
                                                 @error("documents.$documentType->id.document_information.notes")<div class="invalid-feedback">{{ $message }}</div>@enderror
                                             </div>
                                             <div class="full" data-required-group>
-                                                <label class="form-label">File Dokumen@if($documentType->is_required)<span class="required-mark">*</span>@endif</label>
+                                                <label class="form-label">File Dokumen<span class="required-mark {{ $documentType->is_required ? '' : 'd-none' }}">*</span></label>
                                                 <div class="upload-box @if($existingDocument?->file_name) has-file @endif" data-upload-box>
                                                     <input
                                                         type="file"

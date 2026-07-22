@@ -217,7 +217,17 @@ class TransactionController extends Controller
 
         $linkedVendor = $user->linkedVendor();
 
-        abort_unless($linkedVendor && $agreementReference->vendor_id === $linkedVendor->id, 404);
+        if (! $linkedVendor) {
+            return redirect()
+                ->route('invoice-verification.transactions.index')
+                ->with('error', 'Akun vendor belum terhubung ke master vendor. Pastikan email login sama dengan contact email vendor.');
+        }
+
+        if ($agreementReference->vendor_id !== $linkedVendor->id) {
+            return redirect()
+                ->route('invoice-verification.transactions.index')
+                ->with('error', 'Kontrak ini tidak terhubung dengan akun vendor yang sedang login.');
+        }
 
         $transaction = $agreementReference->transactions()
             ->where('vendor_id', $linkedVendor->id)

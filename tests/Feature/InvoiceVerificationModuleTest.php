@@ -103,6 +103,31 @@ class InvoiceVerificationModuleTest extends TestCase
         $this->assertSame($agreementReference->contract_number, $transaction->contract_number);
     }
 
+    public function test_vendor_can_open_start_upload_url_from_contract(): void
+    {
+        $vendorUser = User::where('email', 'vendor.logistik@demo.local')->firstOrFail();
+        $vendor = $vendorUser->linkedVendor() ?? Vendor::firstOrFail();
+        $agreementReference = AgreementReference::query()
+            ->where('vendor_id', $vendor->id)
+            ->firstOrFail();
+
+        Transaction::query()
+            ->where('vendor_id', $vendor->id)
+            ->where('agreement_reference_id', $agreementReference->id)
+            ->delete();
+
+        $response = $this->actingAs($vendorUser)
+            ->get(route('invoice-verification.transactions.agreements.start', $agreementReference));
+
+        $transaction = Transaction::query()
+            ->where('vendor_id', $vendor->id)
+            ->where('agreement_reference_id', $agreementReference->id)
+            ->where('status', 'DRAFT')
+            ->firstOrFail();
+
+        $response->assertRedirect(route('invoice-verification.transactions.documents.show', $transaction));
+    }
+
     public function test_admin_creates_draft_and_vendor_uploads_invoice_documents(): void
     {
         Storage::fake(config('invoice_verification.storage.documents_disk', 'public'));

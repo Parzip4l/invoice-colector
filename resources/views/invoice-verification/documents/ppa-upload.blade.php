@@ -522,7 +522,7 @@
                     </div>
                     <div class="billing-field full">
                         <label class="form-label">Uraian Transaksi</label>
-                        <input type="text" class="form-control @error('description') is-invalid @enderror" name="description" value="{{ old('description', $transaction->invoiceMetadata?->description ?? $transaction->description) }}">
+                        <textarea class="form-control @error('description') is-invalid @enderror" name="description" rows="3">{{ old('description', $transaction->invoiceMetadata?->description ?? $transaction->description) }}</textarea>
                         @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                 </div>

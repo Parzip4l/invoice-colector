@@ -23,27 +23,48 @@ class="authentication-bg"
                             </div>
                             
                         </div>
-                        <form method="POST" action="{{ route('login') }}" class="mt-4">
+                        @if (session('status'))
+                            <div class="alert alert-warning border-0 shadow-sm mt-4" role="alert">
+                                {{ session('status') }}
+                            </div>
+                        @endif
 
-                            @csrf
-
-                            @if (session('status'))
-                                <div class="alert alert-warning border-0 shadow-sm" role="alert">
-                                    {{ session('status') }}
-                                </div>
-                            @endif
-
-                            @if ($errors->any())
-                                <div class="alert alert-danger border-0 shadow-sm" role="alert">
-                                    <div class="d-flex gap-2">
-                                        <iconify-icon icon="solar:danger-triangle-outline" class="fs-20 flex-shrink-0"></iconify-icon>
-                                        <div>
-                                            <div class="fw-semibold mb-1">Login gagal</div>
-                                            <div>{{ $errors->first() }}</div>
-                                        </div>
+                        @if ($errors->any())
+                            <div class="alert alert-danger border-0 shadow-sm mt-4" role="alert">
+                                <div class="d-flex gap-2">
+                                    <iconify-icon icon="solar:danger-triangle-outline" class="fs-20 flex-shrink-0"></iconify-icon>
+                                    <div>
+                                        <div class="fw-semibold mb-1">Login gagal</div>
+                                        <div>{{ $errors->first() }}</div>
                                     </div>
                                 </div>
-                            @endif
+                            </div>
+                        @endif
+
+                        @if (config('services.microsoft_sso.enabled'))
+                            <div class="d-grid mt-4">
+                                <a href="{{ route('auth.microsoft.redirect') }}"
+                                    class="btn btn-light border btn-lg fw-semibold d-inline-flex align-items-center justify-content-center gap-3">
+                                    <span class="d-inline-grid" style="grid-template-columns: repeat(2, 10px); gap: 2px;">
+                                        <span style="width: 10px; height: 10px; background: #f25022;"></span>
+                                        <span style="width: 10px; height: 10px; background: #7fba00;"></span>
+                                        <span style="width: 10px; height: 10px; background: #00a4ef;"></span>
+                                        <span style="width: 10px; height: 10px; background: #ffb900;"></span>
+                                    </span>
+                                    <span>Sign in with Microsoft</span>
+                                </a>
+                            </div>
+
+                            <div class="d-flex align-items-center gap-3 my-4 text-muted small fw-semibold">
+                                <span class="border-top flex-grow-1"></span>
+                                <span>or use LDAP / vendor account</span>
+                                <span class="border-top flex-grow-1"></span>
+                            </div>
+                        @endif
+
+                        <form method="POST" action="{{ route('login') }}" class="{{ config('services.microsoft_sso.enabled') ? '' : 'mt-4' }}">
+
+                            @csrf
 
                             <div class="mb-3">
                                 <label for="email" class="form-label">Email Address</label>

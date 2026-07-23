@@ -9,6 +9,7 @@ use App\Modules\InvoiceVerification\Domain\Models\Division;
 use App\Modules\InvoiceVerification\Domain\Models\Vendor;
 use Database\Seeders\InvoiceVerification\InvoiceVerificationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -73,6 +74,59 @@ class AuthLoginTest extends TestCase
             ->assertOk()
             ->assertSee('Login gagal')
             ->assertSee('Account is inactive or not whitelisted.');
+    }
+
+    public function test_whitelisted_internal_user_can_login_with_microsoft_sso(): void
+    {
+        config([
+            'services.microsoft_sso.enabled' => true,
+            'services.microsoft_sso.tenant_id' => 'tenant-id',
+            'services.microsoft_sso.client_id' => 'client-id',
+            'services.microsoft_sso.client_secret' => 'secret',
+            'services.microsoft_sso.allowed_domain' => null,
+        ]);
+
+        Http::fake([
+            'login.microsoftonline.com/*/oauth2/v2.0/token' => Http::response(['access_token' => 'token'], 200),
+            'graph.microsoft.com/v1.0/me*' => Http::response([
+                'displayName' => 'Admin Divisi',
+                'mail' => 'admin.divisi@demo.local',
+                'userPrincipalName' => 'admin.divisi@demo.local',
+            ], 200),
+        ]);
+
+        $this->withSession(['microsoft_sso_state' => 'valid-state'])
+            ->get(route('auth.microsoft.callback', ['code' => 'auth-code', 'state' => 'valid-state']))
+            ->assertRedirect(route('invoice-verification.dashboard'));
+
+        $this->assertAuthenticatedAs(User::where('email', 'admin.divisi@demo.local')->firstOrFail());
+    }
+
+    public function test_non_whitelisted_user_cannot_login_with_microsoft_sso(): void
+    {
+        config([
+            'services.microsoft_sso.enabled' => true,
+            'services.microsoft_sso.tenant_id' => 'tenant-id',
+            'services.microsoft_sso.client_id' => 'client-id',
+            'services.microsoft_sso.client_secret' => 'secret',
+            'services.microsoft_sso.allowed_domain' => null,
+        ]);
+
+        Http::fake([
+            'login.microsoftonline.com/*/oauth2/v2.0/token' => Http::response(['access_token' => 'token'], 200),
+            'graph.microsoft.com/v1.0/me*' => Http::response([
+                'displayName' => 'Unknown User',
+                'mail' => 'unknown@demo.local',
+                'userPrincipalName' => 'unknown@demo.local',
+            ], 200),
+        ]);
+
+        $this->withSession(['microsoft_sso_state' => 'valid-state'])
+            ->get(route('auth.microsoft.callback', ['code' => 'auth-code', 'state' => 'valid-state']))
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest();
     }
 
     public function test_vendor_uses_local_login_even_when_ldap_is_enabled(): void

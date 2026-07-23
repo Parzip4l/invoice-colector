@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
+use App\Http\Controllers\Auth\MicrosoftSsoController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
@@ -23,6 +24,14 @@ Route::get('/login', [AuthenticatedSessionController::class, 'create'])
 
 Route::post('/login', [AuthenticatedSessionController::class, 'store'])
     ->middleware('guest');
+
+Route::get('/auth/microsoft/redirect', [MicrosoftSsoController::class, 'redirect'])
+    ->middleware('guest')
+    ->name('auth.microsoft.redirect');
+
+Route::get('/auth/microsoft/callback', [MicrosoftSsoController::class, 'callback'])
+    ->middleware('guest')
+    ->name('auth.microsoft.callback');
 
 Route::get('/forgot-password', [PasswordResetLinkController::class, 'create'])
     ->middleware('guest')

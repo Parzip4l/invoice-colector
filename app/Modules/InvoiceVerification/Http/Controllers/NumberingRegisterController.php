@@ -5,11 +5,18 @@ namespace App\Modules\InvoiceVerification\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\InvoiceVerification\Domain\Enums\RoleCode;
 use App\Modules\InvoiceVerification\Domain\Models\NumberingRegister;
+use App\Modules\InvoiceVerification\Services\NumberingRegisterExportService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class NumberingRegisterController extends Controller
 {
+    public function __construct(
+        protected NumberingRegisterExportService $exportService,
+    ) {
+    }
+
     public function index(Request $request)
     {
         $sort = in_array($request->query('sort'), ['register_number', 'vendor_name', 'invoice_number', 'memo_number', 'invoice_value', 'generated_at'], true)
@@ -18,27 +25,30 @@ class NumberingRegisterController extends Controller
         $direction = $request->query('direction') === 'asc' ? 'asc' : 'desc';
         $search = trim((string) $request->query('search', ''));
 
-        $registers = NumberingRegister::query()
-            ->with('transaction.transactionType')
-            ->when($search !== '', function ($query) use ($search) {
-                $needle = '%'.mb_strtolower($search).'%';
-
-                $query->where(function ($innerQuery) use ($needle) {
-                    $innerQuery
-                        ->whereRaw('LOWER(register_number) LIKE ?', [$needle])
-                        ->orWhereRaw('LOWER(vendor_name) LIKE ?', [$needle])
-                        ->orWhereRaw('LOWER(invoice_number) LIKE ?', [$needle])
-                        ->orWhereRaw('LOWER(memo_number) LIKE ?', [$needle])
-                        ->orWhereRaw('LOWER(bank_name) LIKE ?', [$needle])
-                        ->orWhereRaw('LOWER(account_number) LIKE ?', [$needle])
-                        ->orWhereRaw('LOWER(account_name) LIKE ?', [$needle]);
-                });
-            })
+        $registers = $this->baseQuery($search)
             ->orderBy($sort, $direction)
             ->paginate(10)
             ->withQueryString();
 
         return view('invoice-verification.numbering-registers.index', compact('registers', 'sort', 'direction', 'search'));
+    }
+
+    public function export(Request $request)
+    {
+        abort_unless($request->user()?->hasRole(RoleCode::ADMIN_DIVISI, RoleCode::AKUNTANSI, RoleCode::FINANCE), 403);
+
+        $search = trim((string) $request->query('search', ''));
+        $registers = $this->baseQuery($search)
+            ->orderBy('received_date')
+            ->orderBy('register_number')
+            ->get();
+        $path = tempnam(sys_get_temp_dir(), 'numbering-register-').'.xlsx';
+
+        $this->exportService->export($registers, $path);
+
+        return response()
+            ->download($path, 'numbering-register-'.now()->format('Ymd-His').'.xlsx')
+            ->deleteFileAfterSend(true);
     }
 
     public function update(Request $request, NumberingRegister $numberingRegister): RedirectResponse
@@ -71,5 +81,32 @@ class NumberingRegisterController extends Controller
         return redirect()
             ->route('invoice-verification.numbering-registers.index')
             ->with('success', 'Data penomoran berhasil diperbarui.');
+    }
+
+    private function baseQuery(string $search): Builder
+    {
+        return NumberingRegister::query()
+            ->with([
+                'transaction.transactionType',
+                'transaction.vendor',
+                'transaction.division',
+                'transaction.owner',
+                'transaction.parentSpuTransaction',
+                'transaction.latestDocuments.documentType',
+            ])
+            ->when($search !== '', function ($query) use ($search) {
+                $needle = '%'.mb_strtolower($search).'%';
+
+                $query->where(function ($innerQuery) use ($needle) {
+                    $innerQuery
+                        ->whereRaw('LOWER(register_number) LIKE ?', [$needle])
+                        ->orWhereRaw('LOWER(vendor_name) LIKE ?', [$needle])
+                        ->orWhereRaw('LOWER(invoice_number) LIKE ?', [$needle])
+                        ->orWhereRaw('LOWER(memo_number) LIKE ?', [$needle])
+                        ->orWhereRaw('LOWER(bank_name) LIKE ?', [$needle])
+                        ->orWhereRaw('LOWER(account_number) LIKE ?', [$needle])
+                        ->orWhereRaw('LOWER(account_name) LIKE ?', [$needle]);
+                });
+            });
     }
 }

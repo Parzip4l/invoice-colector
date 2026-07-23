@@ -10,7 +10,7 @@
 
 <div class="card iv-table-card">
     <div class="card-header bg-white border-bottom">
-        <form method="GET" class="iv-table-toolbar" style="--iv-filter-count: 0;">
+        <form method="GET" class="iv-table-toolbar" style="--iv-filter-count: 1;">
             <div>
                 <label class="form-label">Search</label>
                 <div class="input-group">
@@ -20,6 +20,10 @@
             </div>
             <button class="btn btn-primary d-inline-flex align-items-center justify-content-center gap-1"><iconify-icon icon="solar:filter-outline" class="fs-18"></iconify-icon><span>Filter</span></button>
             <a href="{{ route('invoice-verification.numbering-registers.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center gap-1"><iconify-icon icon="solar:restart-outline" class="fs-18"></iconify-icon><span>Reset</span></a>
+            <a href="{{ route('invoice-verification.numbering-registers.export', request()->only('search')) }}" class="btn btn-outline-success d-inline-flex align-items-center justify-content-center gap-1">
+                <iconify-icon icon="solar:download-outline" class="fs-18"></iconify-icon>
+                <span>Download Excel</span>
+            </a>
         </form>
     </div>
     <div class="card-body p-0">

@@ -61,6 +61,7 @@ Route::group(['prefix' => '/', 'middleware' => 'auth'], function () {
             Route::get('/finance/{transaction}/payment-proof', [FinanceController::class, 'previewProof'])->name('finance.payment-proof.preview');
             Route::post('/finance/{transaction}/paid', [FinanceController::class, 'markPaid'])->name('finance.paid');
             Route::get('/numbering-registers', [NumberingRegisterController::class, 'index'])->name('numbering-registers.index');
+            Route::get('/numbering-registers/export', [NumberingRegisterController::class, 'export'])->name('numbering-registers.export');
             Route::put('/numbering-registers/{numberingRegister}', [NumberingRegisterController::class, 'update'])->name('numbering-registers.update');
             Route::get('/compiled-documents', [CompiledDocumentController::class, 'index'])->name('compiled-documents.index');
             Route::get('/compiled-documents/{compiledDocument}', [CompiledDocumentController::class, 'show'])->name('compiled-documents.show');

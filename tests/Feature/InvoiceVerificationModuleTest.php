@@ -8,6 +8,7 @@ use App\Modules\InvoiceVerification\Domain\Models\Department;
 use App\Modules\InvoiceVerification\Domain\Models\DocumentType;
 use App\Modules\InvoiceVerification\Domain\Models\InvoiceMetadata;
 use App\Modules\InvoiceVerification\Domain\Models\MemoRequest;
+use App\Modules\InvoiceVerification\Domain\Models\NumberingRegister;
 use App\Modules\InvoiceVerification\Domain\Models\PpaVerificationSheet;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
 use App\Modules\InvoiceVerification\Domain\Models\TransactionDocument;
@@ -22,6 +23,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
+use ZipArchive;
 
 class InvoiceVerificationModuleTest extends TestCase
 {
@@ -702,6 +704,48 @@ class InvoiceVerificationModuleTest extends TestCase
 
         $this->assertNotNull($agreement->file_path);
         Storage::disk($agreement->file_disk)->assertExists($agreement->file_path);
+    }
+
+    public function test_numbering_register_can_be_exported_to_excel(): void
+    {
+        $admin = User::where('email', 'admin.divisi@demo.local')->firstOrFail();
+        $vendor = User::where('email', 'vendor@demo.local')->firstOrFail();
+        $transaction = $this->createTransactionOfType('PPA', 'INV-EXPORT-001', $vendor);
+
+        NumberingRegister::create([
+            'transaction_id' => $transaction->id,
+            'register_number' => 'REG/202607/00001',
+            'vendor_name' => $transaction->vendor?->name ?? 'Vendor Demo',
+            'received_date' => '2026-07-23',
+            'invoice_number' => 'INV-EXPORT-001',
+            'invoice_date' => '2026-07-23',
+            'bank_name' => 'BCA',
+            'account_number' => '1234567890',
+            'account_name' => 'Vendor Demo',
+            'memo_number' => 'MEMO-EXPORT-001',
+            'contract_number' => $transaction->contract_number,
+            'contract_value' => 10000000,
+            'invoice_value' => 10000000,
+            'ppn_value' => 1100000,
+            'description' => 'Export penomoran sesuai template Excel.',
+            'generated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('invoice-verification.numbering-registers.export'));
+
+        $response->assertOk();
+        $response->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $zip = new ZipArchive();
+        $zip->open($response->baseResponse->getFile()->getPathname());
+
+        $workbookXml = $zip->getFromName('xl/workbook.xml');
+        $firstSheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+
+        $this->assertStringContainsString('PPA &amp; SPU', $workbookXml);
+        $this->assertStringContainsString('Nomor Dokumen', $firstSheetXml);
+        $this->assertStringContainsString('INV-EXPORT-001', $firstSheetXml);
     }
 
     public function test_akuntansi_cannot_upload_memo_request_file(): void

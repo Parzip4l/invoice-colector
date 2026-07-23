@@ -484,23 +484,8 @@
                 <span class="badge bg-light text-dark border">Invoice Metadata</span>
             </div>
             <div class="card-body">
-                <p class="text-muted mb-3">Data ini akan digunakan untuk generate Lembar PPA, Lembar Verifikasi, compile dokumen, dan penomoran.</p>
+                <p class="text-muted mb-3">Data rekening dan uraian akan digunakan untuk generate Lembar PPA, Lembar Verifikasi, compile dokumen, dan penomoran.</p>
                 <div class="billing-grid">
-                    <div class="billing-field">
-                        <label class="form-label">Nomor Invoice</label>
-                        <input type="text" class="form-control @error('invoice_number') is-invalid @enderror" name="invoice_number" value="{{ old('invoice_number', $transaction->invoiceMetadata?->invoice_number) }}" placeholder="Opsional, bisa diambil dari dokumen Invoice">
-                        @error('invoice_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="billing-field">
-                        <label class="form-label">Tanggal Invoice</label>
-                        <input type="date" class="form-control @error('invoice_date') is-invalid @enderror" name="invoice_date" value="{{ old('invoice_date', optional($transaction->invoiceMetadata?->invoice_date)->format('Y-m-d')) }}">
-                        @error('invoice_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="billing-field">
-                        <label class="form-label">Tanggal Diterima</label>
-                        <input type="date" class="form-control @error('received_date') is-invalid @enderror" name="received_date" value="{{ old('received_date', optional($transaction->invoiceMetadata?->received_date)->format('Y-m-d')) }}">
-                        @error('received_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
                     <div class="billing-field">
                         <label class="form-label">Bank</label>
                         <input type="text" class="form-control @error('bank_name') is-invalid @enderror" name="bank_name" value="{{ old('bank_name', $transaction->invoiceMetadata?->bank_name ?? $transaction->vendor?->defaultBank?->name) }}">
@@ -515,16 +500,6 @@
                         <label class="form-label">Atas Nama Rekening</label>
                         <input type="text" class="form-control @error('account_name') is-invalid @enderror" name="account_name" value="{{ old('account_name', $transaction->invoiceMetadata?->account_name) }}" placeholder="Nama pemilik rekening">
                         @error('account_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="billing-field">
-                        <label class="form-label">Nilai Invoice<span class="required-mark">*</span></label>
-                        <input type="text" inputmode="numeric" class="form-control @error('invoice_value') is-invalid @enderror" name="invoice_value" value="{{ old('invoice_value', $transaction->invoiceMetadata?->invoice_value) }}" data-rupiah-input required>
-                        @error('invoice_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="billing-field">
-                        <label class="form-label">PPN</label>
-                        <input type="text" inputmode="numeric" class="form-control @error('ppn_value') is-invalid @enderror" name="ppn_value" value="{{ old('ppn_value', $transaction->invoiceMetadata?->ppn_value) }}" data-rupiah-input>
-                        @error('ppn_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="billing-field full">
                         <label class="form-label">Uraian Transaksi</label>
@@ -558,6 +533,7 @@
                         @php
                             $usesInternalMemo = $documentType->code === 'PPA_MEMO_PERMOHONAN';
                             $usesInternalAgreement = $documentType->code === 'PPA_PERJANJIAN';
+                            $isInvoiceDocument = $documentType->code === 'PPA_INVOICE';
                             $isInternalReference = $usesInternalMemo || $usesInternalAgreement;
                             $internalModel = $usesInternalMemo ? $transaction->memoRequest : ($usesInternalAgreement ? $transaction->agreementReference : null);
                             $internalNumber = $usesInternalMemo ? $transaction->memoRequest?->memo_number : ($usesInternalAgreement ? $transaction->agreementReference?->contract_number : null);
@@ -570,6 +546,8 @@
                             $existingDocument = $transaction->latestDocuments->firstWhere('document_type_id', $documentType->id);
                             $documentNumber = old("documents.$documentType->id.document_information.document_number", data_get($rejectedDocument?->document_information_json, 'document_number', data_get($existingDocument?->document_information_json, 'document_number')));
                             $documentDate = old("documents.$documentType->id.document_information.document_date", data_get($rejectedDocument?->document_information_json, 'document_date', data_get($existingDocument?->document_information_json, 'document_date')));
+                            $documentInvoiceValue = old("documents.$documentType->id.document_information.invoice_value", data_get($rejectedDocument?->document_information_json, 'invoice_value', data_get($existingDocument?->document_information_json, 'invoice_value', $isInvoiceDocument ? $transaction->invoiceMetadata?->invoice_value : null)));
+                            $documentPpnValue = old("documents.$documentType->id.document_information.ppn_value", data_get($rejectedDocument?->document_information_json, 'ppn_value', data_get($existingDocument?->document_information_json, 'ppn_value', $isInvoiceDocument ? $transaction->invoiceMetadata?->ppn_value : null)));
                             $documentNotes = old("documents.$documentType->id.document_information.notes", data_get($rejectedDocument?->document_information_json, 'notes', data_get($existingDocument?->document_information_json, 'notes')));
                             $documentDomId = 'document-item-'.$documentType->id;
                             $collapseId = 'document-collapse-'.$documentType->id;
@@ -694,6 +672,34 @@
                                                 @error("documents.$documentType->id.document_information.document_date")<div class="invalid-feedback">{{ $message }}</div>@enderror
                                                 <div class="validation-message">Tanggal dokumen wajib diisi.</div>
                                             </div>
+                                            @if ($isInvoiceDocument)
+                                                <div data-required-group>
+                                                    <label class="form-label">Nilai Invoice<span class="required-mark">*</span></label>
+                                                    <input
+                                                        type="text"
+                                                        inputmode="numeric"
+                                                        class="form-control @error("documents.$documentType->id.document_information.invoice_value") is-invalid @enderror"
+                                                        name="documents[{{ $documentType->id }}][document_information][invoice_value]"
+                                                        value="{{ $documentInvoiceValue }}"
+                                                        data-rupiah-input
+                                                        data-required-field="1"
+                                                    >
+                                                    @error("documents.$documentType->id.document_information.invoice_value")<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                                    <div class="validation-message">Nilai invoice wajib diisi.</div>
+                                                </div>
+                                                <div>
+                                                    <label class="form-label">PPN</label>
+                                                    <input
+                                                        type="text"
+                                                        inputmode="numeric"
+                                                        class="form-control @error("documents.$documentType->id.document_information.ppn_value") is-invalid @enderror"
+                                                        name="documents[{{ $documentType->id }}][document_information][ppn_value]"
+                                                        value="{{ $documentPpnValue }}"
+                                                        data-rupiah-input
+                                                    >
+                                                    @error("documents.$documentType->id.document_information.ppn_value")<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                                </div>
+                                            @endif
                                             <div class="full">
                                                 <label class="form-label">Keterangan Dokumen</label>
                                                 <textarea

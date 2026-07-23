@@ -161,7 +161,7 @@ class FinanceController extends Controller
         }
 
         DB::transaction(function () use ($request, $transaction) {
-            $transaction->forceFill(['paid_at' => now()])->save();
+            $transaction->forceFill(['paid_at' => $request->validated('paid_at')])->save();
             $this->transactionLifecycleService->markPaid($transaction, $request->user());
         });
 

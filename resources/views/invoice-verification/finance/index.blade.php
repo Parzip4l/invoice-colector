@@ -69,7 +69,8 @@
     }
 
     .finance-schedule-form,
-    .finance-proof-form {
+    .finance-proof-form,
+    .finance-paid-form {
         display: grid;
         gap: .5rem;
     }
@@ -83,7 +84,8 @@
     }
 
     .finance-paid-form {
-        flex: 0 0 auto;
+        flex: 0 0 218px;
+        grid-template-columns: minmax(124px, 1fr) auto;
     }
 
     @media (max-width: 1199.98px) {
@@ -274,6 +276,14 @@
                                         </form>
                                         <form method="POST" action="{{ route('invoice-verification.finance.paid', $transaction) }}" class="finance-paid-form">
                                             @csrf
+                                            <input
+                                                type="date"
+                                                name="paid_at"
+                                                class="form-control form-control-sm"
+                                                value="{{ now()->toDateString() }}"
+                                                required
+                                                @disabled(! $transaction->payment_proof_file_path)
+                                            >
                                             <button class="btn btn-sm btn-success d-inline-flex align-items-center justify-content-center gap-1" @disabled(! $transaction->payment_proof_file_path)>
                                                 <iconify-icon icon="solar:check-circle-outline" class="fs-16"></iconify-icon>
                                                 <span>Paid</span>

@@ -23,10 +23,18 @@ class UploadPpaDocumentsRequest extends FormRequest
         $invoiceDate = $this->input('invoice_date')
             ?: data_get($invoiceDocument, 'document_information.document_date')
             ?: $this->route('transaction')?->invoiceMetadata?->invoice_date?->format('Y-m-d');
+        $invoiceValue = $this->input('invoice_value')
+            ?: data_get($invoiceDocument, 'document_information.invoice_value')
+            ?: $this->route('transaction')?->invoiceMetadata?->invoice_value;
+        $ppnValue = $this->input('ppn_value')
+            ?: data_get($invoiceDocument, 'document_information.ppn_value')
+            ?: $this->route('transaction')?->invoiceMetadata?->ppn_value;
 
         $this->merge([
             'invoice_number' => $invoiceNumber,
             'invoice_date' => $invoiceDate,
+            'invoice_value' => $invoiceValue,
+            'ppn_value' => $ppnValue,
         ]);
     }
 
@@ -56,7 +64,7 @@ class UploadPpaDocumentsRequest extends FormRequest
             'account_number' => ['nullable', 'regex:/^\d{6,30}$/'],
             'account_name' => ['nullable', 'string', 'max:255'],
             'bank_name' => ['nullable', 'string', 'max:255'],
-            'invoice_value' => ['required', 'numeric', 'min:0'],
+            'invoice_value' => ['nullable', 'numeric', 'min:0'],
             'ppn_value' => ['nullable', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],
             'documents' => ['required', 'array', 'min:1'],
@@ -64,6 +72,8 @@ class UploadPpaDocumentsRequest extends FormRequest
             'documents.*.file' => ['required', 'file', 'mimes:'.$mimes, 'max:'.$maxKb],
             'documents.*.document_information.document_number' => ['required', 'string', 'max:255'],
             'documents.*.document_information.document_date' => ['required', 'date'],
+            'documents.*.document_information.invoice_value' => ['nullable', 'numeric', 'min:0'],
+            'documents.*.document_information.ppn_value' => ['nullable', 'numeric', 'min:0'],
             'documents.*.document_information.notes' => ['nullable', 'string'],
         ];
     }
@@ -131,6 +141,13 @@ class UploadPpaDocumentsRequest extends FormRequest
 
             foreach ($submittedDocuments as $index => $document) {
                 $code = (string) ($documentTypes[$document['document_type_id'] ?? null] ?? '');
+
+                if ($code === 'PPA_INVOICE' && blank(data_get($document, 'document_information.invoice_value'))) {
+                    $validator->errors()->add(
+                        "documents.{$index}.document_information.invoice_value",
+                        'Nilai Invoice wajib diisi pada dokumen Invoice.',
+                    );
+                }
 
                 if (! array_key_exists($code, $requiredDateCodes)) {
                     continue;

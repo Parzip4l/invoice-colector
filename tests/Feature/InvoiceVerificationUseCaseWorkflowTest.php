@@ -170,6 +170,13 @@ class InvoiceVerificationUseCaseWorkflowTest extends TestCase
         $this->assertSame('SCHEDULING_PAYMENT', $transaction->fresh()->status->value);
 
         $this->actingAs($finance)->post(route('invoice-verification.finance.paid', $transaction))
+            ->assertSessionHasErrors('paid_at');
+
+        $paidAt = now()->toDateString();
+
+        $this->actingAs($finance)->post(route('invoice-verification.finance.paid', $transaction), [
+            'paid_at' => $paidAt,
+        ])
             ->assertSessionHasErrors('invoice_metadata');
 
         $transaction->invoiceMetadata()->updateOrCreate(
@@ -185,16 +192,20 @@ class InvoiceVerificationUseCaseWorkflowTest extends TestCase
             ],
         );
 
-        $this->actingAs($finance)->post(route('invoice-verification.finance.paid', $transaction))
+        $this->actingAs($finance)->post(route('invoice-verification.finance.paid', $transaction), [
+            'paid_at' => $paidAt,
+        ])
             ->assertSessionHasErrors('payment_proof');
 
         $this->actingAs($finance)->post(route('invoice-verification.finance.payment-proof', $transaction), [
             'payment_proof' => UploadedFile::fake()->create('transfer.pdf', 10, 'application/pdf'),
         ])->assertRedirect();
 
-        $this->actingAs($finance)->post(route('invoice-verification.finance.paid', $transaction))->assertRedirect();
+        $this->actingAs($finance)->post(route('invoice-verification.finance.paid', $transaction), [
+            'paid_at' => $paidAt,
+        ])->assertRedirect();
         $this->assertSame('PAID', $transaction->fresh()->status->value);
-        $this->assertNotNull($transaction->fresh()->paid_at);
+        $this->assertSame($paidAt, $transaction->fresh()->paid_at?->format('Y-m-d'));
     }
 
     private function createPpaContract(User $vendorUser): Transaction

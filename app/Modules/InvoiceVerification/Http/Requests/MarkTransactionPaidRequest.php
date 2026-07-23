@@ -13,6 +13,8 @@ class MarkTransactionPaidRequest extends FormRequest
 
     public function rules(): array
     {
-        return [];
+        return [
+            'paid_at' => ['required', 'date'],
+        ];
     }
 }

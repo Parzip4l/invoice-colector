@@ -175,6 +175,7 @@ class InvoiceVerificationModuleTest extends TestCase
                         'document_information' => [
                             'document_number' => 'INV-DOC-001',
                             'document_date' => '2026-07-22',
+                            'invoice_value' => 10000000,
                         ],
                         'file' => UploadedFile::fake()->create('invoice.pdf', 128, 'application/pdf'),
                     ],
@@ -245,6 +246,8 @@ class InvoiceVerificationModuleTest extends TestCase
                         'document_information' => [
                             'document_number' => 'INV-DOC-DERIVED-001',
                             'document_date' => '2026-07-23',
+                            'invoice_value' => 10000000,
+                            'ppn_value' => 1100000,
                         ],
                         'file' => UploadedFile::fake()->create('invoice-derived.pdf', 128, 'application/pdf'),
                     ],
@@ -256,6 +259,8 @@ class InvoiceVerificationModuleTest extends TestCase
         $metadata = $transaction->fresh('invoiceMetadata')->invoiceMetadata;
         $this->assertSame('INV-DOC-DERIVED-001', $metadata?->invoice_number);
         $this->assertSame('2026-07-23', $metadata?->invoice_date?->format('Y-m-d'));
+        $this->assertSame('10000000.00', (string) $metadata?->invoice_value);
+        $this->assertSame('1100000.00', (string) $metadata?->ppn_value);
     }
 
     public function test_admin_creates_draft_and_vendor_uploads_invoice_documents(): void
@@ -271,10 +276,13 @@ class InvoiceVerificationModuleTest extends TestCase
             ->where('division_id', $agreementReference->division_id)
             ->where('department_id', $department->id)
             ->firstOrFail();
-        $documentType = DocumentType::query()
+        $documentTypes = DocumentType::query()
             ->whereHas('transactionType', fn ($query) => $query->where('code', 'PPA'))
-            ->where('code', 'PPA_INVOICE')
-            ->firstOrFail();
+            ->where('source_type', 'VENDOR')
+            ->where('is_required', true)
+            ->orderBy('sort_order')
+            ->get();
+        $documentType = $documentTypes->firstWhere('code', 'PPA_INVOICE');
 
         $response = $this->actingAs($admin)->post(route('invoice-verification.transactions.store'), [
             'transaction_type_id' => TransactionType::where('code', 'PPA')->firstOrFail()->id,
@@ -303,16 +311,20 @@ class InvoiceVerificationModuleTest extends TestCase
             'bank_name' => 'Bank Central Asia',
             'invoice_value' => 10000000,
             'ppn_value' => 1100000,
-            'documents' => [
-                [
-                    'document_type_id' => $documentType->id,
+            'documents' => $documentTypes->mapWithKeys(fn ($type) => [
+                $type->id => [
+                    'document_type_id' => $type->id,
                     'document_information' => [
-                        'document_number' => 'INV-DOC-001',
+                        'document_number' => $type->code === 'PPA_INVOICE' ? 'INV-DOC-001' : 'DOC-'.$type->code,
                         'document_date' => now()->toDateString(),
+                        ...($type->code === 'PPA_INVOICE' ? [
+                            'invoice_value' => 10000000,
+                            'ppn_value' => 1100000,
+                        ] : []),
                     ],
-                    'file' => UploadedFile::fake()->create('invoice.pdf', 128, 'application/pdf'),
+                    'file' => UploadedFile::fake()->create(strtolower($type->code).'.pdf', 128, 'application/pdf'),
                 ],
-            ],
+            ])->all(),
         ]);
 
         $uploadResponse->assertRedirect();
@@ -826,6 +838,8 @@ class InvoiceVerificationModuleTest extends TestCase
                     'document_information' => [
                         'document_number' => 'DOC-'.$invoiceNumber,
                         'document_date' => now()->toDateString(),
+                        'invoice_value' => 10000000,
+                        'ppn_value' => 1100000,
                     ],
                     'file' => UploadedFile::fake()->create(strtolower($invoiceNumber).'.pdf', 128, 'application/pdf'),
                 ],

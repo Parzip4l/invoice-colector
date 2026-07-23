@@ -5,9 +5,13 @@ namespace App\Modules\InvoiceVerification\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\InvoiceVerification\Actions\UploadTransactionDocumentAction;
 use App\Modules\InvoiceVerification\Domain\Enums\DocumentSourceActor;
+use App\Modules\InvoiceVerification\Domain\Enums\TransactionDocumentStatus;
+use App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus;
+use App\Modules\InvoiceVerification\Domain\Enums\TransactionStep;
 use App\Modules\InvoiceVerification\Domain\Models\DocumentType;
 use App\Modules\InvoiceVerification\Domain\Models\InvoiceMetadata;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
+use App\Modules\InvoiceVerification\Domain\Models\TransactionStatusHistory;
 use App\Modules\InvoiceVerification\Http\Requests\UploadCombinedDocumentsRequest;
 use App\Modules\InvoiceVerification\Http\Requests\UploadPpaDocumentsRequest;
 
@@ -89,9 +93,68 @@ class DocumentController extends Controller
             );
         }
 
+        $this->markPpaReadyForAdminReview($transaction->fresh(), $request->user());
+
         return redirect()
             ->route('invoice-verification.transactions.documents.show', $transaction)
             ->with('success', 'Data tagihan dan dokumen PPA berhasil disubmit ke Admin User untuk verifikasi.');
+    }
+
+    private function markPpaReadyForAdminReview(Transaction $transaction, $actor): void
+    {
+        if (! $transaction->isPpa()) {
+            return;
+        }
+
+        if (! in_array($transaction->status, [
+            TransactionStatus::DRAFT,
+            TransactionStatus::VENDOR_INPUT,
+            TransactionStatus::REVISION_IN_PROGRESS,
+            TransactionStatus::NOT_APPROVED,
+        ], true)) {
+            return;
+        }
+
+        $requiredTypeIds = DocumentType::query()
+            ->where('transaction_type_id', $transaction->transaction_type_id)
+            ->where('source_type', DocumentSourceActor::VENDOR->value)
+            ->where('is_required', true)
+            ->pluck('id');
+
+        if ($requiredTypeIds->isEmpty()) {
+            return;
+        }
+
+        $uploadedTypeIds = $transaction->latestDocuments()
+            ->where('source_actor', DocumentSourceActor::VENDOR->value)
+            ->whereIn('status', [
+                TransactionDocumentStatus::UNDER_REVIEW->value,
+                TransactionDocumentStatus::ACCEPTED->value,
+                TransactionDocumentStatus::UPLOADED->value,
+            ])
+            ->pluck('document_type_id');
+
+        if ($requiredTypeIds->diff($uploadedTypeIds)->isNotEmpty()) {
+            return;
+        }
+
+        $fromStatus = $transaction->status?->value;
+        $fromStep = $transaction->current_step?->value;
+
+        $transaction->forceFill([
+            'status' => TransactionStatus::ADMIN_REVIEW,
+            'current_step' => TransactionStep::ADMIN_DOCUMENT_REVIEW,
+        ])->save();
+
+        TransactionStatusHistory::create([
+            'transaction_id' => $transaction->id,
+            'from_status' => $fromStatus,
+            'to_status' => TransactionStatus::ADMIN_REVIEW->value,
+            'from_step' => $fromStep,
+            'to_step' => TransactionStep::ADMIN_DOCUMENT_REVIEW->value,
+            'changed_by' => $actor?->id,
+            'notes' => 'Dokumen vendor wajib lengkap dan siap direview Admin User.',
+        ]);
     }
 
     public function storeCombined(UploadCombinedDocumentsRequest $request, Transaction $transaction)

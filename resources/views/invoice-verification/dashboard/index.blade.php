@@ -26,6 +26,7 @@
             'value' => 'Rp ' . number_format((float) $analytics['insights']['nominal_total'], 0, ',', '.'),
             'icon' => 'solar:wallet-money-outline',
             'tone' => 'info',
+            'variant' => 'money',
             'meta' => 'Akumulasi nilai transaksi',
         ],
         [
@@ -123,16 +124,39 @@
     }
 
     .invoice-dashboard .metric-card {
+        position: relative;
+        overflow: hidden;
         min-height: 154px;
     }
 
     .invoice-dashboard .metric-icon {
+        position: absolute;
+        top: 24px;
+        right: 24px;
         width: 44px;
         height: 44px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         border-radius: 14px;
+    }
+
+    .invoice-dashboard .metric-content {
+        min-width: 0;
+        padding-right: 58px;
+    }
+
+    .invoice-dashboard .metric-value {
+        color: #1f2a4d;
+        line-height: 1.05;
+        letter-spacing: 0;
+        overflow-wrap: anywhere;
+        word-break: normal;
+    }
+
+    .invoice-dashboard .metric-value.is-money {
+        font-size: 2rem;
+        max-width: 100%;
     }
 
     .invoice-dashboard .analytics-card .card-header,
@@ -244,6 +268,10 @@
         .invoice-dashboard .table-panel {
             border-radius: 14px;
         }
+
+        .invoice-dashboard .metric-content {
+            padding-right: 52px;
+        }
     }
 </style>
 
@@ -283,16 +311,14 @@
             <div class="col-md-6 col-xl-3">
                 <div class="card metric-card h-100 mb-0">
                     <div class="card-body p-4">
-                        <div class="d-flex justify-content-between align-items-start gap-3">
-                            <div>
-                                <div class="metric-label text-{{ $card['tone'] }}">{{ $card['label'] }}</div>
-                                <h2 class="fw-bold mt-2 mb-1">{{ $card['value'] }}</h2>
-                                <div class="text-muted small">{{ $card['meta'] }}</div>
-                            </div>
-                            <span class="metric-icon bg-{{ $card['tone'] }}-subtle text-{{ $card['tone'] }}">
-                                <iconify-icon icon="{{ $card['icon'] }}" class="fs-26"></iconify-icon>
-                            </span>
+                        <div class="metric-content">
+                            <div class="metric-label text-{{ $card['tone'] }}">{{ $card['label'] }}</div>
+                            <div class="metric-value {{ ($card['variant'] ?? null) === 'money' ? 'is-money' : '' }} fw-bold mt-2 mb-2">{{ $card['value'] }}</div>
+                            <div class="text-muted small">{{ $card['meta'] }}</div>
                         </div>
+                        <span class="metric-icon bg-{{ $card['tone'] }}-subtle text-{{ $card['tone'] }}">
+                            <iconify-icon icon="{{ $card['icon'] }}" class="fs-26"></iconify-icon>
+                        </span>
                     </div>
                 </div>
             </div>

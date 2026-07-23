@@ -15,44 +15,21 @@
         </button>
     </div>
     <div class="card-body">
-        @php
-            $selectedAdministrationStatus = old('administration_status', 'VALID');
-        @endphp
         @error('status')
             <div class="alert alert-danger">{{ $message }}</div>
         @enderror
         <div class="alert alert-info border-0">
-            Tombol Approve/Reject di bawah hanya memilih keputusan. Keputusan baru dikirim ke sistem setelah klik <strong>Simpan Verifikasi</strong>.
+            Pilih keputusan per dokumen Invoicing. Keputusan baru dikirim ke sistem setelah klik <strong>Simpan Verifikasi</strong>.
         </div>
         <form id="accountingVerificationForm" method="POST" action="{{ route('invoice-verification.transactions.accounting-verifications.update', $transaction) }}">
             @csrf
             @method('PUT')
+            <input type="hidden" name="administration_status" value="VALID">
             <div class="border rounded-3 p-3 mb-3">
                 <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
                     <div>
                         <h5 class="mb-1">Administration</h5>
                         <p class="text-muted mb-0">Berisi Lembar PPA dan Lembar Checklist yang digenerate setelah review Admin User.</p>
-                    </div>
-                    <div class="d-flex align-items-center gap-2 flex-wrap" data-status-toggle-group>
-                        <input type="hidden" name="administration_status" value="{{ $selectedAdministrationStatus }}" data-status-toggle-input>
-                        <button
-                            type="button"
-                            class="btn {{ $selectedAdministrationStatus === 'VALID' ? 'btn-success' : 'btn-outline-success' }}"
-                            data-status-toggle-option
-                            data-status-value="VALID"
-                            data-status-variant="success"
-                        >
-                            Approve
-                        </button>
-                        <button
-                            type="button"
-                            class="btn {{ $selectedAdministrationStatus === 'REVISION_REQUIRED' ? 'btn-danger' : 'btn-outline-danger' }}"
-                            data-status-toggle-option
-                            data-status-value="REVISION_REQUIRED"
-                            data-status-variant="danger"
-                        >
-                            Reject
-                        </button>
                     </div>
                 </div>
                 <div class="row g-3">
@@ -100,8 +77,6 @@
                         </div>
                     @endif
                 </div>
-                <label class="form-label mt-3">Catatan Administration</label>
-                <textarea class="form-control" rows="2" name="administration_notes" placeholder="Wajib diisi jika Administration direject">{{ old('administration_notes') }}</textarea>
             </div>
 
             <div class="border rounded-3 p-3">

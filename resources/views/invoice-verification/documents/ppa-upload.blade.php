@@ -487,13 +487,13 @@
                 <p class="text-muted mb-3">Data ini akan digunakan untuk generate Lembar PPA, Lembar Verifikasi, compile dokumen, dan penomoran.</p>
                 <div class="billing-grid">
                     <div class="billing-field">
-                        <label class="form-label">Nomor Invoice<span class="required-mark">*</span></label>
-                        <input type="text" class="form-control @error('invoice_number') is-invalid @enderror" name="invoice_number" value="{{ old('invoice_number', $transaction->invoiceMetadata?->invoice_number) }}" required>
+                        <label class="form-label">Nomor Invoice</label>
+                        <input type="text" class="form-control @error('invoice_number') is-invalid @enderror" name="invoice_number" value="{{ old('invoice_number', $transaction->invoiceMetadata?->invoice_number) }}" placeholder="Opsional, bisa diambil dari dokumen Invoice">
                         @error('invoice_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="billing-field">
-                        <label class="form-label">Tanggal Invoice<span class="required-mark">*</span></label>
-                        <input type="date" class="form-control @error('invoice_date') is-invalid @enderror" name="invoice_date" value="{{ old('invoice_date', optional($transaction->invoiceMetadata?->invoice_date)->format('Y-m-d')) }}" required>
+                        <label class="form-label">Tanggal Invoice</label>
+                        <input type="date" class="form-control @error('invoice_date') is-invalid @enderror" name="invoice_date" value="{{ old('invoice_date', optional($transaction->invoiceMetadata?->invoice_date)->format('Y-m-d')) }}">
                         @error('invoice_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="billing-field">

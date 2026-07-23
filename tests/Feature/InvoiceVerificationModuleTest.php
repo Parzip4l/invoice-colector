@@ -205,6 +205,59 @@ class InvoiceVerificationModuleTest extends TestCase
         ]);
     }
 
+    public function test_vendor_upload_can_derive_billing_invoice_from_invoice_document(): void
+    {
+        Storage::fake(config('invoice_verification.storage.documents_disk', 'public'));
+
+        $vendorUser = User::where('email', 'vendor@demo.local')->firstOrFail();
+        $vendor = $vendorUser->linkedVendor() ?? Vendor::firstOrFail();
+        $agreementReference = AgreementReference::query()
+            ->where('vendor_id', $vendor->id)
+            ->firstOrFail();
+
+        Transaction::query()
+            ->where('vendor_id', $vendor->id)
+            ->where('agreement_reference_id', $agreementReference->id)
+            ->delete();
+
+        $this->actingAs($vendorUser)
+            ->post(route('invoice-verification.transactions.agreements.start', $agreementReference))
+            ->assertRedirect();
+
+        $transaction = Transaction::query()
+            ->where('vendor_id', $vendor->id)
+            ->where('agreement_reference_id', $agreementReference->id)
+            ->where('status', 'DRAFT')
+            ->latest()
+            ->firstOrFail();
+        $invoice = DocumentType::query()
+            ->where('transaction_type_id', $transaction->transaction_type_id)
+            ->where('code', 'PPA_INVOICE')
+            ->firstOrFail();
+
+        $response = $this->actingAs($vendorUser)
+            ->post(route('invoice-verification.transactions.documents.ppa.store', $transaction), [
+                'received_date' => '2026-07-23',
+                'invoice_value' => 10000000,
+                'documents' => [
+                    $invoice->id => [
+                        'document_type_id' => $invoice->id,
+                        'document_information' => [
+                            'document_number' => 'INV-DOC-DERIVED-001',
+                            'document_date' => '2026-07-23',
+                        ],
+                        'file' => UploadedFile::fake()->create('invoice-derived.pdf', 128, 'application/pdf'),
+                    ],
+                ],
+            ]);
+
+        $response->assertRedirect(route('invoice-verification.transactions.documents.show', $transaction));
+
+        $metadata = $transaction->fresh('invoiceMetadata')->invoiceMetadata;
+        $this->assertSame('INV-DOC-DERIVED-001', $metadata?->invoice_number);
+        $this->assertSame('2026-07-23', $metadata?->invoice_date?->format('Y-m-d'));
+    }
+
     public function test_admin_creates_draft_and_vendor_uploads_invoice_documents(): void
     {
         Storage::fake(config('invoice_verification.storage.documents_disk', 'public'));
@@ -384,20 +437,37 @@ class InvoiceVerificationModuleTest extends TestCase
 
     public function test_accounting_verification_page_shows_preview_links_and_button_toggles(): void
     {
+        Storage::fake(config('invoice_verification.storage.documents_disk', 'public'));
+
+        $vendor = User::where('email', 'vendor@demo.local')->firstOrFail();
         $accounting = User::where('email', 'akuntansi@demo.local')->firstOrFail();
-        $transaction = Transaction::query()
-            ->where('registration_number', 'TRX/DEMO/2026/0004')
+        $transaction = $this->createTransactionOfType('PPA', 'INV-ACCOUNTING-PAGE-001', $vendor);
+        $admin = User::query()
+            ->where('role_code', 'ADMIN_DIVISI')
+            ->where('division_id', $transaction->division_id)
             ->firstOrFail();
+        $document = $transaction->fresh('latestDocuments')->latestDocuments()->firstOrFail();
+        $document->update(['status' => 'ACCEPTED']);
+        app(\App\Modules\InvoiceVerification\Services\GeneratedDocumentService::class)
+            ->generateInitialDocument($transaction->fresh(), $admin);
+        $transaction->update([
+            'status' => 'ACCOUNTING_VERIFICATION',
+            'current_step' => 'ACCOUNTING_ADMINISTRATION',
+        ]);
 
         $response = $this->actingAs($accounting)->get(
             route('invoice-verification.transactions.accounting-verifications.edit', $transaction)
         );
 
         $response->assertOk();
-        $response->assertSee('Preview File');
+        $response->assertSee('Administration');
+        $response->assertSee('Invoicing');
+        $response->assertSee('Preview');
         $response->assertSee('Approve');
         $response->assertSee('Reject');
-        $response->assertDontSee('name="administration_status" class="form-select"', false);
+        $response->assertSee('name="administration_status" value="VALID"', false);
+        $response->assertDontSee('name="administration_notes"', false);
+        $response->assertDontSee('Wajib diisi jika Administration direject');
     }
 
     public function test_rejected_document_returns_to_vendor_revision_list_and_can_be_reuploaded(): void

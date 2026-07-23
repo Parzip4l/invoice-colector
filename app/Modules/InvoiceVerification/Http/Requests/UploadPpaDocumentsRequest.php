@@ -14,6 +14,20 @@ class UploadPpaDocumentsRequest extends FormRequest
         if ($this->filled('account_number')) {
             $this->merge(['account_number' => preg_replace('/[\s-]+/', '', (string) $this->input('account_number'))]);
         }
+
+        $invoiceDocument = $this->findSubmittedDocumentByCode('PPA_INVOICE');
+        $invoiceNumber = $this->input('invoice_number')
+            ?: data_get($invoiceDocument, 'document_information.document_number')
+            ?: $this->route('transaction')?->invoiceMetadata?->invoice_number
+            ?: $this->route('transaction')?->registration_number;
+        $invoiceDate = $this->input('invoice_date')
+            ?: data_get($invoiceDocument, 'document_information.document_date')
+            ?: $this->route('transaction')?->invoiceMetadata?->invoice_date?->format('Y-m-d');
+
+        $this->merge([
+            'invoice_number' => $invoiceNumber,
+            'invoice_date' => $invoiceDate,
+        ]);
     }
 
     public function authorize(): bool
@@ -30,14 +44,14 @@ class UploadPpaDocumentsRequest extends FormRequest
 
         return [
             'invoice_number' => [
-                'required',
+                'nullable',
                 'string',
                 'max:255',
                 Rule::unique('invoice_metadata', 'invoice_number')
                     ->ignore($this->route('transaction')?->invoiceMetadata?->id, 'id')
                     ->where(fn ($query) => $query->where('vendor_id', $this->route('transaction')?->vendor_id)),
             ],
-            'invoice_date' => ['required', 'date'],
+            'invoice_date' => ['nullable', 'date'],
             'received_date' => ['nullable', 'date'],
             'account_number' => ['nullable', 'regex:/^\d{6,30}$/'],
             'account_name' => ['nullable', 'string', 'max:255'],
@@ -52,6 +66,38 @@ class UploadPpaDocumentsRequest extends FormRequest
             'documents.*.document_information.document_date' => ['required', 'date'],
             'documents.*.document_information.notes' => ['nullable', 'string'],
         ];
+    }
+
+    private function findSubmittedDocumentByCode(string $code): ?array
+    {
+        $submittedDocuments = collect($this->input('documents', []));
+
+        if ($submittedDocuments->isEmpty()) {
+            return null;
+        }
+
+        $documentTypeIds = $submittedDocuments
+            ->pluck('document_type_id')
+            ->filter()
+            ->values();
+
+        if ($documentTypeIds->isEmpty()) {
+            return null;
+        }
+
+        $documentTypes = DocumentType::query()
+            ->whereIn('id', $documentTypeIds)
+            ->pluck('code', 'id');
+
+        foreach ($submittedDocuments as $document) {
+            $documentCode = (string) ($documentTypes[$document['document_type_id'] ?? null] ?? '');
+
+            if ($documentCode === $code) {
+                return $document;
+            }
+        }
+
+        return null;
     }
 
     public function withValidator(Validator $validator): void

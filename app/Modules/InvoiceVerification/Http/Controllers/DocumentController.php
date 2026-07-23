@@ -47,13 +47,15 @@ class DocumentController extends Controller
     public function storePpa(UploadPpaDocumentsRequest $request, Transaction $transaction)
     {
         $payload = $request->validated();
+        $invoiceNumber = $payload['invoice_number'] ?? $transaction->invoiceMetadata?->invoice_number ?? $transaction->registration_number;
+        $invoiceDate = $payload['invoice_date'] ?? $transaction->invoiceMetadata?->invoice_date;
 
         $metadata = InvoiceMetadata::updateOrCreate(
             ['transaction_id' => $transaction->id],
             [
                 'vendor_id' => $transaction->vendor_id,
-                'invoice_number' => $payload['invoice_number'],
-                'invoice_date' => $payload['invoice_date'] ?? null,
+                'invoice_number' => $invoiceNumber,
+                'invoice_date' => $invoiceDate,
                 'account_number' => $payload['account_number'] ?? null,
                 'account_name' => $payload['account_name'] ?? null,
                 'bank_name' => $payload['bank_name'] ?? null,

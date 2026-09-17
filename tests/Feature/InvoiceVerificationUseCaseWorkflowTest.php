@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Modules\InvoiceVerification\Domain\Models\Department;
 use App\Modules\InvoiceVerification\Domain\Models\DocumentType;
 use App\Modules\InvoiceVerification\Domain\Models\MemoRequest;
+use App\Modules\InvoiceVerification\Domain\Models\NumberingRegister;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
 use App\Modules\InvoiceVerification\Domain\Models\TransactionType;
 use App\Modules\InvoiceVerification\Domain\Models\Vendor;
@@ -86,6 +87,13 @@ class InvoiceVerificationUseCaseWorkflowTest extends TestCase
                 'Seeder missing demo transaction with status '.$status,
             );
         }
+
+        $this->assertSame(
+            $demoTransactions
+                ->filter(fn (Transaction $transaction) => in_array($transaction->status->value, ['RECEIVED', 'SCHEDULING_PAYMENT', 'PAID'], true))
+                ->count(),
+            NumberingRegister::count(),
+        );
     }
 
     public function test_vendor_type_authorization_is_enforced(): void
@@ -161,6 +169,7 @@ class InvoiceVerificationUseCaseWorkflowTest extends TestCase
         ])->assertRedirect();
 
         $this->assertSame('RECEIVED', $transaction->fresh()->status->value);
+        $this->assertNotNull($transaction->fresh()->numberingRegister);
         Mail::assertSent(InvoiceTransactionReceivedMail::class);
 
         $this->actingAs($finance)->get(route('invoice-verification.finance.index'))->assertOk()->assertSee($transaction->registration_number);

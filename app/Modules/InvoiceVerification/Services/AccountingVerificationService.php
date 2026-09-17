@@ -26,6 +26,7 @@ class AccountingVerificationService
         protected TransactionLifecycleService $transactionLifecycleService,
         protected FinalizationService $finalizationService,
         protected PpaVerificationSheetService $ppaVerificationSheetService,
+        protected NumberingRegisterService $numberingRegisterService,
     ) {
     }
 
@@ -192,6 +193,7 @@ class AccountingVerificationService
             }
 
             $receivedTransaction = $this->transactionLifecycleService->markReceived($transaction, $actor);
+            $this->numberingRegisterService->syncFromTransaction($receivedTransaction);
 
             DB::afterCommit(function () use ($receivedTransaction) {
                 $receivedTransaction->loadMissing('transactionType', 'vendor');

@@ -19,6 +19,8 @@ class NumberingRegisterController extends Controller
 
     public function index(Request $request)
     {
+        abort_unless($request->user()?->hasRole(RoleCode::ADMIN_DIVISI, RoleCode::AKUNTANSI, RoleCode::FINANCE), 403);
+
         $sort = in_array($request->query('sort'), ['register_number', 'vendor_name', 'invoice_number', 'memo_number', 'invoice_value', 'generated_at'], true)
             ? $request->query('sort')
             : 'generated_at';

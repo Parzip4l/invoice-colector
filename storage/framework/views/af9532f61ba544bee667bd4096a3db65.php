@@ -25,6 +25,15 @@
                </li>
 
                <li class="nav-item">
+                    <a class="nav-link" href="<?php echo e(route('invoice-verification.manual-guide')); ?>">
+                         <span class="nav-icon">
+                              <iconify-icon icon="solar:notebook-bookmark-outline"></iconify-icon>
+                         </span>
+                         <span class="nav-text"> Panduan </span>
+                    </a>
+               </li>
+
+               <li class="nav-item">
                     <a class="nav-link menu-arrow" href="#sidebarTransactions" data-bs-toggle="collapse" role="button"
                          aria-expanded="false" aria-controls="sidebarTransactions">
                          <span class="nav-icon">
@@ -56,7 +65,7 @@
                     </div>
                </li>
 
-               <?php if(auth()->user()?->hasRole(\App\Modules\InvoiceVerification\Domain\Enums\RoleCode::ADMIN_DIVISI, \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::AKUNTANSI)): ?>
+               <?php if(auth()->user()?->hasRole(\App\Modules\InvoiceVerification\Domain\Enums\RoleCode::ADMIN_DIVISI, \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::AKUNTANSI, \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::FINANCE)): ?>
                     <li class="nav-item">
                          <a class="nav-link menu-arrow" href="#sidebarFinalization" data-bs-toggle="collapse" role="button"
                               aria-expanded="false" aria-controls="sidebarFinalization">

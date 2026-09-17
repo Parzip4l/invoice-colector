@@ -36,7 +36,7 @@ class TransactionPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasRole(RoleCode::ADMIN_DIVISI, RoleCode::USER_DIVISI);
+        return $user->hasRole(RoleCode::ADMIN_DIVISI, RoleCode::USER_DIVISI, RoleCode::VENDOR);
     }
 
     public function update(User $user, Transaction $transaction): bool

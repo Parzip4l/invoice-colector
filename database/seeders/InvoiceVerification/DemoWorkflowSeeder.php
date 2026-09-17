@@ -23,6 +23,7 @@ use App\Modules\InvoiceVerification\Domain\Models\TransactionParty;
 use App\Modules\InvoiceVerification\Domain\Models\TransactionStatusHistory;
 use App\Modules\InvoiceVerification\Domain\Models\TransactionType;
 use App\Modules\InvoiceVerification\Domain\Models\Vendor;
+use App\Modules\InvoiceVerification\Services\NumberingRegisterService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -83,6 +84,7 @@ class DemoWorkflowSeeder extends Seeder
             amount: 20000000,
             accountingUser: $accounting,
         );
+        $this->seedFinanceStateIfNeeded($spuReceived, TransactionStatus::RECEIVED, $finance);
 
         $this->createSpuk(
             registrationNumber: 'SPUK-00001',
@@ -418,6 +420,10 @@ class DemoWorkflowSeeder extends Seeder
 
     private function seedFinanceStateIfNeeded(Transaction $transaction, TransactionStatus $status, User $financeUser): void
     {
+        if (in_array($status, [TransactionStatus::RECEIVED, TransactionStatus::SCHEDULING_PAYMENT, TransactionStatus::PAID], true)) {
+            app(NumberingRegisterService::class)->syncFromTransaction($transaction);
+        }
+
         if (! in_array($status, [TransactionStatus::SCHEDULING_PAYMENT, TransactionStatus::PAID], true)) {
             return;
         }

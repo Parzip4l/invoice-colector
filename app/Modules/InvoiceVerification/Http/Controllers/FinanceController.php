@@ -10,6 +10,7 @@ use App\Modules\InvoiceVerification\Http\Requests\MarkTransactionPaidRequest;
 use App\Modules\InvoiceVerification\Http\Requests\SchedulePaymentRequest;
 use App\Modules\InvoiceVerification\Http\Requests\UploadPaymentProofRequest;
 use App\Modules\InvoiceVerification\Services\FinalizationService;
+use App\Modules\InvoiceVerification\Services\NumberingRegisterService;
 use App\Modules\InvoiceVerification\Services\TransactionLifecycleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,7 @@ class FinanceController extends Controller
     public function __construct(
         protected FinalizationService $finalizationService,
         protected TransactionLifecycleService $transactionLifecycleService,
+        protected NumberingRegisterService $numberingRegisterService,
     ) {
     }
 
@@ -88,6 +90,7 @@ class FinanceController extends Controller
             ])->save();
 
             $this->transactionLifecycleService->schedulePayment($transaction, $request->user());
+            $this->numberingRegisterService->syncFromTransaction($transaction->refresh());
         });
 
         return redirect()
@@ -163,6 +166,7 @@ class FinanceController extends Controller
         DB::transaction(function () use ($request, $transaction) {
             $transaction->forceFill(['paid_at' => $request->validated('paid_at')])->save();
             $this->transactionLifecycleService->markPaid($transaction, $request->user());
+            $this->numberingRegisterService->syncFromTransaction($transaction->refresh());
         });
 
         return redirect()

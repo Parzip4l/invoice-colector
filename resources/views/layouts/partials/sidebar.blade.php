@@ -65,7 +65,7 @@
                     </div>
                </li>
 
-               @if(auth()->user()?->hasRole(\App\Modules\InvoiceVerification\Domain\Enums\RoleCode::ADMIN_DIVISI, \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::AKUNTANSI))
+               @if(auth()->user()?->hasRole(\App\Modules\InvoiceVerification\Domain\Enums\RoleCode::ADMIN_DIVISI, \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::AKUNTANSI, \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::FINANCE))
                     <li class="nav-item">
                          <a class="nav-link menu-arrow" href="#sidebarFinalization" data-bs-toggle="collapse" role="button"
                               aria-expanded="false" aria-controls="sidebarFinalization">

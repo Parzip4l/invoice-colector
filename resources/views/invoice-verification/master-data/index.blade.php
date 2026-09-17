@@ -222,6 +222,15 @@
             </nav>
         </div>
         <div class="d-flex flex-wrap gap-2">
+            <form method="POST" action="{{ route('invoice-verification.master-data.eproc-api-sync', ['tab' => 'vendors']) }}" data-confirm-form data-confirm-message="Sync vendor dan PO dari API eProc sekarang?">
+                @csrf
+                <input type="hidden" name="division_code" value="EPROC">
+                <input type="hidden" name="division_name" value="E-Procurement">
+                <button class="btn btn-outline-primary d-inline-flex align-items-center gap-2">
+                    <iconify-icon icon="solar:cloud-download-outline" class="fs-18"></iconify-icon>
+                    Sync API eProc
+                </button>
+            </form>
             <button class="btn btn-outline-primary d-inline-flex align-items-center gap-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#eprocImportDrawer">
                 <iconify-icon icon="solar:upload-outline" class="fs-18"></iconify-icon>
                 Import E-Proc

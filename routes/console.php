@@ -4,6 +4,7 @@ use App\Models\User;
 use App\Modules\InvoiceVerification\Domain\Enums\RoleCode;
 use App\Modules\InvoiceVerification\Domain\Models\Department;
 use App\Modules\InvoiceVerification\Domain\Models\Division;
+use App\Modules\InvoiceVerification\Services\Eproc\EprocApiVendorSyncService;
 use App\Modules\InvoiceVerification\Services\Eproc\EprocImportService;
 use App\Modules\InvoiceVerification\Services\Eproc\SpreadsheetImportReader;
 use Illuminate\Foundation\Inspiring;
@@ -323,3 +324,34 @@ Artisan::command('eproc:import-csv
 
     return Command::SUCCESS;
 })->purpose('Import temporary e-procurement vendor and purchasing CSV/XLSX data.');
+
+Artisan::command('eproc:sync-api
+    {--division-code=EPROC : Default division code for synced purchase orders}
+    {--division-name=E-Procurement : Default division name for synced purchase orders}
+    {--created-by= : Optional created_by user email for agreement references}
+', function () {
+    $createdBy = null;
+    $createdByEmail = Str::lower(trim((string) $this->option('created-by')));
+
+    if ($createdByEmail !== '') {
+        $createdBy = User::query()->whereRaw('LOWER(email) = ?', [$createdByEmail])->first();
+
+        if (! $createdBy) {
+            $this->error('User created-by tidak ditemukan: '.$createdByEmail);
+
+            return Command::FAILURE;
+        }
+    }
+
+    $stats = app(EprocApiVendorSyncService::class)->sync(
+        createdBy: $createdBy,
+        divisionCode: (string) $this->option('division-code'),
+        divisionName: (string) $this->option('division-name'),
+    );
+
+    foreach ($stats as $label => $count) {
+        $this->line($label.': '.$count);
+    }
+
+    return Command::SUCCESS;
+})->purpose('Sync vendor and purchase orders from eProc API.');

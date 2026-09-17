@@ -19,8 +19,10 @@ return [
     ],
     'eproc' => [
         'driver' => env('EPROC_DRIVER', 'local'),
-        'base_url' => env('EPROC_BASE_URL'),
+        'base_url' => env('EPROC_BASE_URL', 'https://eproc-lrt-api.cendana2000.biz'),
+        'vendor_endpoint' => env('EPROC_VENDOR_ENDPOINT', 'detail_purchase_order_vendor'),
         'token' => env('EPROC_TOKEN'),
+        'timeout' => (int) env('EPROC_TIMEOUT', 30),
     ],
     'roles' => [
         'ADMIN_DIVISI' => 'Admin Divisi',

@@ -21,6 +21,7 @@ use App\Modules\InvoiceVerification\Http\Requests\StoreTemplateReferenceRequest;
 use App\Modules\InvoiceVerification\Http\Requests\StoreVendorRequest;
 use App\Modules\InvoiceVerification\Services\AuditLogService;
 use App\Modules\InvoiceVerification\Services\Contracts\LdapDirectorySynchronizer;
+use App\Modules\InvoiceVerification\Services\Eproc\EprocApiVendorSyncService;
 use App\Modules\InvoiceVerification\Services\Eproc\EprocImportService;
 use App\Modules\InvoiceVerification\Services\Eproc\SpreadsheetImportReader;
 use Illuminate\Http\Request;
@@ -708,6 +709,30 @@ class MasterDataController extends Controller
             $stats['agreements_created'],
             $stats['agreements_updated'],
             $stats['departments_created'],
+        ));
+    }
+
+    public function syncEprocApi(Request $request, EprocApiVendorSyncService $syncService)
+    {
+        $this->authorize('manageMasterData', Transaction::class);
+
+        $payload = $request->validate([
+            'division_code' => ['nullable', 'string', 'max:255'],
+            'division_name' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $stats = $syncService->sync(
+            createdBy: $request->user(),
+            divisionCode: $payload['division_code'] ?? 'EPROC',
+            divisionName: $payload['division_name'] ?? 'E-Procurement',
+        );
+
+        return $this->redirectToMasterData('vendors', sprintf(
+            'Sync API eProc selesai. Vendor baru %d, vendor update %d, PO baru %d, PO update %d.',
+            $stats['vendors_created'],
+            $stats['vendors_updated'],
+            $stats['agreements_created'],
+            $stats['agreements_updated'],
         ));
     }
 

@@ -176,7 +176,8 @@
             <table class="table table-hover align-middle mb-0 iv-table" style="--iv-table-min-width: 1900px;">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-4">@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.numbering-registers.index', 'column' => 'register_number', 'label' => 'Register Number'])</th>
+                        <th class="ps-4">Detail</th>
+                        <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.numbering-registers.index', 'column' => 'register_number', 'label' => 'Register Number'])</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.numbering-registers.index', 'column' => 'vendor_name', 'label' => 'Vendor'])</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.numbering-registers.index', 'column' => 'invoice_number', 'label' => 'Invoice'])</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.numbering-registers.index', 'column' => 'contract_number', 'label' => 'Kontrak / Memo'])</th>
@@ -185,13 +186,18 @@
                         <th>Tanggal</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.numbering-registers.index', 'column' => 'invoice_value', 'label' => 'Nilai Invoice'])</th>
                         <th>Pajak</th>
-                        <th class="text-end">Edit</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse ($registers as $register)
                         <tr>
-                            <td class="ps-4">{{ $register->register_number }}</td>
+                            <td class="ps-4">
+                                <button class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1" type="button" data-bs-toggle="modal" data-bs-target="#register-modal-{{ $register->id }}">
+                                    <iconify-icon icon="solar:eye-outline" class="fs-16"></iconify-icon>
+                                    Detail
+                                </button>
+                            </td>
+                            <td>{{ $register->register_number }}</td>
                             <td><div class="text-truncate iv-cell-truncate" style="--iv-cell-width: 210px;" title="{{ $register->vendor_name }}">{{ $register->vendor_name }}</div></td>
                             <td>
                                 <div class="fw-semibold">{{ $register->invoice_number }}</div>
@@ -219,12 +225,6 @@
                             <td>
                                 <div>PPN: {{ number_format((float) $register->ppn_value, 2, ',', '.') }}</div>
                                 <div class="text-muted small">PPh: {{ number_format((float) $register->pph_value, 2, ',', '.') }}</div>
-                            </td>
-                            <td class="text-end">
-                                <button class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1" type="button" data-bs-toggle="modal" data-bs-target="#register-modal-{{ $register->id }}">
-                                    <iconify-icon icon="solar:pen-2-outline" class="fs-16"></iconify-icon>
-                                    Edit
-                                </button>
                             </td>
                         </tr>
                     @empty

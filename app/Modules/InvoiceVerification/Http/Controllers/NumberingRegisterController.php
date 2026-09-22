@@ -63,6 +63,11 @@ class NumberingRegisterController extends Controller
     {
         abort_unless($request->user()?->hasRole(RoleCode::ADMIN_DIVISI, RoleCode::AKUNTANSI), 403);
 
+        $typeCode = $numberingRegister->loadMissing('transaction.transactionType')
+            ->transaction?->transactionType?->code;
+        $typeCode = $typeCode instanceof \BackedEnum ? $typeCode->value : $typeCode;
+        $isPpa = in_array($typeCode, ['PPA', 'PPA_NON_CONTRACT'], true);
+
         if ($request->filled('account_number')) {
             $request->merge(['account_number' => preg_replace('/[\s-]+/', '', (string) $request->input('account_number'))]);
         }
@@ -74,13 +79,14 @@ class NumberingRegisterController extends Controller
         $payload = $request->validate([
             'register_number' => ['required', 'string', 'max:255'],
             'received_date' => ['required', 'date'],
-            'invoice_number' => ['required', 'string', 'max:255'],
+            'invoice_number' => [$isPpa ? 'required' : 'nullable', 'string', 'max:255'],
             'invoice_date' => ['nullable', 'date'],
             'upload_date' => ['nullable', 'date'],
             'hardcopy_received' => ['boolean'],
             'bank_name' => ['nullable', 'string', 'max:255'],
             'account_number' => ['nullable', 'regex:/^\d{6,30}$/'],
             'account_name' => ['nullable', 'string', 'max:255'],
+            'memo_number' => ['nullable', 'string', 'max:255'],
             'contract_number' => ['nullable', 'string', 'max:255'],
             'invoice_value' => ['nullable', 'numeric', 'min:0'],
             'ppn_value' => ['nullable', 'numeric', 'min:0'],

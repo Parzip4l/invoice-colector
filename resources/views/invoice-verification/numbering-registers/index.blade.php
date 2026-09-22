@@ -347,6 +347,18 @@
 </div>
 
 @foreach ($registers as $register)
+    @php
+        $typeCode = $register->transaction?->transactionType?->code;
+        $typeCode = $typeCode instanceof \BackedEnum ? $typeCode->value : $typeCode;
+        $isPpa = in_array($typeCode, [
+            \App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode::PPA->value,
+            \App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode::PPA_NON_CONTRACT->value,
+        ], true);
+        $isSpu = $typeCode === \App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode::SPU->value;
+        $isSpuk = $typeCode === \App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode::SPUK->value;
+        $isKasKecil = $typeCode === \App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode::KAS_KECIL->value;
+        $transaction = $register->transaction;
+    @endphp
     <div class="modal fade" id="register-modal-{{ $register->id }}" tabindex="-1" aria-labelledby="register-modal-label-{{ $register->id }}" aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <form method="POST" action="{{ route('invoice-verification.numbering-registers.update', $register) }}" class="modal-content">
@@ -375,22 +387,40 @@
                             <label class="form-label">Nomor Dokumen</label>
                             <input class="form-control" name="register_number" value="{{ old('register_number', $register->register_number) }}" required>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Nomor Invoice</label>
-                            <input class="form-control" name="invoice_number" value="{{ old('invoice_number', $register->invoice_number) }}" required>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Nomor Kontrak</label>
-                            <input class="form-control" name="contract_number" value="{{ old('contract_number', $register->contract_number) }}">
-                        </div>
+                        @if ($isPpa)
+                            <div class="col-md-4">
+                                <label class="form-label">Nomor Invoice</label>
+                                <input class="form-control" name="invoice_number" value="{{ old('invoice_number', $register->invoice_number) }}" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Nomor Kontrak</label>
+                                <input class="form-control" name="contract_number" value="{{ old('contract_number', $register->contract_number) }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Nomor Memo</label>
+                                <input class="form-control" name="memo_number" value="{{ old('memo_number', $register->memo_number) }}">
+                            </div>
+                        @elseif ($isSpu)
+                            <div class="col-md-4">
+                                <label class="form-label">Nomor Memo</label>
+                                <input class="form-control" name="memo_number" value="{{ old('memo_number', $register->memo_number) }}">
+                            </div>
+                        @elseif ($isSpuk)
+                            <div class="col-md-4">
+                                <label class="form-label">Nomor SPU</label>
+                                <input class="form-control" value="{{ $transaction?->parentSpuTransaction?->registration_number ?? '-' }}" readonly>
+                            </div>
+                        @endif
                         <div class="col-md-3">
                             <label class="form-label">Tanggal Terima</label>
                             <input type="date" class="form-control" name="received_date" value="{{ old('received_date', optional($register->received_date)->format('Y-m-d')) }}" required>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Tanggal Invoice</label>
-                            <input type="date" class="form-control" name="invoice_date" value="{{ old('invoice_date', optional($register->invoice_date)->format('Y-m-d')) }}">
-                        </div>
+                        @if ($isPpa)
+                            <div class="col-md-3">
+                                <label class="form-label">Tanggal Invoice</label>
+                                <input type="date" class="form-control" name="invoice_date" value="{{ old('invoice_date', optional($register->invoice_date)->format('Y-m-d')) }}">
+                            </div>
+                        @endif
                         <div class="col-md-3">
                             <label class="form-label">Tanggal Upload</label>
                             <input type="date" class="form-control" name="upload_date" value="{{ old('upload_date', optional($register->upload_date)->format('Y-m-d')) }}">
@@ -403,29 +433,123 @@
                                 <label class="form-check-label" for="hardcopy-{{ $register->id }}">Ya</label>
                             </div>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Tanggal Faktur Pajak</label>
-                            <input type="date" class="form-control" name="tax_invoice_date" value="{{ old('tax_invoice_date', optional($register->tax_invoice_date)->format('Y-m-d')) }}">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Nomor Faktur Pajak</label>
-                            <input class="form-control" name="tax_invoice_number" value="{{ old('tax_invoice_number', $register->tax_invoice_number) }}">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Nomor GR</label>
-                            <input class="form-control" name="gr_number" value="{{ old('gr_number', $register->gr_number) }}">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Jenis Jurnal</label>
-                            <input class="form-control" name="journal_type" value="{{ old('journal_type', $register->journal_type) }}">
-                        </div>
+                        @if ($isPpa)
+                            <div class="col-md-3">
+                                <label class="form-label">Tanggal Faktur Pajak</label>
+                                <input type="date" class="form-control" name="tax_invoice_date" value="{{ old('tax_invoice_date', optional($register->tax_invoice_date)->format('Y-m-d')) }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Nomor Faktur Pajak</label>
+                                <input class="form-control" name="tax_invoice_number" value="{{ old('tax_invoice_number', $register->tax_invoice_number) }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Nomor GR</label>
+                                <input class="form-control" name="gr_number" value="{{ old('gr_number', $register->gr_number) }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Jenis Jurnal</label>
+                                <input class="form-control" name="journal_type" value="{{ old('journal_type', $register->journal_type) }}">
+                            </div>
+                        @elseif ($isSpu)
+                            <div class="col-md-4">
+                                <label class="form-label">Jenis Jurnal</label>
+                                <input class="form-control" name="journal_type" value="{{ old('journal_type', $register->journal_type) }}">
+                            </div>
+                        @endif
                         <div class="col-md-12">
                             <label class="form-label">Uraian Transaksi</label>
                             <input class="form-control" name="description" value="{{ old('description', $register->description) }}">
                         </div>
 
+                        @if ($isPpa)
+                            <div class="col-12 pt-2">
+                                <h6 class="text-primary mb-0">Nilai dan Pajak</h6>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Nilai Invoice</label>
+                                <input type="text" inputmode="numeric" class="form-control @error('invoice_value') is-invalid @enderror" name="invoice_value" value="{{ old('invoice_value', $register->invoice_value) }}" data-rupiah-input>
+                                @error('invoice_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">PPN</label>
+                                <input type="text" inputmode="numeric" class="form-control @error('ppn_value') is-invalid @enderror" name="ppn_value" value="{{ old('ppn_value', $register->ppn_value) }}" data-rupiah-input>
+                                @error('ppn_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">PPh</label>
+                                <input type="text" inputmode="numeric" class="form-control @error('pph_value') is-invalid @enderror" name="pph_value" value="{{ old('pph_value', $register->pph_value) }}" data-rupiah-input>
+                                @error('pph_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Discount/Denda/Materai</label>
+                                <input type="text" inputmode="numeric" class="form-control @error('discount_deduction_stamp_value') is-invalid @enderror" name="discount_deduction_stamp_value" value="{{ old('discount_deduction_stamp_value', $register->discount_deduction_stamp_value) }}" data-rupiah-input>
+                                @error('discount_deduction_stamp_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                        @elseif ($isSpu)
+                            <div class="col-12 pt-2">
+                                <h6 class="text-primary mb-0">Data SPU</h6>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Nilai SPU</label>
+                                <input class="form-control" value="{{ $transaction?->spu_amount !== null ? 'Rp '.number_format((float) $transaction->spu_amount, 0, ',', '.') : '-' }}" readonly>
+                            </div>
+                        @elseif ($isSpuk)
+                            <div class="col-12 pt-2">
+                                <h6 class="text-primary mb-0">Data SPUK</h6>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Nilai SPU</label>
+                                <input class="form-control" value="{{ $transaction?->parentSpuTransaction?->spu_amount !== null ? 'Rp '.number_format((float) $transaction->parentSpuTransaction->spu_amount, 0, ',', '.') : '-' }}" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Nilai Realisasi</label>
+                                <input class="form-control" value="{{ $transaction?->accountability_amount !== null ? 'Rp '.number_format((float) $transaction->accountability_amount, 0, ',', '.') : '-' }}" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Selisih</label>
+                                <input class="form-control" value="{{ $transaction?->remaining_amount !== null ? 'Rp '.number_format((float) $transaction->remaining_amount, 0, ',', '.') : '-' }}" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Status Jurnal</label>
+                                <input class="form-control" name="journal_status" value="{{ old('journal_status', $register->journal_status) }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Tanggal Pengembalian</label>
+                                <input type="date" class="form-control" name="return_date" value="{{ old('return_date', optional($register->return_date)->format('Y-m-d')) }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Nominal Pengembalian</label>
+                                <input type="text" inputmode="numeric" class="form-control @error('return_amount') is-invalid @enderror" name="return_amount" value="{{ old('return_amount', $register->return_amount) }}" data-rupiah-input>
+                                @error('return_amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Status SPUK</label>
+                                <input class="form-control" name="spuk_status" value="{{ old('spuk_status', $register->spuk_status) }}">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Notes SPUK</label>
+                                <textarea class="form-control" name="spuk_notes" rows="2">{{ old('spuk_notes', $register->spuk_notes) }}</textarea>
+                            </div>
+                        @elseif ($isKasKecil)
+                            <div class="col-12 pt-2">
+                                <h6 class="text-primary mb-0">Data Kas Kecil</h6>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Plafon Petty Cash</label>
+                                <input class="form-control" value="{{ $transaction?->petty_cash_ceiling_snapshot !== null ? 'Rp '.number_format((float) $transaction->petty_cash_ceiling_snapshot, 0, ',', '.') : '-' }}" readonly>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Sisa Petty Cash</label>
+                                <input class="form-control" value="{{ $transaction?->petty_cash_remaining_amount !== null ? 'Rp '.number_format((float) $transaction->petty_cash_remaining_amount, 0, ',', '.') : '-' }}" readonly>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Nilai Top Up</label>
+                                <input class="form-control" value="{{ $transaction?->petty_cash_top_up_amount !== null ? 'Rp '.number_format((float) $transaction->petty_cash_top_up_amount, 0, ',', '.') : '-' }}" readonly>
+                            </div>
+                        @endif
+
                         <div class="col-12 pt-2">
-                            <h6 class="text-primary mb-0">Pembayaran dan Pajak</h6>
+                            <h6 class="text-primary mb-0">{{ $isSpuk ? 'Bank dan Pengembalian' : 'Bank dan Pembayaran' }}</h6>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Bank</label>
@@ -440,71 +564,26 @@
                             <label class="form-label">Atas Nama Rekening</label>
                             <input class="form-control" name="account_name" value="{{ old('account_name', $register->account_name) }}">
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Nilai Invoice</label>
-                            <input type="text" inputmode="numeric" class="form-control @error('invoice_value') is-invalid @enderror" name="invoice_value" value="{{ old('invoice_value', $register->invoice_value) }}" data-rupiah-input>
-                            @error('invoice_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">PPN</label>
-                            <input type="text" inputmode="numeric" class="form-control @error('ppn_value') is-invalid @enderror" name="ppn_value" value="{{ old('ppn_value', $register->ppn_value) }}" data-rupiah-input>
-                            @error('ppn_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">PPh</label>
-                            <input type="text" inputmode="numeric" class="form-control @error('pph_value') is-invalid @enderror" name="pph_value" value="{{ old('pph_value', $register->pph_value) }}" data-rupiah-input>
-                            @error('pph_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Discount/Denda/Materai</label>
-                            <input type="text" inputmode="numeric" class="form-control @error('discount_deduction_stamp_value') is-invalid @enderror" name="discount_deduction_stamp_value" value="{{ old('discount_deduction_stamp_value', $register->discount_deduction_stamp_value) }}" data-rupiah-input>
-                            @error('discount_deduction_stamp_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Tanggal Ekspedisi</label>
-                            <input type="date" class="form-control" name="payment_expedition_date" value="{{ old('payment_expedition_date', optional($register->payment_expedition_date)->format('Y-m-d')) }}">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Tanggal Pembayaran</label>
-                            <input type="date" class="form-control" name="payment_date" value="{{ old('payment_date', optional($register->payment_date)->format('Y-m-d')) }}">
-                        </div>
+                        @if (! $isSpuk)
+                            <div class="col-md-3">
+                                <label class="form-label">Tanggal Ekspedisi</label>
+                                <input type="date" class="form-control" name="payment_expedition_date" value="{{ old('payment_expedition_date', optional($register->payment_expedition_date)->format('Y-m-d')) }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Tanggal Pembayaran</label>
+                                <input type="date" class="form-control" name="payment_date" value="{{ old('payment_date', optional($register->payment_date)->format('Y-m-d')) }}">
+                            </div>
+                        @endif
 
-                        <div class="col-12 pt-2">
-                            <h6 class="text-primary mb-0">SPUK</h6>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Status Jurnal</label>
-                            <input class="form-control" name="journal_status" value="{{ old('journal_status', $register->journal_status) }}">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Tanggal Pengembalian</label>
-                            <input type="date" class="form-control" name="return_date" value="{{ old('return_date', optional($register->return_date)->format('Y-m-d')) }}">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Nominal Pengembalian</label>
-                            <input type="text" inputmode="numeric" class="form-control @error('return_amount') is-invalid @enderror" name="return_amount" value="{{ old('return_amount', $register->return_amount) }}" data-rupiah-input>
-                            @error('return_amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Status SPUK</label>
-                            <input class="form-control" name="spuk_status" value="{{ old('spuk_status', $register->spuk_status) }}">
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Notes SPUK</label>
-                            <textarea class="form-control" name="spuk_notes" rows="2">{{ old('spuk_notes', $register->spuk_notes) }}</textarea>
-                        </div>
-
-                        <div class="col-12 pt-2">
-                            <h6 class="text-primary mb-0">Organisasi</h6>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Nama Kepala Department</label>
-                            <input class="form-control" name="department_head_name" value="{{ old('department_head_name', $register->department_head_name) }}">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Nama Divisi</label>
-                            <input class="form-control" name="division_name" value="{{ old('division_name', $register->division_name) }}">
-                        </div>
+                        @if ($isSpu || $isSpuk || $isKasKecil)
+                            <div class="col-12 pt-2">
+                                <h6 class="text-primary mb-0">Organisasi</h6>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Nama Divisi</label>
+                                <input class="form-control" name="division_name" value="{{ old('division_name', $register->division_name) }}">
+                            </div>
+                        @endif
                     </div>
                 </div>
                 <div class="modal-footer">

@@ -174,6 +174,7 @@ class DashboardService
             'amount_yearly' => $this->amountTrend('yearly'),
             'top_vendors' => $topVendors->all(),
             'agreement_summary' => $agreementSummary,
+            'pipeline_summary' => $this->pipelineSummary(),
             'insights' => [
                 'period_change' => $this->percentageChange($currentPeriodTransactions, $previousPeriodTransactions),
                 'total_pending' => $pendingTransactions,
@@ -220,6 +221,49 @@ class DashboardService
                 'label' => $labelResolver($slot),
                 'value' => (float) ($amounts[$period === 'weekly' ? $slot->format('Y-m-d') : ($period === 'yearly' ? $slot->format('Y') : $slot->format('Y-m'))] ?? 0),
             ])
+            ->values()
+            ->all();
+    }
+
+    private function pipelineSummary(): array
+    {
+        $transactions = Transaction::query()
+            ->with('invoiceMetadata')
+            ->get();
+
+        $tones = [
+            TransactionStatus::DRAFT->value => 'secondary',
+            TransactionStatus::SUBMITTED->value => 'primary',
+            TransactionStatus::IN_REVIEW->value => 'dark',
+            TransactionStatus::NOT_APPROVED->value => 'danger',
+            TransactionStatus::RECEIVED->value => 'info',
+            TransactionStatus::SCHEDULING_PAYMENT->value => 'warning',
+            TransactionStatus::PAID->value => 'success',
+        ];
+
+        $icons = [
+            TransactionStatus::DRAFT->value => 'solar:document-add-outline',
+            TransactionStatus::SUBMITTED->value => 'solar:upload-square-outline',
+            TransactionStatus::IN_REVIEW->value => 'solar:checklist-minimalistic-outline',
+            TransactionStatus::NOT_APPROVED->value => 'solar:danger-triangle-outline',
+            TransactionStatus::RECEIVED->value => 'solar:inbox-in-outline',
+            TransactionStatus::SCHEDULING_PAYMENT->value => 'solar:calendar-mark-outline',
+            TransactionStatus::PAID->value => 'solar:wallet-money-outline',
+        ];
+
+        return collect(TransactionStatus::workflowCases())
+            ->map(function (TransactionStatus $status) use ($transactions, $tones, $icons) {
+                $items = $transactions->where('status', $status);
+
+                return [
+                    'status' => $status->value,
+                    'label' => $status->label(),
+                    'count' => $items->count(),
+                    'amount' => (float) $items->sum(fn (Transaction $transaction) => $this->transactionAmount($transaction)),
+                    'tone' => $tones[$status->value] ?? 'secondary',
+                    'icon' => $icons[$status->value] ?? 'solar:document-text-outline',
+                ];
+            })
             ->values()
             ->all();
     }

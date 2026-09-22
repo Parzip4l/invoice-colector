@@ -5,6 +5,7 @@ namespace App\Modules\InvoiceVerification\Services;
 use App\Modules\InvoiceVerification\Domain\Models\NumberingRegister;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
 use App\Modules\InvoiceVerification\Domain\Models\TransactionType;
+use App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -46,12 +47,62 @@ class RegistrationNumberService
         });
     }
 
-    public function generateRegisterNumber(): string
+    public function generateRegisterNumber(Transaction|TransactionType|string $transactionType): string
     {
-        $count = NumberingRegister::query()
-            ->whereYear('created_at', now()->year)
-            ->count() + 1;
+        $prefix = $this->resolveTransactionPrefix($transactionType);
+        $year = now()->format('y');
 
-        return sprintf('REG/%s/%05d', now()->format('Ym'), $count);
+        return DB::transaction(function () use ($prefix, $year) {
+            $latestRegisterNumber = NumberingRegister::query()
+                ->where('register_number', 'like', $prefix.'-'.$year.'-%')
+                ->lockForUpdate()
+                ->orderByDesc('register_number')
+                ->value('register_number');
+
+            $nextNumber = 1;
+
+            if (
+                is_string($latestRegisterNumber)
+                && preg_match('/^'.preg_quote($prefix, '/').'-'.preg_quote($year, '/').'-(\d+)$/', $latestRegisterNumber, $matches)
+            ) {
+                $nextNumber = ((int) $matches[1]) + 1;
+            }
+
+            return sprintf('%s-%s-%05d', $prefix, $year, $nextNumber);
+        });
+    }
+
+    private function resolveTransactionPrefix(Transaction|TransactionType|string $transactionType): string
+    {
+        if ($transactionType instanceof Transaction) {
+            $transactionType->loadMissing('transactionType');
+            $transactionType = $transactionType->transactionType;
+        }
+
+        if ($transactionType instanceof TransactionType && $transactionType->code) {
+            return $this->registerPrefixForTypeCode($transactionType->code);
+        }
+
+        if (is_string($transactionType)) {
+            $type = TransactionType::query()
+                ->where('id', $transactionType)
+                ->orWhere('code', $transactionType)
+                ->first();
+
+            if ($type?->code) {
+                return $this->registerPrefixForTypeCode($type->code);
+            }
+        }
+
+        throw new InvalidArgumentException('Jenis transaksi tidak dikenali untuk penomoran register.');
+    }
+
+    private function registerPrefixForTypeCode(TransactionTypeCode $typeCode): string
+    {
+        return match ($typeCode) {
+            TransactionTypeCode::PPA,
+            TransactionTypeCode::PPA_NON_CONTRACT => TransactionTypeCode::PPA->registrationPrefix(),
+            default => $typeCode->registrationPrefix(),
+        };
     }
 }

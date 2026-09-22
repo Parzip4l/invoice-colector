@@ -82,7 +82,7 @@ class AccountingVerificationService
         return DB::transaction(function () use ($transaction, $actor, $items, $administrationStatus, $administrationNotes, $notes) {
             $transaction->refresh();
 
-            if ($transaction->status === TransactionStatus::ACCOUNTING_VERIFICATION) {
+            if (in_array($transaction->status, [TransactionStatus::SUBMITTED, TransactionStatus::ACCOUNTING_VERIFICATION], true)) {
                 $transaction = $this->transactionLifecycleService->startAccountingReview($transaction, $actor);
             }
 

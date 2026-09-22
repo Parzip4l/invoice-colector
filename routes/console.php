@@ -4,9 +4,11 @@ use App\Models\User;
 use App\Modules\InvoiceVerification\Domain\Enums\RoleCode;
 use App\Modules\InvoiceVerification\Domain\Models\Department;
 use App\Modules\InvoiceVerification\Domain\Models\Division;
+use App\Modules\InvoiceVerification\Domain\Models\NumberingRegister;
 use App\Modules\InvoiceVerification\Services\Eproc\EprocApiVendorSyncService;
 use App\Modules\InvoiceVerification\Services\Eproc\EprocImportService;
 use App\Modules\InvoiceVerification\Services\Eproc\SpreadsheetImportReader;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
@@ -355,3 +357,94 @@ Artisan::command('eproc:sync-api
 
     return Command::SUCCESS;
 })->purpose('Sync vendor and purchase orders from eProc API.');
+
+Artisan::command('numbering-register:reformat
+    {--year= : Optional two-digit or four-digit year filter}
+    {--dry-run : Preview changes without saving}
+', function () {
+    $yearFilter = trim((string) $this->option('year'));
+    $dryRun = (bool) $this->option('dry-run');
+
+    $registers = NumberingRegister::query()
+        ->with('transaction.transactionType')
+        ->whereHas('transaction.transactionType')
+        ->orderBy('generated_at')
+        ->orderBy('created_at')
+        ->orderBy('id')
+        ->get()
+        ->filter(function (NumberingRegister $register) use ($yearFilter) {
+            if ($yearFilter === '') {
+                return true;
+            }
+
+            $year = $register->generated_at?->format('y') ?? $register->created_at?->format('y') ?? now()->format('y');
+
+            return $year === substr($yearFilter, -2);
+        });
+
+    $groups = $registers->groupBy(function (NumberingRegister $register) {
+        $typeCode = $register->transaction?->transactionType?->code;
+        $prefix = match ($typeCode) {
+            \App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode::PPA,
+            \App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode::PPA_NON_CONTRACT => 'PPA',
+            default => $typeCode?->registrationPrefix(),
+        };
+        $year = $register->generated_at?->format('y') ?? $register->created_at?->format('y') ?? now()->format('y');
+
+        return $prefix.'-'.$year;
+    });
+
+    $updates = collect();
+
+    foreach ($groups as $groupKey => $groupRegisters) {
+        [$prefix, $year] = explode('-', $groupKey, 2);
+
+        $groupRegisters->values()->each(function (NumberingRegister $register, int $index) use ($prefix, $year, $updates) {
+            $newRegisterNumber = sprintf('%s-%s-%05d', $prefix, $year, $index + 1);
+
+            if ($register->register_number !== $newRegisterNumber) {
+                $updates->push([
+                    'id' => $register->id,
+                    'old' => $register->register_number,
+                    'new' => $newRegisterNumber,
+                ]);
+            }
+        });
+    }
+
+    if ($updates->isEmpty()) {
+        $this->info('Semua register number sudah sesuai format.');
+
+        return Command::SUCCESS;
+    }
+
+    $this->table(['Old', 'New'], $updates->take(20)->map(fn ($update) => [$update['old'], $update['new']])->all());
+
+    if ($updates->count() > 20) {
+        $this->line('... '.$updates->count().' total perubahan.');
+    }
+
+    if ($dryRun) {
+        $this->info('Dry run selesai. Tidak ada data yang diubah.');
+
+        return Command::SUCCESS;
+    }
+
+    DB::transaction(function () use ($updates) {
+        foreach ($updates as $update) {
+            NumberingRegister::query()
+                ->whereKey($update['id'])
+                ->update(['register_number' => 'TMP-'.$update['id']]);
+        }
+
+        foreach ($updates as $update) {
+            NumberingRegister::query()
+                ->whereKey($update['id'])
+                ->update(['register_number' => $update['new']]);
+        }
+    });
+
+    $this->info('Register number berhasil diformat ulang: '.$updates->count().' data.');
+
+    return Command::SUCCESS;
+})->purpose('Reformat existing numbering register values to {TYPE}-{YY}-{00000}.');

@@ -8,18 +8,26 @@
     <div class="card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
         <div>
             <h5 class="card-title mb-1">{{ $transaction->registration_number }}</h5>
-            <p class="text-muted mb-0">Pilih status setiap bagian, lalu tekan tombol simpan untuk memproses hasil verifikasi.</p>
+            <p class="text-muted mb-0">
+                {{ $canSubmitVerification ? 'Pilih status setiap bagian, lalu tekan tombol simpan untuk memproses hasil verifikasi.' : 'Verifikasi akuntansi untuk transaksi ini sudah selesai atau tidak lagi berada pada tahap In Review.' }}
+            </p>
         </div>
-        <button class="btn btn-primary" type="submit" form="accountingVerificationForm">
-            Simpan Verifikasi
-        </button>
+        @if ($canSubmitVerification)
+            <button class="btn btn-primary" type="submit" form="accountingVerificationForm">
+                Simpan Verifikasi
+            </button>
+        @endif
     </div>
     <div class="card-body">
         @error('status')
             <div class="alert alert-danger">{{ $message }}</div>
         @enderror
-        <div class="alert alert-info border-0">
-            Pilih keputusan per dokumen Invoicing. Keputusan baru dikirim ke sistem setelah klik <strong>Simpan Verifikasi</strong>.
+        <div class="alert {{ $canSubmitVerification ? 'alert-info' : 'alert-success' }} border-0">
+            @if ($canSubmitVerification)
+                Pilih keputusan per dokumen Invoicing. Keputusan baru dikirim ke sistem setelah klik <strong>Simpan Verifikasi</strong>.
+            @else
+                Status saat ini <strong>{{ $transaction->status?->label() }}</strong>. Halaman ini hanya menampilkan hasil verifikasi yang sudah tersimpan.
+            @endif
         </div>
         <form id="accountingVerificationForm" method="POST" action="{{ route('invoice-verification.transactions.accounting-verifications.update', $transaction) }}">
             @csrf
@@ -129,6 +137,7 @@
                                             data-status-toggle-option
                                             data-status-value="VALID"
                                             data-status-variant="success"
+                                            @disabled(! $canSubmitVerification)
                                         >
                                             Approve
                                         </button>
@@ -138,6 +147,7 @@
                                             data-status-toggle-option
                                             data-status-value="REVISION_REQUIRED"
                                             data-status-variant="danger"
+                                            @disabled(! $canSubmitVerification)
                                         >
                                             Reject
                                         </button>
@@ -149,6 +159,7 @@
                                         class="form-control"
                                         rows="2"
                                         placeholder="Wajib diisi jika dokumen direject"
+                                        @readonly(! $canSubmitVerification)
                                     >{{ $item->notes }}</textarea>
                                 </td>
                             </tr>
@@ -161,11 +172,13 @@
             <div class="row mt-3">
                 <div class="col-md-8">
                     <label class="form-label">Catatan Umum</label>
-                    <textarea class="form-control" rows="3" name="notes">{{ old('notes', $verification->notes) }}</textarea>
+                    <textarea class="form-control" rows="3" name="notes" @readonly(! $canSubmitVerification)>{{ old('notes', $verification->notes) }}</textarea>
                 </div>
-                <div class="col-md-4 d-flex align-items-end">
-                    <button class="btn btn-primary w-100">Simpan Verifikasi Akuntansi</button>
-                </div>
+                @if ($canSubmitVerification)
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button class="btn btn-primary w-100">Simpan Verifikasi Akuntansi</button>
+                    </div>
+                @endif
             </div>
         </form>
     </div>

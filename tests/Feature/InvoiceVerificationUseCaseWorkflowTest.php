@@ -172,6 +172,17 @@ class InvoiceVerificationUseCaseWorkflowTest extends TestCase
         $this->assertNotNull($transaction->fresh()->numberingRegister);
         Mail::assertSent(InvoiceTransactionReceivedMail::class);
 
+        $this->actingAs($accounting)->put(route('invoice-verification.transactions.accounting-verifications.update', $transaction), [
+            'administration_status' => 'VALID',
+            'items' => $verification->items->map(fn ($item) => [
+                'transaction_document_id' => $item->transaction_document_id,
+                'status' => 'VALID',
+                'notes' => null,
+            ])->all(),
+            'notes' => null,
+        ])->assertRedirect(route('invoice-verification.transactions.show', $transaction))
+            ->assertSessionHasNoErrors();
+
         $this->actingAs($finance)->get(route('invoice-verification.finance.index'))->assertOk()->assertSee($transaction->registration_number);
         $this->actingAs($finance)->post(route('invoice-verification.finance.schedule', $transaction), [
             'scheduled_payment_at' => now()->addDay()->format('Y-m-d H:i:s'),
@@ -215,6 +226,150 @@ class InvoiceVerificationUseCaseWorkflowTest extends TestCase
         ])->assertRedirect();
         $this->assertSame('PAID', $transaction->fresh()->status->value);
         $this->assertSame($paidAt, $transaction->fresh()->paid_at?->format('Y-m-d'));
+    }
+
+    public function test_numbering_register_uses_transaction_type_year_and_running_number(): void
+    {
+        $internalVendor = User::where('email', 'user.divisi@demo.local')->firstOrFail();
+        $memo = $this->memoFor($internalVendor);
+        $firstTransaction = $this->createTransaction($internalVendor, 'SPU', $memo, [
+            'activity_name' => 'Register sequence satu',
+            'transaction_bank_name' => 'BCA',
+            'transaction_account_number' => '1234567890',
+            'spu_amount' => 500000,
+        ]);
+        $secondTransaction = $this->createTransaction($internalVendor, 'SPU', $memo, [
+            'activity_name' => 'Register sequence dua',
+            'transaction_bank_name' => 'BCA',
+            'transaction_account_number' => '1234567890',
+            'spu_amount' => 500000,
+        ]);
+
+        NumberingRegister::query()
+            ->where('register_number', 'like', 'SPU-'.now()->format('y').'-%')
+            ->delete();
+
+        app(\App\Modules\InvoiceVerification\Services\NumberingRegisterService::class)->syncFromTransaction($firstTransaction);
+        app(\App\Modules\InvoiceVerification\Services\NumberingRegisterService::class)->syncFromTransaction($secondTransaction);
+
+        $this->assertSame('SPU-'.now()->format('y').'-00001', $firstTransaction->fresh()->numberingRegister->register_number);
+        $this->assertSame('SPU-'.now()->format('y').'-00002', $secondTransaction->fresh()->numberingRegister->register_number);
+    }
+
+    public function test_ppa_contract_and_non_contract_share_register_sequence(): void
+    {
+        $externalVendor = User::where('email', 'vendor@demo.local')->firstOrFail();
+        $internalVendor = User::where('email', 'user.divisi@demo.local')->firstOrFail();
+        $memo = $this->memoFor($internalVendor);
+        $ppaContract = $this->createPpaContract($externalVendor);
+        $ppaNonContract = $this->createTransaction($internalVendor, 'PPA_NON_CONTRACT', $memo, [
+            'activity_name' => 'Register PPA non kontrak',
+            'transaction_bank_name' => 'BCA',
+            'transaction_account_number' => '1234567890',
+        ]);
+
+        NumberingRegister::query()
+            ->where('register_number', 'like', 'PPA-'.now()->format('y').'-%')
+            ->delete();
+
+        app(\App\Modules\InvoiceVerification\Services\NumberingRegisterService::class)->syncFromTransaction($ppaContract);
+        app(\App\Modules\InvoiceVerification\Services\NumberingRegisterService::class)->syncFromTransaction($ppaNonContract);
+
+        $this->assertSame('PPA-'.now()->format('y').'-00001', $ppaContract->fresh()->numberingRegister->register_number);
+        $this->assertSame('PPA-'.now()->format('y').'-00002', $ppaNonContract->fresh()->numberingRegister->register_number);
+    }
+
+    public function test_existing_numbering_registers_can_be_reformatted(): void
+    {
+        NumberingRegister::query()->delete();
+
+        $internalVendor = User::where('email', 'user.divisi@demo.local')->firstOrFail();
+        $memo = $this->memoFor($internalVendor);
+        $firstSpu = $this->createTransaction($internalVendor, 'SPU', $memo, [
+            'activity_name' => 'Register lama satu',
+            'transaction_bank_name' => 'BCA',
+            'transaction_account_number' => '1234567890',
+            'spu_amount' => 500000,
+        ]);
+        $secondSpu = $this->createTransaction($internalVendor, 'SPU', $memo, [
+            'activity_name' => 'Register lama dua',
+            'transaction_bank_name' => 'BCA',
+            'transaction_account_number' => '1234567890',
+            'spu_amount' => 500000,
+        ]);
+        $ppa = $this->createPpaContract(User::where('email', 'vendor@demo.local')->firstOrFail());
+        $ppaNonContract = $this->createTransaction($internalVendor, 'PPA_NON_CONTRACT', $memo, [
+            'activity_name' => 'Register lama ppa non kontrak',
+            'transaction_bank_name' => 'BCA',
+            'transaction_account_number' => '1234567890',
+        ]);
+
+        foreach ([[$firstSpu, 'REG/202609/00001'], [$secondSpu, 'REG/202609/00002'], [$ppa, 'REG/202609/00003'], [$ppaNonContract, 'REG/202609/00004']] as [$transaction, $registerNumber]) {
+            NumberingRegister::create([
+                'transaction_id' => $transaction->id,
+                'register_number' => $registerNumber,
+                'vendor_name' => $transaction->vendor?->name ?? $transaction->owner?->name ?? '-',
+                'received_date' => now()->toDateString(),
+                'invoice_number' => $transaction->registration_number,
+                'generated_at' => now(),
+            ]);
+        }
+
+        $this->artisan('numbering-register:reformat')->assertExitCode(0);
+
+        $this->assertSame('SPU-'.now()->format('y').'-00001', $firstSpu->fresh()->numberingRegister->register_number);
+        $this->assertSame('SPU-'.now()->format('y').'-00002', $secondSpu->fresh()->numberingRegister->register_number);
+        $this->assertSame('PPA-'.now()->format('y').'-00001', $ppa->fresh()->numberingRegister->register_number);
+        $this->assertSame('PPA-'.now()->format('y').'-00002', $ppaNonContract->fresh()->numberingRegister->register_number);
+    }
+
+    public function test_accounting_can_complete_verification_from_submitted_transaction(): void
+    {
+        Storage::fake(config('invoice_verification.storage.documents_disk', 'public'));
+        Mail::fake();
+
+        $internalVendor = User::where('email', 'user.divisi@demo.local')->firstOrFail();
+        $accounting = User::where('email', 'akuntansi@demo.local')->firstOrFail();
+        $memo = $this->memoFor($internalVendor);
+        $transaction = $this->createTransaction($internalVendor, 'SPU', $memo, [
+            'activity_name' => 'Uang muka pekerjaan langsung verifikasi',
+            'transaction_bank_name' => 'BCA',
+            'transaction_account_number' => '1234567890',
+            'spu_amount' => 500000,
+        ]);
+
+        $documentType = DocumentType::where('transaction_type_id', $transaction->transaction_type_id)
+            ->where('source_type', 'VENDOR')
+            ->firstOrFail();
+
+        $this->actingAs($internalVendor)->post(route('invoice-verification.transactions.documents.combined.store', $transaction), [
+            'attachments' => [
+                [
+                    'document_type_id' => $documentType->id,
+                    'source_actor' => 'VENDOR',
+                    'document_label' => $documentType->name,
+                    'file' => UploadedFile::fake()->create('support.pdf', 10, 'application/pdf'),
+                ],
+            ],
+        ])->assertRedirect();
+
+        $this->actingAs($internalVendor)->post(route('invoice-verification.transactions.submit', $transaction))->assertRedirect();
+        $this->assertSame('SUBMITTED', $transaction->fresh()->status->value);
+
+        $verification = app(\App\Modules\InvoiceVerification\Services\AccountingVerificationService::class)
+            ->getOrCreate($transaction->fresh(), $accounting);
+
+        $this->actingAs($accounting)->put(route('invoice-verification.transactions.accounting-verifications.update', $transaction), [
+            'administration_status' => 'VALID',
+            'items' => $verification->items->map(fn ($item) => [
+                'transaction_document_id' => $item->transaction_document_id,
+                'status' => 'VALID',
+                'notes' => null,
+            ])->all(),
+            'notes' => null,
+        ])->assertRedirect();
+
+        $this->assertSame('RECEIVED', $transaction->fresh()->status->value);
     }
 
     private function createPpaContract(User $vendorUser): Transaction

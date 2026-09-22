@@ -2,36 +2,9 @@
 <?php
     $periodChange = $analytics['insights']['period_change'];
     $periodTone = $periodChange >= 0 ? 'success' : 'danger';
-    $summaryCards = [
-        [
-            'label' => 'Total Transaksi',
-            'value' => $summary['transactions_total'],
-            'icon' => 'solar:bill-list-outline',
-            'tone' => 'primary',
-            'meta' => ($periodChange >= 0 ? '+' : '') . $periodChange . '% vs periode lalu',
-        ],
-        [
-            'label' => 'Total Pending',
-            'value' => $analytics['insights']['total_pending'],
-            'icon' => 'solar:hourglass-line-outline',
-            'tone' => 'warning',
-            'meta' => $summary['transactions_submitted'] . ' submitted, ' . $summary['transactions_in_review'] . ' in review',
-        ],
-        [
-            'label' => 'Total Nominal',
-            'value' => 'Rp ' . number_format((float) $analytics['insights']['nominal_total'], 0, ',', '.'),
-            'icon' => 'solar:wallet-money-outline',
-            'tone' => 'info',
-            'meta' => 'Akumulasi nilai transaksi',
-        ],
-        [
-            'label' => 'Completion Rate',
-            'value' => $analytics['insights']['completion_rate'] . '%',
-            'icon' => 'solar:chart-2-outline',
-            'tone' => 'success',
-            'meta' => $summary['completed_transactions'] . ' transaksi selesai',
-        ],
-    ];
+    $pipelineMetrics = $analytics['pipeline_summary'];
+    $pipelineTotalAmount = collect($pipelineMetrics)->sum('amount');
+    $formatRupiah = fn (float|int|string|null $value) => 'Rp ' . number_format((float) $value, 0, ',', '.');
 ?>
 
 <style>
@@ -82,16 +55,39 @@
     }
 
     .invoice-dashboard .metric-card {
+        position: relative;
+        overflow: hidden;
         min-height: 154px;
     }
 
     .invoice-dashboard .metric-icon {
+        position: absolute;
+        top: 24px;
+        right: 24px;
         width: 44px;
         height: 44px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         border-radius: 14px;
+    }
+
+    .invoice-dashboard .metric-content {
+        min-width: 0;
+        padding-right: 58px;
+    }
+
+    .invoice-dashboard .metric-value {
+        color: #1f2a4d;
+        line-height: 1.05;
+        letter-spacing: 0;
+        overflow-wrap: anywhere;
+        word-break: normal;
+    }
+
+    .invoice-dashboard .metric-value.is-money {
+        font-size: 2rem;
+        max-width: 100%;
     }
 
     .invoice-dashboard .analytics-card .card-header,
@@ -113,16 +109,82 @@
     }
 
     .invoice-dashboard .stat-strip {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .invoice-dashboard .hero-total-card {
+        border: 1px solid var(--iv-border);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, .78);
+        padding: 18px 20px;
+        min-width: 188px;
+        box-shadow: 0 12px 28px rgba(27, 36, 54, .06);
+    }
+
+    .invoice-dashboard .hero-total-icon {
+        width: 42px;
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 14px;
+    }
+
+    .invoice-dashboard .pipeline-card {
+        border: 1px solid var(--iv-border);
+        border-radius: 16px;
+        background: var(--iv-surface);
+        box-shadow: var(--iv-shadow);
+    }
+
+    .invoice-dashboard .pipeline-grid {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 12px;
     }
 
-    .invoice-dashboard .stat-pill {
+    .invoice-dashboard .pipeline-item {
+        position: relative;
+        min-height: 128px;
+        overflow: hidden;
         border: 1px solid var(--iv-border);
         border-radius: 14px;
-        background: rgba(255, 255, 255, .68);
-        padding: 14px 16px;
+        background: linear-gradient(180deg, #fff, #fbfcfe);
+        padding: 14px;
+    }
+
+    .invoice-dashboard .pipeline-item::after {
+        content: "";
+        position: absolute;
+        inset: auto 0 0 0;
+        height: 3px;
+        background: currentColor;
+        opacity: .58;
+    }
+
+    .invoice-dashboard .pipeline-icon {
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+    }
+
+    .invoice-dashboard .pipeline-count {
+        color: #1f2a4d;
+        font-size: 1.75rem;
+        line-height: 1;
+        letter-spacing: 0;
+    }
+
+    .invoice-dashboard .pipeline-amount {
+        color: #64748b;
+        font-size: .78rem;
+        font-weight: 700;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
     }
 
     .invoice-dashboard .clean-table thead th {
@@ -161,13 +223,13 @@
     }
 
     @media (max-width: 991.98px) {
-        .invoice-dashboard .stat-strip {
+        .invoice-dashboard .pipeline-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
     }
 
     @media (max-width: 575.98px) {
-        .invoice-dashboard .stat-strip {
+        .invoice-dashboard .pipeline-grid {
             grid-template-columns: 1fr;
         }
 
@@ -177,6 +239,10 @@
         .invoice-dashboard .queue-panel,
         .invoice-dashboard .table-panel {
             border-radius: 14px;
+        }
+
+        .invoice-dashboard .metric-content {
+            padding-right: 52px;
         }
     }
 </style>
@@ -191,46 +257,49 @@
             </div>
             <div class="col-xl-5">
                 <div class="stat-strip">
-                    <div class="stat-pill">
-                        <div class="text-muted small">Finance Queue</div>
-                        <div class="h4 mb-0"><?php echo e($summary['transactions_finance_queue']); ?></div>
-                    </div>
-                    <div class="stat-pill">
-                        <div class="text-muted small">Review Vendor</div>
-                        <div class="h4 mb-0"><?php echo e($summary['documents_pending_review']); ?></div>
-                    </div>
-                    <div class="stat-pill">
-                        <div class="text-muted small">Arsip Final</div>
-                        <div class="h4 mb-0"><?php echo e($summary['compiled_documents']); ?></div>
-                    </div>
-                    <div class="stat-pill">
-                        <div class="text-muted small">Audit Hari Ini</div>
-                        <div class="h4 mb-0"><?php echo e($summary['audit_entries_today']); ?></div>
+                    <div class="hero-total-card">
+                        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                            <div>
+                                <div class="text-muted small fw-semibold">Total Transaksi</div>
+                                <div class="h2 fw-bold mb-0"><?php echo e($summary['transactions_total']); ?></div>
+                            </div>
+                            <span class="hero-total-icon bg-primary-subtle text-primary">
+                                <iconify-icon icon="solar:bill-list-outline" class="fs-24"></iconify-icon>
+                            </span>
+                        </div>
+                        <div class="text-muted small"><?php echo e($formatRupiah($pipelineTotalAmount)); ?> total nominal</div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="row g-3 mb-4">
-        <?php $__currentLoopData = $summaryCards; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $card): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-            <div class="col-md-6 col-xl-3">
-                <div class="card metric-card h-100 mb-0">
-                    <div class="card-body p-4">
-                        <div class="d-flex justify-content-between align-items-start gap-3">
-                            <div>
-                                <div class="metric-label text-<?php echo e($card['tone']); ?>"><?php echo e($card['label']); ?></div>
-                                <h2 class="fw-bold mt-2 mb-1"><?php echo e($card['value']); ?></h2>
-                                <div class="text-muted small"><?php echo e($card['meta']); ?></div>
-                            </div>
-                            <span class="metric-icon bg-<?php echo e($card['tone']); ?>-subtle text-<?php echo e($card['tone']); ?>">
-                                <iconify-icon icon="<?php echo e($card['icon']); ?>" class="fs-26"></iconify-icon>
-                            </span>
-                        </div>
-                    </div>
-                </div>
+    <div class="card pipeline-card mb-4">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-start gap-3">
+            <div>
+                <div class="chart-kicker text-primary mb-1">Pipeline Transaksi</div>
+                <h5 class="card-title mb-1">Jumlah dan nominal per status</h5>
+                <p class="text-muted mb-0">Ringkasan posisi transaksi dari Draft sampai Paid.</p>
             </div>
-        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+            <span class="badge bg-light text-dark px-3 py-2"><?php echo e($analytics['insights']['completion_rate']); ?>% selesai</span>
+        </div>
+        <div class="card-body">
+            <div class="pipeline-grid">
+                <?php $__currentLoopData = $pipelineMetrics; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $metric): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <div class="pipeline-item text-<?php echo e($metric['tone']); ?>">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                            <span class="pipeline-icon bg-<?php echo e($metric['tone']); ?>-subtle text-<?php echo e($metric['tone']); ?>">
+                                <iconify-icon icon="<?php echo e($metric['icon']); ?>" class="fs-20"></iconify-icon>
+                            </span>
+                            <span class="badge bg-<?php echo e($metric['tone']); ?>-subtle text-<?php echo e($metric['tone']); ?>"><?php echo e($metric['count']); ?> trx</span>
+                        </div>
+                        <div class="metric-label text-<?php echo e($metric['tone']); ?> mb-2"><?php echo e($metric['label']); ?></div>
+                        <div class="pipeline-count fw-bold mb-2"><?php echo e($metric['count']); ?></div>
+                        <div class="pipeline-amount"><?php echo e($formatRupiah($metric['amount'])); ?></div>
+                    </div>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+            </div>
+        </div>
     </div>
 
     <div class="row g-4">
@@ -257,7 +326,7 @@
                 <div class="card-header">
                     <div class="chart-kicker text-primary mb-1">Distribusi Status</div>
                     <h5 class="card-title mb-1">Komposisi transaksi aktif</h5>
-                    <p class="text-muted mb-0">Status real-time dengan fallback data demo.</p>
+                    <p class="text-muted mb-0">Status real-time berdasarkan transaksi tersimpan.</p>
                 </div>
                 <div class="card-body">
                     <div id="iv-status-donut" class="apex-charts"></div>

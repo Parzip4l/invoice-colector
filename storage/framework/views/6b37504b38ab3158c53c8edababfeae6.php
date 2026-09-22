@@ -6,16 +6,18 @@
     <div class="card-header d-flex justify-content-between align-items-start gap-3 flex-wrap">
         <div>
             <h5 class="card-title mb-1"><?php echo e($transaction->registration_number); ?></h5>
-            <p class="text-muted mb-0">Pilih status setiap bagian, lalu tekan tombol simpan untuk memproses hasil verifikasi.</p>
+            <p class="text-muted mb-0">
+                <?php echo e($canSubmitVerification ? 'Pilih status setiap bagian, lalu tekan tombol simpan untuk memproses hasil verifikasi.' : 'Verifikasi akuntansi untuk transaksi ini sudah selesai atau tidak lagi berada pada tahap In Review.'); ?>
+
+            </p>
         </div>
-        <button class="btn btn-primary" type="submit" form="accountingVerificationForm">
-            Simpan Verifikasi
-        </button>
+        <?php if($canSubmitVerification): ?>
+            <button class="btn btn-primary" type="submit" form="accountingVerificationForm">
+                Simpan Verifikasi
+            </button>
+        <?php endif; ?>
     </div>
     <div class="card-body">
-        <?php
-            $selectedAdministrationStatus = old('administration_status', 'VALID');
-        ?>
         <?php $__errorArgs = ['status'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
@@ -26,38 +28,22 @@ $message = $__bag->first($__errorArgs[0]); ?>
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
 unset($__errorArgs, $__bag); ?>
-        <div class="alert alert-info border-0">
-            Tombol Approve/Reject di bawah hanya memilih keputusan. Keputusan baru dikirim ke sistem setelah klik <strong>Simpan Verifikasi</strong>.
+        <div class="alert <?php echo e($canSubmitVerification ? 'alert-info' : 'alert-success'); ?> border-0">
+            <?php if($canSubmitVerification): ?>
+                Pilih keputusan per dokumen Invoicing. Keputusan baru dikirim ke sistem setelah klik <strong>Simpan Verifikasi</strong>.
+            <?php else: ?>
+                Status saat ini <strong><?php echo e($transaction->status?->label()); ?></strong>. Halaman ini hanya menampilkan hasil verifikasi yang sudah tersimpan.
+            <?php endif; ?>
         </div>
         <form id="accountingVerificationForm" method="POST" action="<?php echo e(route('invoice-verification.transactions.accounting-verifications.update', $transaction)); ?>">
             <?php echo csrf_field(); ?>
             <?php echo method_field('PUT'); ?>
+            <input type="hidden" name="administration_status" value="VALID">
             <div class="border rounded-3 p-3 mb-3">
                 <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
                     <div>
                         <h5 class="mb-1">Administration</h5>
                         <p class="text-muted mb-0">Berisi Lembar PPA dan Lembar Checklist yang digenerate setelah review Admin User.</p>
-                    </div>
-                    <div class="d-flex align-items-center gap-2 flex-wrap" data-status-toggle-group>
-                        <input type="hidden" name="administration_status" value="<?php echo e($selectedAdministrationStatus); ?>" data-status-toggle-input>
-                        <button
-                            type="button"
-                            class="btn <?php echo e($selectedAdministrationStatus === 'VALID' ? 'btn-success' : 'btn-outline-success'); ?>"
-                            data-status-toggle-option
-                            data-status-value="VALID"
-                            data-status-variant="success"
-                        >
-                            Approve
-                        </button>
-                        <button
-                            type="button"
-                            class="btn <?php echo e($selectedAdministrationStatus === 'REVISION_REQUIRED' ? 'btn-danger' : 'btn-outline-danger'); ?>"
-                            data-status-toggle-option
-                            data-status-value="REVISION_REQUIRED"
-                            data-status-variant="danger"
-                        >
-                            Reject
-                        </button>
                     </div>
                 </div>
                 <div class="row g-3">
@@ -105,8 +91,6 @@ unset($__errorArgs, $__bag); ?>
                         </div>
                     <?php endif; ?>
                 </div>
-                <label class="form-label mt-3">Catatan Administration</label>
-                <textarea class="form-control" rows="2" name="administration_notes" placeholder="Wajib diisi jika Administration direject"><?php echo e(old('administration_notes')); ?></textarea>
             </div>
 
             <div class="border rounded-3 p-3">
@@ -159,6 +143,7 @@ unset($__errorArgs, $__bag); ?>
                                             data-status-toggle-option
                                             data-status-value="VALID"
                                             data-status-variant="success"
+                                            <?php if(! $canSubmitVerification): echo 'disabled'; endif; ?>
                                         >
                                             Approve
                                         </button>
@@ -168,6 +153,7 @@ unset($__errorArgs, $__bag); ?>
                                             data-status-toggle-option
                                             data-status-value="REVISION_REQUIRED"
                                             data-status-variant="danger"
+                                            <?php if(! $canSubmitVerification): echo 'disabled'; endif; ?>
                                         >
                                             Reject
                                         </button>
@@ -179,6 +165,7 @@ unset($__errorArgs, $__bag); ?>
                                         class="form-control"
                                         rows="2"
                                         placeholder="Wajib diisi jika dokumen direject"
+                                        <?php if(! $canSubmitVerification): echo 'readonly'; endif; ?>
                                     ><?php echo e($item->notes); ?></textarea>
                                 </td>
                             </tr>
@@ -191,11 +178,13 @@ unset($__errorArgs, $__bag); ?>
             <div class="row mt-3">
                 <div class="col-md-8">
                     <label class="form-label">Catatan Umum</label>
-                    <textarea class="form-control" rows="3" name="notes"><?php echo e(old('notes', $verification->notes)); ?></textarea>
+                    <textarea class="form-control" rows="3" name="notes" <?php if(! $canSubmitVerification): echo 'readonly'; endif; ?>><?php echo e(old('notes', $verification->notes)); ?></textarea>
                 </div>
-                <div class="col-md-4 d-flex align-items-end">
-                    <button class="btn btn-primary w-100">Simpan Verifikasi Akuntansi</button>
-                </div>
+                <?php if($canSubmitVerification): ?>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button class="btn btn-primary w-100">Simpan Verifikasi Akuntansi</button>
+                    </div>
+                <?php endif; ?>
             </div>
         </form>
     </div>

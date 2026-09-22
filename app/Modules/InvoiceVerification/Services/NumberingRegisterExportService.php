@@ -11,155 +11,99 @@ use ZipArchive;
 
 class NumberingRegisterExportService
 {
-    private const PPA_SPU_HEADERS = [
-        'No',
-        'Jenis Dok',
-        'Nomor Dokumen',
+    private const PPA_HEADERS = [
+        'Nomor Transaksi',
         'Nama Vendor',
-        'Soft Copy',
-        'Hard Copy',
-        'Deskripsi Divisi',
-        'Kode Divisi',
-        'Tanggal Dokumen',
-        'Tanggal Terima (Soft Copy)',
-        'Tanggal Terima (Hard copy)',
-        'Tanggal Jatuh Tempo',
+        'Softcopy',
+        'Hardcopy',
+        'Tanggal Submit Transaksi',
+        'Due Date',
         'Nomor Invoice',
         'Tanggal Invoice',
-        'Bank',
-        'Kode Bank',
-        'No Rekening',
-        'Nama Alias',
-        'Sales Tax Group',
-        'NPWP',
-        'No Faktur Pajak',
+        'Nama Bank',
+        'Nomor Rekening',
+        'Nama Rekening',
+        'Nomor Faktur Pajak',
         'Tanggal Faktur Pajak',
-        'No Memo Permohonan',
-        'Disetujui Oleh',
-        'No Kontrak/PO/SPK/BAKN/FORMULIR',
-        'Underlying',
-        'Nilai Kontrak BEFORE TAX (Rp)',
-        'Disetujui Oleh',
-        'Mata Uang',
-        'Nilai Kurs (Rp)',
-        'Nilai Pengajuan SPU (Rp)',
-        'Nilai Invoice (Rp)',
-        'PPN (Rp)',
-        'PPh (Rp)',
-        'Disc/Denda/Materai (Rp)',
-        'Total After Tax (Rp)',
+        'Nomor Memo',
+        'Nomor Kontrak',
+        'Nilai Kontrak',
+        'Nilai Invoice',
+        'Nilai PPN',
+        'Nilai PPh',
+        'Discount/Denda/Materai',
+        'Total After Tax',
         'Uraian Transaksi',
-        'Jenis Cost',
-        'PIC Pekerjaan',
-        'BAPP',
-        'BAST',
-        'Tanggal Terima (Lengkap)',
-        'Status Dokumen Transaksi',
-        'Tanggal Ekspedisi Pembayaran',
-        'Status Pembayaran (1)',
-        'Rekening Sumber (1)',
-        'Tanggal Pembayaran (1)',
-        'Status Pembayaran (2)',
-        'Rekening Sumber (2)',
-        'Tanggal Pos Silang (2)',
-        'Periode Pembayaran',
-        'Nomor Vendor Payment Journal',
-        'Pertanggung Jawaban SPU',
-        'Tanggal SPUK',
-        'Umur SPU',
-        'Umur Utang',
-        '0-40 Hari',
-        '41-60 Hari',
-        '61-90 Hari',
-        '>91 Hari',
-        'Status Transaksi',
-        'Periode Anggaran',
-        'Nilai Pertanggungjawaban',
-        'Periode Pencatatan',
-        'Kategori',
-        'Nomor Jurnal ERP',
-        'Advis Status',
-        'Tanggal Terima (Vendor)',
         'Nomor GR',
-        'Proforma Number',
+        'Jenis Jurnal',
+        'Status Pembayaran',
+        'Tanggal Ekspedisi',
+        'Tanggal Pembayaran',
+    ];
+
+    private const SPU_HEADERS = [
+        'Nomor Transaksi',
+        'Nama Divisi',
+        'Softcopy',
+        'Hardcopy',
+        'Tanggal Submit Transaksi',
+        'Nama Bank',
+        'Nomor Rekening',
+        'Nama Rekening',
+        'Nomor Memo',
+        'Nilai SPU',
+        'Uraian Transaksi',
+        'Jenis Jurnal',
+        'Status Pembayaran',
+        'Tanggal Ekspedisi',
+        'Tanggal Pembayaran',
     ];
 
     private const SPUK_HEADERS = [
-        'No',
-        'Nomor SPU',
-        'Nomor SPUK',
-        'Deskripsi Divisi',
-        'Kode Div.',
-        'Keterangan',
-        'Soft Copy',
-        'Hard Copy',
-        'Tanggal SPU',
-        'Tanggal SPUK',
-        'Tgl Terima e-mail',
-        'Tgl Terima Hardcopy',
-        'Nilai Pengajuan (Rp)',
-        'Nilai Realisasi (Rp)',
-        'Nilai Kelebihan/Kekurangan (Rp)',
-        'PIC',
-        'Tgl Pengembalian Kelebihan',
-        'Nominal (Rp)',
+        'Nomor Transaksi',
+        'Nama Divisi',
+        'Softcopy',
+        'Hardcopy',
+        'Tanggal Submit Transaksi',
         'Nama Bank',
         'Nomor Rekening',
-        'Tgl Ekspedisi Pembayaran',
-        'Tgl Pencairan Kekurangan',
+        'Nama Rekening',
+        'Nomor SPU',
+        'Nilai SPU',
+        'Nilai Realisasi',
+        'Selisih',
+        'Status Jurnal',
+        'Tanggal Pengembalian',
+        'Nominal Pengembalian',
         'Status SPUK',
-        'Notes SPUK',
-        'Umur SPU',
-        'Accounting Date',
-        'Period',
-        'VP-RSPU',
+        'Notes',
     ];
 
     private const KK_HEADERS = [
-        'No',
-        'No KK',
-        'Kode Divisi',
-        'Nama Vendor',
-        'Deskripsi Divisi',
+        'Nomor Dokumen',
+        'Nama Divisi',
+        'Softcopy',
+        'Hardcopy',
+        'Tanggal Submit Transaksi',
+        'Jatuh Tempo',
         'Uraian Transaksi',
-        'SOFT COPY',
-        'HARD COPY',
-        'Tanggal Dokumen',
-        'Tanggal Terima (Soft Copy)',
-        'Tanggal Terima (Hard Copy)',
-        'Tanggal Jatuh Tempo',
-        'Bank',
-        'Kode Bank',
-        'No Rekening',
-        'Nama Alias',
-        'Plafon Petty Cash (Rp)',
-        'Sisa Petty Cash (Rp)',
-        'Nilai Top Up (Rp)',
+        'Nama Bank',
+        'Nomor Rekening',
+        'Nama Rekening',
+        'Plafon Petty Cash',
+        'Sisa Petty Cash',
+        'Nilai Top Up',
         'Status Dokumen Transaksi',
         'Tanggal Ekspedisi',
-        'Status of Payment (1)',
-        'Rekening Sumber (1)',
-        'Date of Payment (1)',
-        'Jumlah Transfer (1)',
-        'Status of Payment (2)',
-        'Rekening Sumber (2)',
-        'Date of Payment (2)',
-        'Jumlah Transfer (2)',
-        'Periode Pembayaran',
-        'Umur Utang',
-        '0-30 Hari',
-        '31-60 Hari',
-        '61-90 Hari',
-        '>91 Hari',
-        'Status Transaksi',
-        'Nomor Payment Journal',
-        'Advis Status',
+        'Status Pembayaran',
+        'Tanggal Pembayaran',
     ];
 
     public function export(Collection $registers, string $path): void
     {
         $sheets = [
-            'PPA & SPU' => $this->buildPpaSpuRows($registers),
+            'PPA' => $this->buildPpaRows($registers),
+            'SPU' => $this->buildSpuRows($registers),
             'SPUK' => $this->buildSpukRows($registers),
             'KK' => $this->buildKkRows($registers),
         ];
@@ -167,100 +111,85 @@ class NumberingRegisterExportService
         $this->writeWorkbook($sheets, $path);
     }
 
-    private function buildPpaSpuRows(Collection $registers): array
+    private function buildPpaRows(Collection $registers): array
     {
-        $rows = $this->baseRows('PPA & SPU', self::PPA_SPU_HEADERS);
-        $index = 1;
+        $rows = $this->baseRows('PPA', self::PPA_HEADERS);
 
         foreach ($registers as $register) {
             $type = $this->typeCode($register);
 
-            if (! in_array($type, [TransactionTypeCode::PPA->value, TransactionTypeCode::PPA_NON_CONTRACT->value, TransactionTypeCode::SPU->value], true)) {
+            if (! in_array($type, [TransactionTypeCode::PPA->value, TransactionTypeCode::PPA_NON_CONTRACT->value], true)) {
                 continue;
             }
 
             $transaction = $register->transaction;
-            $documentNumber = $transaction?->registration_number ?: $register->register_number;
-            $invoiceDocument = $this->documentInfo($register, 'PPA_INVOICE');
             $taxDocument = $this->documentInfo($register, 'PPA_FAKTUR_PAJAK');
-            $bapp = $this->documentInfo($register, 'PPA_BAPP');
-            $bast = $this->documentInfo($register, 'PPA_BAST');
             $invoiceValue = (float) ($register->invoice_value ?? 0);
             $ppnValue = (float) ($register->ppn_value ?? 0);
             $pphValue = (float) ($register->pph_value ?? 0);
+            $discountValue = (float) ($register->discount_deduction_stamp_value ?? 0);
 
             $rows[] = [
-                $index++,
-                $this->documentPrefix($documentNumber),
-                $documentNumber,
+                $transaction?->registration_number ?: $register->register_number,
                 $register->vendor_name,
-                $register->received_date ? 'P' : '',
-                '',
-                $transaction?->division?->name ?? '',
-                $transaction?->division?->code ?? '',
-                $register->generated_at?->format('Y-m-d'),
-                $register->received_date?->format('Y-m-d'),
-                '',
-                $register->received_date?->copy()->addDays(30)->format('Y-m-d'),
+                $this->checkMark((bool) ($register->upload_date ?? $register->received_date)),
+                $this->checkMark((bool) $register->hardcopy_received),
+                $this->date($transaction?->submitted_at),
+                $this->date($transaction?->submitted_at?->copy()->addDays(30)),
                 $register->invoice_number,
-                $register->invoice_date?->format('Y-m-d'),
+                $this->date($register->invoice_date),
                 $register->bank_name,
-                '',
                 $register->account_number,
                 $register->account_name,
-                '',
-                $transaction?->vendor?->npwp,
-                $taxDocument['document_number'] ?? '',
-                $taxDocument['document_date'] ?? '',
+                $register->tax_invoice_number ?? $taxDocument['document_number'] ?? '',
+                $this->date($register->tax_invoice_date) ?: ($taxDocument['document_date'] ?? ''),
                 $register->memo_number,
-                '',
                 $register->contract_number,
-                '',
                 $this->numberOrBlank($register->contract_value),
-                '',
-                'IDR',
-                '',
-                $this->numberOrBlank($transaction?->spu_amount),
                 $this->numberOrBlank($invoiceValue),
                 $this->numberOrBlank($ppnValue),
                 $this->numberOrBlank($pphValue),
-                '',
-                $this->numberOrBlank($invoiceValue + $ppnValue - $pphValue),
+                $this->numberOrBlank($discountValue),
+                $this->numberOrBlank($invoiceValue + $ppnValue - $pphValue + $discountValue),
                 $register->description,
-                '',
-                $transaction?->owner?->name,
-                $bapp['document_number'] ?? '',
-                $bast['document_number'] ?? '',
-                $register->received_date?->format('Y-m-d'),
-                $this->documentStatus($register),
-                $transaction?->scheduled_payment_at?->format('Y-m-d'),
+                $register->gr_number,
+                $register->journal_type,
                 $this->paymentStatus($register),
-                '',
-                $transaction?->paid_at?->format('Y-m-d'),
-                '',
-                '',
-                '',
-                $transaction?->scheduled_payment_at?->format('m y'),
-                '',
-                '',
-                '',
-                '',
-                $this->ageDays($register),
-                $this->ageBucket($register, 0, 40),
-                $this->ageBucket($register, 41, 60),
-                $this->ageBucket($register, 61, 90),
-                $this->ageBucket($register, 91, null),
-                $register->transaction?->status?->label(),
-                $register->generated_at?->format('Y'),
-                '',
-                $register->generated_at?->format('m Y'),
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
+                $this->date($register->payment_expedition_date ?? $transaction?->scheduled_payment_at),
+                $this->date($register->payment_date ?? $transaction?->paid_at),
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function buildSpuRows(Collection $registers): array
+    {
+        $rows = $this->baseRows('SPU', self::SPU_HEADERS);
+
+        foreach ($registers as $register) {
+            if ($this->typeCode($register) !== TransactionTypeCode::SPU->value) {
+                continue;
+            }
+
+            $transaction = $register->transaction;
+
+            $rows[] = [
+                $transaction?->registration_number ?: $register->register_number,
+                $register->division_name ?? $transaction?->division?->name,
+                $this->checkMark((bool) ($register->upload_date ?? $register->received_date)),
+                $this->checkMark((bool) $register->hardcopy_received),
+                $this->date($transaction?->submitted_at),
+                $register->bank_name,
+                $register->account_number,
+                $register->account_name,
+                $register->memo_number,
+                $this->numberOrBlank($transaction?->spu_amount ?? $register->invoice_value),
+                $register->description,
+                $register->journal_type,
+                $this->paymentStatus($register),
+                $this->date($register->payment_expedition_date ?? $transaction?->scheduled_payment_at),
+                $this->date($register->payment_date ?? $transaction?->paid_at),
             ];
         }
 
@@ -270,8 +199,6 @@ class NumberingRegisterExportService
     private function buildSpukRows(Collection $registers): array
     {
         $rows = $this->baseRows('SPUK', self::SPUK_HEADERS);
-        $index = 1;
-
         foreach ($registers as $register) {
             if ($this->typeCode($register) !== TransactionTypeCode::SPUK->value) {
                 continue;
@@ -280,34 +207,23 @@ class NumberingRegisterExportService
             $transaction = $register->transaction;
 
             $rows[] = [
-                $index++,
-                $transaction?->parentSpuTransaction?->registration_number,
                 $transaction?->registration_number ?: $register->register_number,
-                $transaction?->division?->name,
-                $transaction?->division?->code,
-                $register->description,
-                $register->received_date ? 'P' : '',
-                '',
-                $transaction?->parentSpuTransaction?->created_at?->format('Y-m-d'),
-                $register->generated_at?->format('Y-m-d'),
-                $register->received_date?->format('Y-m-d'),
-                '',
-                $this->numberOrBlank($transaction?->spu_amount),
-                $this->numberOrBlank($transaction?->accountability_amount),
-                $this->numberOrBlank($transaction?->remaining_amount),
-                $transaction?->owner?->name,
-                '',
-                $this->numberOrBlank($transaction?->remaining_amount),
+                $register->division_name ?? $transaction?->division?->name,
+                $this->checkMark((bool) ($register->upload_date ?? $register->received_date)),
+                $this->checkMark((bool) $register->hardcopy_received),
+                $this->date($transaction?->submitted_at),
                 $register->bank_name,
                 $register->account_number,
-                $transaction?->scheduled_payment_at?->format('Y-m-d'),
-                $transaction?->paid_at?->format('Y-m-d'),
-                $transaction?->status?->label(),
-                '',
-                $this->ageDays($register),
-                $register->generated_at?->format('Y-m-d'),
-                $register->generated_at?->format('m y'),
-                '',
+                $register->account_name,
+                $transaction?->parentSpuTransaction?->registration_number,
+                $this->numberOrBlank($transaction?->parentSpuTransaction?->spu_amount ?? $transaction?->spu_amount),
+                $this->numberOrBlank($transaction?->accountability_amount),
+                $this->numberOrBlank($transaction?->remaining_amount),
+                $register->journal_status,
+                $this->date($register->return_date),
+                $this->numberOrBlank($register->return_amount),
+                $register->spuk_status ?: $transaction?->status?->label(),
+                $register->spuk_notes,
             ];
         }
 
@@ -317,8 +233,6 @@ class NumberingRegisterExportService
     private function buildKkRows(Collection $registers): array
     {
         $rows = $this->baseRows('PETTY CASH', self::KK_HEADERS);
-        $index = 1;
-
         foreach ($registers as $register) {
             if ($this->typeCode($register) !== TransactionTypeCode::KAS_KECIL->value) {
                 continue;
@@ -328,44 +242,23 @@ class NumberingRegisterExportService
             $topUp = (float) ($transaction?->petty_cash_top_up_amount ?? $register->invoice_value ?? 0);
 
             $rows[] = [
-                $index++,
                 $transaction?->registration_number ?: $register->register_number,
-                $transaction?->division?->code,
-                $register->vendor_name,
-                $transaction?->division?->name,
+                $register->division_name ?? $transaction?->division?->name,
+                $this->checkMark((bool) ($register->upload_date ?? $register->received_date)),
+                $this->checkMark((bool) $register->hardcopy_received),
+                $this->date($transaction?->submitted_at),
+                $this->date($transaction?->submitted_at?->copy()->addDays(14)),
                 $register->description,
-                $register->received_date ? 'P' : '',
-                '',
-                $register->generated_at?->format('Y-m-d'),
-                $register->received_date?->format('Y-m-d'),
-                '',
-                $register->received_date?->copy()->addDays(14)->format('Y-m-d'),
                 $register->bank_name,
-                '',
                 $register->account_number,
                 $register->account_name,
                 $this->numberOrBlank($transaction?->petty_cash_ceiling_snapshot),
                 $this->numberOrBlank($transaction?->petty_cash_remaining_amount),
                 $this->numberOrBlank($topUp),
                 $this->documentStatus($register),
-                $transaction?->scheduled_payment_at?->format('Y-m-d'),
+                $this->date($register->payment_expedition_date ?? $transaction?->scheduled_payment_at),
                 $this->paymentStatus($register),
-                '',
-                $transaction?->paid_at?->format('Y-m-d'),
-                $this->numberOrBlank($topUp),
-                '',
-                '',
-                '',
-                '',
-                $transaction?->scheduled_payment_at?->format('m y'),
-                $this->ageDays($register),
-                $this->ageBucket($register, 0, 30),
-                $this->ageBucket($register, 31, 60),
-                $this->ageBucket($register, 61, 90),
-                $this->ageBucket($register, 91, null),
-                $transaction?->paid_at ? 'Lunas' : 'Belum Lunas',
-                '',
-                '',
+                $this->date($register->payment_date ?? $transaction?->paid_at),
             ];
         }
 
@@ -388,6 +281,24 @@ class NumberingRegisterExportService
             ?->first(fn ($item) => $this->enumValue($item->documentType?->code) === $code);
 
         return $document?->document_information_json ?? [];
+    }
+
+    private function checkMark(bool $checked): string
+    {
+        return $checked ? '✓' : '';
+    }
+
+    private function date(mixed $date): string
+    {
+        if (! $date) {
+            return '';
+        }
+
+        if (is_string($date)) {
+            return $date;
+        }
+
+        return $date->format('Y-m-d');
     }
 
     private function documentStatus(NumberingRegister $register): string

@@ -44,7 +44,7 @@ class NumberingRegisterService
         }
 
         $register->fill([
-            'vendor_name' => $transaction->vendor?->name ?? $transaction->owner?->name ?? '-',
+            'vendor_name' => $transaction->vendor?->name ?? $transaction->division?->name ?? '-',
             'received_date' => $metadata?->received_date ?? now()->toDateString(),
             'invoice_number' => $metadata?->invoice_number ?: $transaction->registration_number,
             'invoice_date' => $metadata?->invoice_date,

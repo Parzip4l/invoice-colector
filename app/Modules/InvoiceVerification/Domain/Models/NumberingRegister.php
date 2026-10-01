@@ -13,6 +13,7 @@ class NumberingRegister extends InvoiceVerificationModel
         'invoice_date' => 'date',
         'upload_date' => 'date',
         'hardcopy_received' => 'boolean',
+        'hardcopy_received_date' => 'date',
         'tax_invoice_date' => 'date',
         'payment_expedition_date' => 'date',
         'payment_date' => 'date',

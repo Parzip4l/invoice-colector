@@ -741,11 +741,18 @@ class InvoiceVerificationModuleTest extends TestCase
 
         $workbookXml = $zip->getFromName('xl/workbook.xml');
         $firstSheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $stylesXml = $zip->getFromName('xl/styles.xml');
         $zip->close();
 
-        $this->assertStringContainsString('PPA &amp; SPU', $workbookXml);
-        $this->assertStringContainsString('Nomor Dokumen', $firstSheetXml);
+        $this->assertStringContainsString('name="PPA Kons dan NonKons"', $workbookXml);
+        $this->assertStringContainsString('name="SPU SPUK"', $workbookXml);
+        $this->assertStringContainsString('name="KK"', $workbookXml);
+        $this->assertStringContainsString('Nomor Transaksi', $firstSheetXml);
+        $this->assertStringContainsString('Tanggal Hardcopy', $firstSheetXml);
+        $this->assertStringContainsString('Total Bayar', $firstSheetXml);
         $this->assertStringContainsString('INV-EXPORT-001', $firstSheetXml);
+        $this->assertStringContainsString('&quot;Rp&quot; #,##0', $stylesXml);
+        $this->assertStringContainsString('s="2"', $firstSheetXml);
     }
 
     public function test_akuntansi_cannot_upload_memo_request_file(): void

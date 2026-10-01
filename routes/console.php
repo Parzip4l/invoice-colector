@@ -2,12 +2,15 @@
 
 use App\Models\User;
 use App\Modules\InvoiceVerification\Domain\Enums\RoleCode;
+use App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus;
 use App\Modules\InvoiceVerification\Domain\Models\Department;
 use App\Modules\InvoiceVerification\Domain\Models\Division;
 use App\Modules\InvoiceVerification\Domain\Models\NumberingRegister;
+use App\Modules\InvoiceVerification\Domain\Models\Transaction;
 use App\Modules\InvoiceVerification\Services\Eproc\EprocApiVendorSyncService;
 use App\Modules\InvoiceVerification\Services\Eproc\EprocImportService;
 use App\Modules\InvoiceVerification\Services\Eproc\SpreadsheetImportReader;
+use App\Modules\InvoiceVerification\Services\NumberingRegisterService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -357,6 +360,107 @@ Artisan::command('eproc:sync-api
 
     return Command::SUCCESS;
 })->purpose('Sync vendor and purchase orders from eProc API.');
+
+Artisan::command('numbering-register:sync
+    {--status=* : Status transaksi yang disinkronkan. Default: RECEIVED, SCHEDULING_PAYMENT, PAID}
+    {--missing-only : Hanya buat register untuk transaksi yang belum punya data penomoran}
+    {--dry-run : Preview data tanpa menyimpan}
+', function () {
+    $allowedStatuses = collect([
+        TransactionStatus::RECEIVED->value,
+        TransactionStatus::SCHEDULING_PAYMENT->value,
+        TransactionStatus::PAID->value,
+    ]);
+    $statuses = collect($this->option('status'))
+        ->filter()
+        ->map(fn ($status) => strtoupper((string) $status))
+        ->whenEmpty(fn () => $allowedStatuses)
+        ->unique()
+        ->values();
+    $invalidStatuses = $statuses->diff($allowedStatuses);
+
+    if ($invalidStatuses->isNotEmpty()) {
+        $this->error('Status tidak valid untuk penomoran: '.$invalidStatuses->implode(', '));
+        $this->line('Status yang didukung: '.$allowedStatuses->implode(', '));
+
+        return Command::FAILURE;
+    }
+
+    $query = Transaction::query()
+        ->with([
+            'transactionType',
+            'invoiceMetadata',
+            'vendor',
+            'owner',
+            'memoRequest',
+            'agreementReference',
+            'division',
+            'department.users',
+            'latestDocuments.documentType',
+            'numberingRegister',
+        ])
+        ->whereIn('status', $statuses->all())
+        ->orderBy('created_at')
+        ->orderBy('id');
+
+    if ($this->option('missing-only')) {
+        $query->doesntHave('numberingRegister');
+    }
+
+    $transactions = $query->get();
+
+    if ($transactions->isEmpty()) {
+        $this->info('Tidak ada transaksi yang perlu disinkronkan.');
+
+        return Command::SUCCESS;
+    }
+
+    $this->table(
+        ['Transaksi', 'Jenis', 'Status', 'Existing Register', 'Mode'],
+        $transactions->take(20)->map(fn (Transaction $transaction) => [
+            $transaction->registration_number,
+            $transaction->transactionType?->name ?? '-',
+            $transaction->status?->value ?? '-',
+            $transaction->numberingRegister?->register_number ?? '-',
+            $transaction->numberingRegister ? 'update' : 'create',
+        ])->all(),
+    );
+
+    if ($transactions->count() > 20) {
+        $this->line('... '.$transactions->count().' total transaksi.');
+    }
+
+    if ($this->option('dry-run')) {
+        $this->info('Dry run selesai. Tidak ada data penomoran yang disimpan.');
+
+        return Command::SUCCESS;
+    }
+
+    $service = app(NumberingRegisterService::class);
+    $created = 0;
+    $updated = 0;
+
+    DB::transaction(function () use ($transactions, $service, &$created, &$updated) {
+        foreach ($transactions as $transaction) {
+            $wasExisting = (bool) $transaction->numberingRegister;
+            $service->syncFromTransaction($transaction);
+
+            if ($wasExisting) {
+                $updated++;
+            } else {
+                $created++;
+            }
+        }
+    });
+
+    $this->info(sprintf(
+        'Sinkronisasi penomoran selesai. Dibuat: %d, diperbarui: %d.',
+        $created,
+        $updated,
+    ));
+
+    return Command::SUCCESS;
+})->purpose('Create or update numbering register rows from completed invoice transactions.');
 
 Artisan::command('numbering-register:reformat
     {--year= : Optional two-digit or four-digit year filter}

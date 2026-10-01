@@ -73,7 +73,7 @@ class NumberingRegisterController extends Controller
         }
 
         $request->merge([
-            'hardcopy_received' => $request->boolean('hardcopy_received'),
+            'hardcopy_received' => $request->filled('hardcopy_received_date'),
         ]);
 
         $payload = $request->validate([
@@ -83,6 +83,7 @@ class NumberingRegisterController extends Controller
             'invoice_date' => ['nullable', 'date'],
             'upload_date' => ['nullable', 'date'],
             'hardcopy_received' => ['boolean'],
+            'hardcopy_received_date' => ['nullable', 'date'],
             'bank_name' => ['nullable', 'string', 'max:255'],
             'account_number' => ['nullable', 'regex:/^\d{6,30}$/'],
             'account_name' => ['nullable', 'string', 'max:255'],
@@ -145,6 +146,7 @@ class NumberingRegisterController extends Controller
                 'transaction.transactionType',
                 'transaction.vendor',
                 'transaction.division',
+                'transaction.department.users',
                 'transaction.owner',
                 'transaction.parentSpuTransaction',
                 'transaction.latestDocuments.documentType',

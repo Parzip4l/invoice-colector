@@ -54,7 +54,7 @@ class FinalizationService
                 ?->name;
 
             $register->fill([
-                'vendor_name' => $transaction->vendor?->name ?? '-',
+                'vendor_name' => $transaction->vendor?->name ?? $transaction->division?->name ?? '-',
                 'received_date' => $transaction->invoiceMetadata->received_date ?? now()->toDateString(),
                 'invoice_number' => $transaction->invoiceMetadata->invoice_number,
                 'invoice_date' => $transaction->invoiceMetadata->invoice_date,

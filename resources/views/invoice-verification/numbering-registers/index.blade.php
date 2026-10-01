@@ -173,23 +173,60 @@
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 iv-table" style="--iv-table-min-width: 1900px;">
+            <table class="table table-hover align-middle mb-0 iv-table" style="--iv-table-min-width: 3200px;">
                 <thead class="table-light">
                     <tr>
                         <th class="ps-4">Detail</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.numbering-registers.index', 'column' => 'register_number', 'label' => 'Register Number'])</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.numbering-registers.index', 'column' => 'vendor_name', 'label' => 'Vendor'])</th>
+                        <th>Nama Divisi</th>
+                        <th>Deskripsi</th>
+                        <th>Jenis Jurnal</th>
+                        <th>Total Bayar</th>
+                        <th>BAPP</th>
+                        <th>BAST</th>
+                        <th>PIC</th>
+                        <th>Tanggal Terima</th>
+                        <th>Jatuh Tempo</th>
+                        <th>Tanggal Hardcopy</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.numbering-registers.index', 'column' => 'invoice_number', 'label' => 'Invoice'])</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.numbering-registers.index', 'column' => 'contract_number', 'label' => 'Kontrak / Memo'])</th>
                         <th>Faktur Pajak</th>
-                        <th>Organisasi</th>
-                        <th>Tanggal</th>
-                        <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.numbering-registers.index', 'column' => 'invoice_value', 'label' => 'Nilai Invoice'])</th>
                         <th>Pajak</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse ($registers as $register)
+                        @php
+                            $transaction = $register->transaction;
+                            $typeCode = $transaction?->transactionType?->code;
+                            $typeCode = $typeCode instanceof \BackedEnum ? $typeCode->value : $typeCode;
+                            $isPpaType = in_array($typeCode, [
+                                \App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode::PPA->value,
+                                \App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode::PPA_NON_CONTRACT->value,
+                            ], true);
+                            $isSpuType = $typeCode === \App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode::SPU->value;
+                            $isSpukType = $typeCode === \App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode::SPUK->value;
+                            $isKkType = $typeCode === \App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode::KAS_KECIL->value;
+                            $divisionName = $register->division_name ?? $transaction?->division?->name ?? '-';
+                            $vendorName = $transaction?->vendor?->name ?? $divisionName ?? $register->vendor_name ?? '-';
+                            $picName = $register->department_head_name
+                                ?? $transaction?->department?->users?->first(fn ($user) => ($user->role_code?->value ?? $user->role_code) === 'KEPALA_DEPARTEMEN')?->name
+                                ?? '-';
+                            $bappAvailable = $transaction?->latestDocuments?->contains(fn ($document) => ($document->documentType?->code?->value ?? $document->documentType?->code) === 'PPA_BAPP') ?? false;
+                            $bastAvailable = $transaction?->latestDocuments?->contains(fn ($document) => ($document->documentType?->code?->value ?? $document->documentType?->code) === 'PPA_BAST') ?? false;
+                            $invoiceValue = (float) ($register->invoice_value ?? 0);
+                            $ppnValue = (float) ($register->ppn_value ?? 0);
+                            $pphValue = (float) ($register->pph_value ?? 0);
+                            $discountValue = (float) ($register->discount_deduction_stamp_value ?? 0);
+                            $totalBayar = match (true) {
+                                $isPpaType => $invoiceValue + $ppnValue - $pphValue + $discountValue,
+                                $isSpuType => (float) ($transaction?->spu_amount ?? $register->invoice_value ?? 0),
+                                $isSpukType => (float) ($transaction?->accountability_amount ?? 0),
+                                $isKkType => (float) ($transaction?->petty_cash_top_up_amount ?? $register->invoice_value ?? 0),
+                                default => $invoiceValue,
+                            };
+                        @endphp
                         <tr>
                             <td class="ps-4">
                                 <button class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1" type="button" data-bs-toggle="modal" data-bs-target="#register-modal-{{ $register->id }}">
@@ -198,7 +235,21 @@
                                 </button>
                             </td>
                             <td>{{ $register->register_number }}</td>
-                            <td><div class="text-truncate iv-cell-truncate" style="--iv-cell-width: 210px;" title="{{ $register->vendor_name }}">{{ $register->vendor_name }}</div></td>
+                            <td><div class="text-truncate iv-cell-truncate" style="--iv-cell-width: 210px;" title="{{ $vendorName }}">{{ $vendorName }}</div></td>
+                            <td>
+                                <div class="fw-semibold text-truncate iv-cell-truncate" style="--iv-cell-width: 190px;" title="{{ $divisionName }}">{{ $divisionName }}</div>
+                            </td>
+                            <td>
+                                <div class="text-truncate iv-cell-truncate" style="--iv-cell-width: 260px;" title="{{ $register->description ?? '-' }}">{{ $register->description ?? '-' }}</div>
+                            </td>
+                            <td>{{ $register->journal_type ?? '-' }}</td>
+                            <td class="fw-semibold">Rp {{ number_format($totalBayar, 0, ',', '.') }}</td>
+                            <td><span class="badge {{ $bappAvailable ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">{{ $bappAvailable ? '✓' : '-' }}</span></td>
+                            <td><span class="badge {{ $bastAvailable ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">{{ $bastAvailable ? '✓' : '-' }}</span></td>
+                            <td><div class="text-truncate iv-cell-truncate" style="--iv-cell-width: 180px;" title="{{ $picName }}">{{ $picName }}</div></td>
+                            <td>{{ $register->received_date?->format('d M Y') ?? '-' }}</td>
+                            <td>{{ $register->received_date?->copy()->addDays(30)->format('d M Y') ?? '-' }}</td>
+                            <td>{{ $register->hardcopy_received_date?->format('d M Y') ?? '-' }}</td>
                             <td>
                                 <div class="fw-semibold">{{ $register->invoice_number }}</div>
                                 <div class="text-muted small">Tgl: {{ $register->invoice_date?->format('d M Y') ?? '-' }}</div>
@@ -213,23 +264,13 @@
                                 <div class="text-muted small">{{ $register->tax_invoice_date?->format('d M Y') ?? '-' }}</div>
                             </td>
                             <td>
-                                <div class="fw-semibold text-truncate iv-cell-truncate" style="--iv-cell-width: 190px;" title="{{ $register->division_name ?? $register->transaction?->division?->name ?? '-' }}">{{ $register->division_name ?? $register->transaction?->division?->name ?? '-' }}</div>
-                                <div class="text-muted small text-truncate iv-cell-truncate" style="--iv-cell-width: 190px;" title="{{ $register->department_head_name ?? '-' }}">{{ $register->department_head_name ?? '-' }}</div>
-                            </td>
-                            <td>
-                                <div>Terima: {{ $register->received_date?->format('d M Y') ?? '-' }}</div>
-                                <div class="text-muted small">Upload: {{ $register->upload_date?->format('d M Y') ?? '-' }}</div>
-                                <div class="text-muted small">Gen: {{ $register->generated_at?->format('d M Y H:i') }}</div>
-                            </td>
-                            <td>{{ number_format((float) $register->invoice_value, 2, ',', '.') }}</td>
-                            <td>
                                 <div>PPN: {{ number_format((float) $register->ppn_value, 2, ',', '.') }}</div>
                                 <div class="text-muted small">PPh: {{ number_format((float) $register->pph_value, 2, ',', '.') }}</div>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="text-center text-muted py-4">Belum ada numbering register.</td>
+                            <td colspan="17" class="text-center text-muted py-4">Belum ada numbering register.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -411,30 +452,26 @@
                                 <input class="form-control" value="{{ $transaction?->parentSpuTransaction?->registration_number ?? '-' }}" readonly>
                             </div>
                         @endif
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <label class="form-label">Tanggal Terima</label>
                             <input type="date" class="form-control" name="received_date" value="{{ old('received_date', optional($register->received_date)->format('Y-m-d')) }}" required>
                         </div>
                         @if ($isPpa)
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">Tanggal Invoice</label>
                                 <input type="date" class="form-control" name="invoice_date" value="{{ old('invoice_date', optional($register->invoice_date)->format('Y-m-d')) }}">
                             </div>
                         @endif
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <label class="form-label">Tanggal Upload</label>
                             <input type="date" class="form-control" name="upload_date" value="{{ old('upload_date', optional($register->upload_date)->format('Y-m-d')) }}">
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Hardcopy Diterima</label>
-                            <div class="form-check form-switch border rounded px-3 py-2 d-flex align-items-center gap-2" style="min-height: 42px;">
-                                <input type="hidden" name="hardcopy_received" value="0">
-                                <input class="form-check-input ms-0" type="checkbox" role="switch" name="hardcopy_received" value="1" id="hardcopy-{{ $register->id }}" @checked(old('hardcopy_received', $register->hardcopy_received))>
-                                <label class="form-check-label" for="hardcopy-{{ $register->id }}">Ya</label>
-                            </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Tanggal Hardcopy Diterima</label>
+                            <input type="date" class="form-control" name="hardcopy_received_date" value="{{ old('hardcopy_received_date', optional($register->hardcopy_received_date)->format('Y-m-d')) }}">
                         </div>
                         @if ($isPpa)
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">Tanggal Faktur Pajak</label>
                                 <input type="date" class="form-control" name="tax_invoice_date" value="{{ old('tax_invoice_date', optional($register->tax_invoice_date)->format('Y-m-d')) }}">
                             </div>
@@ -465,22 +502,22 @@
                             <div class="col-12 pt-2">
                                 <h6 class="text-primary mb-0">Nilai dan Pajak</h6>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">Nilai Invoice</label>
                                 <input type="text" inputmode="numeric" class="form-control @error('invoice_value') is-invalid @enderror" name="invoice_value" value="{{ old('invoice_value', $register->invoice_value) }}" data-rupiah-input>
                                 @error('invoice_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">PPN</label>
                                 <input type="text" inputmode="numeric" class="form-control @error('ppn_value') is-invalid @enderror" name="ppn_value" value="{{ old('ppn_value', $register->ppn_value) }}" data-rupiah-input>
                                 @error('ppn_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">PPh</label>
                                 <input type="text" inputmode="numeric" class="form-control @error('pph_value') is-invalid @enderror" name="pph_value" value="{{ old('pph_value', $register->pph_value) }}" data-rupiah-input>
                                 @error('pph_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">Discount/Denda/Materai</label>
                                 <input type="text" inputmode="numeric" class="form-control @error('discount_deduction_stamp_value') is-invalid @enderror" name="discount_deduction_stamp_value" value="{{ old('discount_deduction_stamp_value', $register->discount_deduction_stamp_value) }}" data-rupiah-input>
                                 @error('discount_deduction_stamp_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -497,32 +534,32 @@
                             <div class="col-12 pt-2">
                                 <h6 class="text-primary mb-0">Data SPUK</h6>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">Nilai SPU</label>
                                 <input class="form-control" value="{{ $transaction?->parentSpuTransaction?->spu_amount !== null ? 'Rp '.number_format((float) $transaction->parentSpuTransaction->spu_amount, 0, ',', '.') : '-' }}" readonly>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">Nilai Realisasi</label>
                                 <input class="form-control" value="{{ $transaction?->accountability_amount !== null ? 'Rp '.number_format((float) $transaction->accountability_amount, 0, ',', '.') : '-' }}" readonly>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">Selisih</label>
                                 <input class="form-control" value="{{ $transaction?->remaining_amount !== null ? 'Rp '.number_format((float) $transaction->remaining_amount, 0, ',', '.') : '-' }}" readonly>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">Status Jurnal</label>
                                 <input class="form-control" name="journal_status" value="{{ old('journal_status', $register->journal_status) }}">
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">Tanggal Pengembalian</label>
                                 <input type="date" class="form-control" name="return_date" value="{{ old('return_date', optional($register->return_date)->format('Y-m-d')) }}">
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">Nominal Pengembalian</label>
                                 <input type="text" inputmode="numeric" class="form-control @error('return_amount') is-invalid @enderror" name="return_amount" value="{{ old('return_amount', $register->return_amount) }}" data-rupiah-input>
                                 @error('return_amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">Status SPUK</label>
                                 <input class="form-control" name="spuk_status" value="{{ old('spuk_status', $register->spuk_status) }}">
                             </div>
@@ -551,25 +588,25 @@
                         <div class="col-12 pt-2">
                             <h6 class="text-primary mb-0">{{ $isSpuk ? 'Bank dan Pengembalian' : 'Bank dan Pembayaran' }}</h6>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <label class="form-label">Bank</label>
                             <input class="form-control" name="bank_name" value="{{ old('bank_name', $register->bank_name) }}">
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <label class="form-label">No Rekening</label>
                             <input class="form-control @error('account_number') is-invalid @enderror" name="account_number" value="{{ old('account_number', $register->account_number) }}" inputmode="numeric" pattern="[0-9]{6,30}" maxlength="30" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                             @error('account_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <label class="form-label">Atas Nama Rekening</label>
                             <input class="form-control" name="account_name" value="{{ old('account_name', $register->account_name) }}">
                         </div>
                         @if (! $isSpuk)
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">Tanggal Ekspedisi</label>
                                 <input type="date" class="form-control" name="payment_expedition_date" value="{{ old('payment_expedition_date', optional($register->payment_expedition_date)->format('Y-m-d')) }}">
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label">Tanggal Pembayaran</label>
                                 <input type="date" class="form-control" name="payment_date" value="{{ old('payment_date', optional($register->payment_date)->format('Y-m-d')) }}">
                             </div>
@@ -579,7 +616,7 @@
                             <div class="col-12 pt-2">
                                 <h6 class="text-primary mb-0">Organisasi</h6>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label class="form-label">Nama Divisi</label>
                                 <input class="form-control" name="division_name" value="{{ old('division_name', $register->division_name) }}">
                             </div>

@@ -9,7 +9,11 @@ class ApprovalTransactionPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->pendingApprovals()->exists();
+        return $user->hasRole(
+            \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::KEPALA_DEPARTEMEN,
+            \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::KEPALA_DIVISI,
+            \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::ADMIN_DIVISI,
+        ) || $user->pendingApprovals()->exists();
     }
 
     public function process(User $user, ApprovalTransaction $approvalTransaction): bool

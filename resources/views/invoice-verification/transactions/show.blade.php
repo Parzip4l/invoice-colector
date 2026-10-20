@@ -550,7 +550,7 @@
                     </a>
                 @endcan
                 @can('update', $transaction)
-                    @if (in_array($statusValue, [
+                    @if (! $transaction->isPpaNonContract() && in_array($statusValue, [
                         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::DRAFT->value,
                         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::NOT_APPROVED->value,
                     ], true))
@@ -570,6 +570,19 @@
                 @endif
                 @if ($transaction->isPpa() && $transaction->ppaVerificationSheet)
                     <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.edit', $transaction) }}" class="btn btn-outline-secondary">Lembar PPA</a>
+                @endif
+                @if ($transaction->isPpaNonContract())
+                    <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.edit', $transaction) }}" class="btn btn-outline-primary">
+                        <iconify-icon icon="solar:document-text-outline" class="me-1"></iconify-icon>Pengajuan & Checklist
+                    </a>
+                    @if ($transaction->ppaVerificationSheet?->file_path)
+                        <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-outline-secondary">
+                            <iconify-icon icon="solar:eye-outline" class="me-1"></iconify-icon>Preview PDF
+                        </a>
+                        <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.download', $transaction) }}" class="btn btn-outline-success">
+                            <iconify-icon icon="solar:download-outline" class="me-1"></iconify-icon>Download PDF
+                        </a>
+                    @endif
                 @endif
                 @can('verifyAccounting', $transaction)
                     <a href="{{ route('invoice-verification.transactions.accounting-verifications.edit', $transaction) }}" class="btn btn-primary">
@@ -680,6 +693,308 @@
                     </div>
                 </div>
             </div>
+
+            @if ($transaction->isPpaNonContract() || $transaction->approvalTransactions->isNotEmpty())
+                @php
+                    $step1 = $transaction->approvalTransactions->first(fn ($a) => $a->approvalFlow?->step_no == 1);
+                    $step2 = $transaction->approvalTransactions->first(fn ($a) => $a->approvalFlow?->step_no == 2);
+                    $kadepApproved = $step1 && $step1->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED;
+                    $canApproveKadep = $step1 && $step1->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::PENDING && auth()->user()?->can('process', $step1);
+                    $canApproveKadiv = $step2 && $step2->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::PENDING && auth()->user()?->can('process', $step2);
+                @endphp
+
+                <div class="card workflow-card section-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="section-kicker mb-1">Approval Workflow</div>
+                            <h5 class="section-title">Persetujuan Kepala Departemen & Kepala Divisi</h5>
+                        </div>
+                        <div>
+                            <span class="badge {{ $transaction->status->badgeClass() }}">{{ $transaction->status->label() }}</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Step 1: Kadep -->
+                            <div class="col-md-6">
+                                <div class="border rounded p-3 h-100 bg-light-subtle">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="badge bg-primary text-white rounded-circle" style="width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;">1</span>
+                                            <div class="fw-semibold">Kepala Departemen</div>
+                                        </div>
+                                        @if($step1)
+                                            <span class="badge {{ $step1->status->badgeClass() }}">{{ $step1->status->value }}</span>
+                                        @else
+                                            <span class="badge bg-secondary-subtle text-secondary">MENUNGGU DOKUMEN</span>
+                                        @endif
+                                    </div>
+                                    <div class="small text-muted mb-2">
+                                        Pejabat: <strong class="text-dark">{{ $step1?->approver?->name ?? 'Belum ditentukan' }}</strong>
+                                        @if($step1?->approver?->email)
+                                            ({{ $step1->approver->email }})
+                                        @endif
+                                    </div>
+                                    @if($step1?->action_at)
+                                        <div class="small text-muted mb-1">
+                                            <iconify-icon icon="solar:clock-circle-outline"></iconify-icon>
+                                            Diproses: {{ $step1->action_at->translatedFormat('d M Y H:i') }}
+                                        </div>
+                                    @endif
+                                    @if($step1?->notes)
+                                        <div class="alert alert-light border small mb-2 p-2">
+                                            <strong>Catatan:</strong> {{ $step1->notes }}
+                                        </div>
+                                    @endif
+
+                                    @if($step1 && $step1->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED)
+                                        @if($step1->portal_signature_url || $step1->portal_qr_url)
+                                            <div class="mt-2">
+                                                <a href="{{ $step1->portal_signature_url ?: $step1->portal_qr_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1">
+                                                    <iconify-icon icon="solar:qr-code-outline" class="fs-16"></iconify-icon>
+                                                    <span>Verifikasi QR Portal</span>
+                                                </a>
+                                            </div>
+                                        @else
+                                            <div class="mt-2 text-success small d-flex align-items-center gap-1">
+                                                <iconify-icon icon="solar:check-circle-outline"></iconify-icon>
+                                                <span>Disetujui secara digital</span>
+                                            </div>
+                                        @endif
+                                    @endif
+
+                                    @if($canApproveKadep)
+                                        <div class="mt-3 d-flex gap-2">
+                                            <button type="button" class="btn btn-sm btn-success d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modal-approve-{{ $step1->id }}">
+                                                <iconify-icon icon="solar:check-circle-outline"></iconify-icon>
+                                                <span>Setujui (Approve)</span>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modal-reject-{{ $step1->id }}">
+                                                <iconify-icon icon="solar:close-circle-outline"></iconify-icon>
+                                                <span>Tolak (Reject)</span>
+                                            </button>
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+
+                            <!-- Step 2: Kadiv -->
+                            <div class="col-md-6">
+                                <div class="border rounded p-3 h-100 bg-light-subtle">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="badge bg-primary text-white rounded-circle" style="width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;">2</span>
+                                            <div class="fw-semibold">Kepala Divisi</div>
+                                        </div>
+                                        @if($step2)
+                                            <span class="badge {{ $step2->status->badgeClass() }}">{{ $step2->status->value }}</span>
+                                        @else
+                                            <span class="badge bg-secondary-subtle text-secondary">MENUNGGU DOKUMEN</span>
+                                        @endif
+                                    </div>
+                                    <div class="small text-muted mb-2">
+                                        Pejabat: <strong class="text-dark">{{ $step2?->approver?->name ?? 'Belum ditentukan' }}</strong>
+                                        @if($step2?->approver?->email)
+                                            ({{ $step2->approver->email }})
+                                        @endif
+                                    </div>
+                                    @if($step2?->action_at)
+                                        <div class="small text-muted mb-1">
+                                            <iconify-icon icon="solar:clock-circle-outline"></iconify-icon>
+                                            Diproses: {{ $step2->action_at->translatedFormat('d M Y H:i') }}
+                                        </div>
+                                    @endif
+                                    @if($step2?->notes)
+                                        <div class="alert alert-light border small mb-2 p-2">
+                                            <strong>Catatan:</strong> {{ $step2->notes }}
+                                        </div>
+                                    @endif
+
+                                    @if($step2 && $step2->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED)
+                                        @if($step2->portal_signature_url || $step2->portal_qr_url)
+                                            <div class="mt-2">
+                                                <a href="{{ $step2->portal_signature_url ?: $step2->portal_qr_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1">
+                                                    <iconify-icon icon="solar:qr-code-outline" class="fs-16"></iconify-icon>
+                                                    <span>Verifikasi QR Portal</span>
+                                                </a>
+                                            </div>
+                                        @else
+                                            <div class="mt-2 text-success small d-flex align-items-center gap-1">
+                                                <iconify-icon icon="solar:check-circle-outline"></iconify-icon>
+                                                <span>Disetujui secara digital</span>
+                                            </div>
+                                        @endif
+                                    @endif
+
+                                    @if($step2 && $step2->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::PENDING && ! $kadepApproved)
+                                        <div class="alert alert-warning border-0 small mt-2 mb-0 py-1 px-2">
+                                            <iconify-icon icon="solar:info-circle-outline"></iconify-icon>
+                                            Menunggu persetujuan Kepala Departemen selesai terlebih dahulu.
+                                        </div>
+                                    @elseif($canApproveKadiv && $kadepApproved)
+                                        <div class="mt-3 d-flex gap-2">
+                                            <button type="button" class="btn btn-sm btn-success d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modal-approve-{{ $step2->id }}">
+                                                <iconify-icon icon="solar:check-circle-outline"></iconify-icon>
+                                                <span>Setujui (Approve)</span>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modal-reject-{{ $step2->id }}">
+                                                <iconify-icon icon="solar:close-circle-outline"></iconify-icon>
+                                                <span>Tolak (Reject)</span>
+                                            </button>
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+
+                        @if ($transaction->isPpaNonContract())
+                            <div class="mt-3 p-3 bg-light rounded border d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div>
+                                    <div class="fw-bold text-dark d-flex align-items-center gap-2">
+                                        <iconify-icon icon="solar:document-text-outline" class="fs-5 text-primary"></iconify-icon>
+                                        <span>Dokumen Pengajuan Penggunaan Anggaran & Lembar Verifikasi (2 Lembar)</span>
+                                    </div>
+                                    <div class="text-muted small">
+                                        Formulir LRTJ-FR-KDA-001 & Lembar Verifikasi LRTJ-FR-KDA-004
+                                        @if (($step1 && $step1->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED) || ($step2 && $step2->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED))
+                                            &bull; <span class="text-success fw-semibold"><iconify-icon icon="solar:qr-code-outline"></iconify-icon> QR Code Approval sudah tertempel pada PDF</span>
+                                        @endif
+                                    </div>
+                                </div>
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.edit', $transaction) }}" class="btn btn-sm btn-outline-primary">
+                                        <iconify-icon icon="solar:pen-new-square-outline" class="me-1"></iconify-icon>Edit Form & Checklist
+                                    </a>
+                                    @if ($transaction->ppaVerificationSheet?->file_path)
+                                        <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                            <iconify-icon icon="solar:eye-outline" class="me-1"></iconify-icon>Preview PDF (2 Lembar)
+                                        </a>
+                                        <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.download', $transaction) }}" class="btn btn-sm btn-success">
+                                            <iconify-icon icon="solar:download-outline" class="me-1"></iconify-icon>Download PDF
+                                        </a>
+                                    @endif
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+
+                @if($canApproveKadep && $step1)
+                    <!-- Modal Approve Kadep -->
+                    <div class="modal fade text-start" id="modal-approve-{{ $step1->id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <form action="{{ route('invoice-verification.approvals.update', $step1) }}" method="POST">
+                                    @csrf
+                                    @method('PUT')
+                                    <input type="hidden" name="status" value="APPROVED">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Persetujuan Kepala Departemen</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>Apakah Anda yakin menyetujui transaksi <strong>{{ $transaction->registration_number }}</strong>? Transaksi akan diteruskan ke Kepala Divisi.</p>
+                                        <div class="mb-3">
+                                            <label class="form-label">Catatan (Opsional)</label>
+                                            <textarea name="notes" class="form-control" rows="3" placeholder="Masukkan catatan..."></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                                        <button type="submit" class="btn btn-success">Setujui (Approve)</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal Reject Kadep -->
+                    <div class="modal fade text-start" id="modal-reject-{{ $step1->id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <form action="{{ route('invoice-verification.approvals.update', $step1) }}" method="POST">
+                                    @csrf
+                                    @method('PUT')
+                                    <input type="hidden" name="status" value="REJECTED">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title text-danger">Tolak Transaksi</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>Transaksi <strong>{{ $transaction->registration_number }}</strong> akan dikembalikan kepada pemohon untuk revisi dan tidak dapat masuk ke Accounting.</p>
+                                        <div class="mb-3">
+                                            <label class="form-label">Alasan Penolakan <span class="text-danger">*</span></label>
+                                            <textarea name="notes" class="form-control" rows="3" required placeholder="Jelaskan alasan penolakan..."></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                                        <button type="submit" class="btn btn-danger">Tolak (Reject)</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                @if($canApproveKadiv && $step2 && $kadepApproved)
+                    <!-- Modal Approve Kadiv -->
+                    <div class="modal fade text-start" id="modal-approve-{{ $step2->id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <form action="{{ route('invoice-verification.approvals.update', $step2) }}" method="POST">
+                                    @csrf
+                                    @method('PUT')
+                                    <input type="hidden" name="status" value="APPROVED">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Persetujuan Kepala Divisi</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>Apakah Anda yakin menyetujui transaksi <strong>{{ $transaction->registration_number }}</strong>? Transaksi akan disubmit ke Accounting untuk verifikasi.</p>
+                                        <div class="mb-3">
+                                            <label class="form-label">Catatan (Opsional)</label>
+                                            <textarea name="notes" class="form-control" rows="3" placeholder="Masukkan catatan..."></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                                        <button type="submit" class="btn btn-success">Setujui (Approve)</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal Reject Kadiv -->
+                    <div class="modal fade text-start" id="modal-reject-{{ $step2->id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <form action="{{ route('invoice-verification.approvals.update', $step2) }}" method="POST">
+                                    @csrf
+                                    @method('PUT')
+                                    <input type="hidden" name="status" value="REJECTED">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title text-danger">Tolak Transaksi</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>Transaksi <strong>{{ $transaction->registration_number }}</strong> akan dikembalikan kepada pemohon untuk revisi dan tidak dapat masuk ke Accounting.</p>
+                                        <div class="mb-3">
+                                            <label class="form-label">Alasan Penolakan <span class="text-danger">*</span></label>
+                                            <textarea name="notes" class="form-control" rows="3" required placeholder="Jelaskan alasan penolakan..."></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                                        <button type="submit" class="btn btn-danger">Tolak (Reject)</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+            @endif
 
             @if(false && ! $isVendorRevisionView)
                 <div class="card workflow-card section-card">
@@ -859,7 +1174,7 @@
                                 </div>
                             </div>
                         </div>
-                        <form method="POST" action="{{ route('invoice-verification.transactions.invoice-metadata.update', $transaction) }}" class="metadata-form row g-3">
+                        <form method="POST" action="{{ route('invoice-verification.transactions.invoice-metadata.update', $transaction) }}" class="metadata-form row g-3" data-tax-calculation>
                             @csrf
                             @method('PUT')
                             <div class="col-12">
@@ -889,8 +1204,37 @@
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Nilai Invoice</label>
-                                <input type="text" class="form-control @error('invoice_value') is-invalid @enderror" inputmode="numeric" name="invoice_value" value="{{ old('invoice_value', $transaction->invoiceMetadata?->invoice_value) }}" data-rupiah-input>
+                                <input type="text" class="form-control @error('invoice_value') is-invalid @enderror" inputmode="numeric" name="invoice_value" value="{{ old('invoice_value', $transaction->invoiceMetadata?->invoice_value) }}" data-rupiah-input data-tax-invoice>
                                 @error('invoice_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">PPN (%)</label>
+                                <input type="number" step="0.01" min="0" max="100" class="form-control @error('ppn_percentage') is-invalid @enderror" name="ppn_percentage" value="{{ old('ppn_percentage', $transaction->invoiceMetadata?->ppn_percentage) }}" data-tax-ppn-rate>
+                                @error('ppn_percentage')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Nilai PPN</label>
+                                <input type="text" class="form-control @error('ppn_value') is-invalid @enderror" inputmode="numeric" name="ppn_value" value="{{ old('ppn_value', $transaction->invoiceMetadata?->ppn_value) }}" data-rupiah-input data-tax-ppn-value>
+                                @error('ppn_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Dasar Pengenaan PPh</label>
+                                <input type="text" class="form-control @error('pph_base_value') is-invalid @enderror" inputmode="numeric" name="pph_base_value" value="{{ old('pph_base_value', $transaction->invoiceMetadata?->pph_base_value) }}" placeholder="Kosongkan jika sama dengan nilai invoice" data-rupiah-input data-tax-pph-base>
+                                @error('pph_base_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">PPh (%)</label>
+                                <input type="number" step="0.01" min="0" max="100" class="form-control @error('pph_percentage') is-invalid @enderror" name="pph_percentage" value="{{ old('pph_percentage', $transaction->invoiceMetadata?->pph_percentage) }}" data-tax-pph-rate>
+                                @error('pph_percentage')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Nilai PPh</label>
+                                <input type="text" class="form-control @error('pph_value') is-invalid @enderror" inputmode="numeric" name="pph_value" value="{{ old('pph_value', $transaction->invoiceMetadata?->pph_value) }}" data-rupiah-input data-tax-pph-value>
+                                @error('pph_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Total After Tax</label>
+                                <input type="text" class="form-control fw-semibold" value="" data-tax-total readonly>
                             </div>
                             <div class="col-12">
                                 <button class="btn btn-outline-primary w-100">Perbarui Metadata</button>
@@ -953,5 +1297,59 @@
     </div>
 </div>
 @include('invoice-verification.partials.rupiah-input')
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const moneyValue = (input) => {
+        if (!input) {
+            return 0;
+        }
+
+        return Number(window.InvoiceRupiahInput?.cleanValue(input.value) || 0);
+    };
+
+    const formatMoney = (input, value) => {
+        if (!input) {
+            return;
+        }
+
+        input.value = Math.round(value || 0).toString();
+        window.InvoiceRupiahInput?.formatElement(input);
+    };
+
+    document.querySelectorAll('[data-tax-calculation]').forEach((form) => {
+        const invoice = form.querySelector('[data-tax-invoice]');
+        const ppnRate = form.querySelector('[data-tax-ppn-rate]');
+        const ppnValue = form.querySelector('[data-tax-ppn-value]');
+        const pphBase = form.querySelector('[data-tax-pph-base]');
+        const pphRate = form.querySelector('[data-tax-pph-rate]');
+        const pphValue = form.querySelector('[data-tax-pph-value]');
+        const total = form.querySelector('[data-tax-total]');
+
+        const recalculate = (event) => {
+            const invoiceAmount = moneyValue(invoice);
+            const ppnPercent = Number(ppnRate?.value || 0);
+            const pphPercent = Number(pphRate?.value || 0);
+            const pphBaseAmount = moneyValue(pphBase) || invoiceAmount;
+
+            if ((event?.target === ppnRate || event?.target === invoice) && ppnRate?.value !== '') {
+                formatMoney(ppnValue, invoiceAmount * ppnPercent / 100);
+            }
+
+            if ((event?.target === pphRate || event?.target === pphBase || event?.target === invoice) && pphRate?.value !== '') {
+                formatMoney(pphValue, pphBaseAmount * pphPercent / 100);
+            }
+
+            formatMoney(total, invoiceAmount + moneyValue(ppnValue) - moneyValue(pphValue));
+        };
+
+        [invoice, ppnRate, ppnValue, pphBase, pphRate, pphValue].forEach((input) => {
+            input?.addEventListener('input', recalculate);
+            input?.addEventListener('change', recalculate);
+        });
+
+        recalculate();
+    });
+});
+</script>
 @include('invoice-verification.components.file-preview-modal')
 @endsection

@@ -173,16 +173,21 @@
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 iv-table" style="--iv-table-min-width: 3200px;">
+            <table class="table table-hover align-middle mb-0 iv-table" style="--iv-table-min-width: 3800px;">
                 <thead class="table-light">
                     <tr>
                         <th class="ps-4">Detail</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.numbering-registers.index', 'column' => 'register_number', 'label' => 'Register Number'])</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.numbering-registers.index', 'column' => 'vendor_name', 'label' => 'Vendor'])</th>
+                        <th>NPWP</th>
                         <th>Nama Divisi</th>
                         <th>Deskripsi</th>
                         <th>Jenis Jurnal</th>
-                        <th>Total Bayar</th>
+                        <th>Nilai Invoice</th>
+                        <th>PPN</th>
+                        <th>PPh</th>
+                        <th>Discount/Denda/Materai</th>
+                        <th>Total After Tax</th>
                         <th>BAPP</th>
                         <th>BAST</th>
                         <th>PIC</th>
@@ -219,6 +224,7 @@
                             $ppnValue = (float) ($register->ppn_value ?? 0);
                             $pphValue = (float) ($register->pph_value ?? 0);
                             $discountValue = (float) ($register->discount_deduction_stamp_value ?? 0);
+                            $totalAfterTax = $invoiceValue + $ppnValue - $pphValue + $discountValue;
                             $totalBayar = match (true) {
                                 $isPpaType => $invoiceValue + $ppnValue - $pphValue + $discountValue,
                                 $isSpuType => (float) ($transaction?->spu_amount ?? $register->invoice_value ?? 0),
@@ -236,6 +242,7 @@
                             </td>
                             <td>{{ $register->register_number }}</td>
                             <td><div class="text-truncate iv-cell-truncate" style="--iv-cell-width: 210px;" title="{{ $vendorName }}">{{ $vendorName }}</div></td>
+                            <td>{{ $transaction?->vendor?->npwp ?? '-' }}</td>
                             <td>
                                 <div class="fw-semibold text-truncate iv-cell-truncate" style="--iv-cell-width: 190px;" title="{{ $divisionName }}">{{ $divisionName }}</div>
                             </td>
@@ -243,7 +250,11 @@
                                 <div class="text-truncate iv-cell-truncate" style="--iv-cell-width: 260px;" title="{{ $register->description ?? '-' }}">{{ $register->description ?? '-' }}</div>
                             </td>
                             <td>{{ $register->journal_type ?? '-' }}</td>
-                            <td class="fw-semibold">Rp {{ number_format($totalBayar, 0, ',', '.') }}</td>
+                            <td class="fw-semibold">{{ $isPpaType || $invoiceValue > 0 ? 'Rp '.number_format($invoiceValue, 0, ',', '.') : '-' }}</td>
+                            <td>{{ $isPpaType || $ppnValue > 0 ? 'Rp '.number_format($ppnValue, 0, ',', '.') : '-' }}</td>
+                            <td>{{ $isPpaType || $pphValue > 0 ? 'Rp '.number_format($pphValue, 0, ',', '.') : '-' }}</td>
+                            <td>{{ $isPpaType || $discountValue != 0.0 ? 'Rp '.number_format($discountValue, 0, ',', '.') : '-' }}</td>
+                            <td class="fw-semibold">Rp {{ number_format($isPpaType ? $totalAfterTax : $totalBayar, 0, ',', '.') }}</td>
                             <td><span class="badge {{ $bappAvailable ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">{{ $bappAvailable ? '✓' : '-' }}</span></td>
                             <td><span class="badge {{ $bastAvailable ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">{{ $bastAvailable ? '✓' : '-' }}</span></td>
                             <td><div class="text-truncate iv-cell-truncate" style="--iv-cell-width: 180px;" title="{{ $picName }}">{{ $picName }}</div></td>
@@ -263,14 +274,10 @@
                                 <div>{{ $register->tax_invoice_number ?? '-' }}</div>
                                 <div class="text-muted small">{{ $register->tax_invoice_date?->format('d M Y') ?? '-' }}</div>
                             </td>
-                            <td>
-                                <div>PPN: {{ number_format((float) $register->ppn_value, 2, ',', '.') }}</div>
-                                <div class="text-muted small">PPh: {{ number_format((float) $register->pph_value, 2, ',', '.') }}</div>
-                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="17" class="text-center text-muted py-4">Belum ada numbering register.</td>
+                            <td colspan="21" class="text-center text-muted py-4">Belum ada numbering register.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -402,7 +409,7 @@
     @endphp
     <div class="modal fade" id="register-modal-{{ $register->id }}" tabindex="-1" aria-labelledby="register-modal-label-{{ $register->id }}" aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-scrollable">
-            <form method="POST" action="{{ route('invoice-verification.numbering-registers.update', $register) }}" class="modal-content">
+            <form method="POST" action="{{ route('invoice-verification.numbering-registers.update', $register) }}" class="modal-content" data-tax-calculation>
                 @csrf
                 @method('PUT')
                 <div class="modal-header">
@@ -504,23 +511,42 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Nilai Invoice</label>
-                                <input type="text" inputmode="numeric" class="form-control @error('invoice_value') is-invalid @enderror" name="invoice_value" value="{{ old('invoice_value', $register->invoice_value) }}" data-rupiah-input>
+                                <input type="text" inputmode="numeric" class="form-control @error('invoice_value') is-invalid @enderror" name="invoice_value" value="{{ old('invoice_value', $register->invoice_value) }}" data-rupiah-input data-tax-invoice>
                                 @error('invoice_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">PPN</label>
-                                <input type="text" inputmode="numeric" class="form-control @error('ppn_value') is-invalid @enderror" name="ppn_value" value="{{ old('ppn_value', $register->ppn_value) }}" data-rupiah-input>
+                                <label class="form-label">PPN (%)</label>
+                                <input type="number" step="0.01" min="0" max="100" class="form-control @error('ppn_percentage') is-invalid @enderror" name="ppn_percentage" value="{{ old('ppn_percentage', $register->ppn_percentage) }}" data-tax-ppn-rate>
+                                @error('ppn_percentage')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Nilai PPN</label>
+                                <input type="text" inputmode="numeric" class="form-control @error('ppn_value') is-invalid @enderror" name="ppn_value" value="{{ old('ppn_value', $register->ppn_value) }}" data-rupiah-input data-tax-ppn-value>
                                 @error('ppn_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">PPh</label>
-                                <input type="text" inputmode="numeric" class="form-control @error('pph_value') is-invalid @enderror" name="pph_value" value="{{ old('pph_value', $register->pph_value) }}" data-rupiah-input>
+                                <label class="form-label">Dasar Pengenaan PPh</label>
+                                <input type="text" inputmode="numeric" class="form-control @error('pph_base_value') is-invalid @enderror" name="pph_base_value" value="{{ old('pph_base_value', $register->pph_base_value) }}" placeholder="Default sama dengan nilai invoice" data-rupiah-input data-tax-pph-base>
+                                @error('pph_base_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">PPh (%)</label>
+                                <input type="number" step="0.01" min="0" max="100" class="form-control @error('pph_percentage') is-invalid @enderror" name="pph_percentage" value="{{ old('pph_percentage', $register->pph_percentage) }}" data-tax-pph-rate>
+                                @error('pph_percentage')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Nilai PPh</label>
+                                <input type="text" inputmode="numeric" class="form-control @error('pph_value') is-invalid @enderror" name="pph_value" value="{{ old('pph_value', $register->pph_value) }}" data-rupiah-input data-tax-pph-value>
                                 @error('pph_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Discount/Denda/Materai</label>
-                                <input type="text" inputmode="numeric" class="form-control @error('discount_deduction_stamp_value') is-invalid @enderror" name="discount_deduction_stamp_value" value="{{ old('discount_deduction_stamp_value', $register->discount_deduction_stamp_value) }}" data-rupiah-input>
+                                <input type="text" inputmode="numeric" class="form-control @error('discount_deduction_stamp_value') is-invalid @enderror" name="discount_deduction_stamp_value" value="{{ old('discount_deduction_stamp_value', $register->discount_deduction_stamp_value) }}" data-rupiah-input data-tax-discount>
                                 @error('discount_deduction_stamp_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Total After Tax</label>
+                                <input type="text" class="form-control fw-semibold" value="" data-tax-total readonly>
                             </div>
                         @elseif ($isSpu)
                             <div class="col-12 pt-2">
@@ -636,4 +662,60 @@
 @endforeach
 
 @include('invoice-verification.partials.rupiah-input')
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const moneyValue = (input) => {
+        if (!input) {
+            return 0;
+        }
+
+        return Number(window.InvoiceRupiahInput?.cleanValue(input.value) || 0);
+    };
+
+    const formatMoney = (input, value) => {
+        if (!input) {
+            return;
+        }
+
+        input.value = Math.round(value || 0).toString();
+        window.InvoiceRupiahInput?.formatElement(input);
+    };
+
+    document.querySelectorAll('[data-tax-calculation]').forEach((form) => {
+        const invoice = form.querySelector('[data-tax-invoice]');
+        const ppnRate = form.querySelector('[data-tax-ppn-rate]');
+        const ppnValue = form.querySelector('[data-tax-ppn-value]');
+        const pphBase = form.querySelector('[data-tax-pph-base]');
+        const pphRate = form.querySelector('[data-tax-pph-rate]');
+        const pphValue = form.querySelector('[data-tax-pph-value]');
+        const discount = form.querySelector('[data-tax-discount]');
+        const total = form.querySelector('[data-tax-total]');
+
+        const recalculate = (event) => {
+            const invoiceAmount = moneyValue(invoice);
+            const ppnPercent = Number(ppnRate?.value || 0);
+            const pphPercent = Number(pphRate?.value || 0);
+            const pphBaseAmount = moneyValue(pphBase) || invoiceAmount;
+
+            if ((event?.target === ppnRate || event?.target === invoice) && ppnRate?.value !== '') {
+                formatMoney(ppnValue, invoiceAmount * ppnPercent / 100);
+            }
+
+            if ((event?.target === pphRate || event?.target === pphBase || event?.target === invoice) && pphRate?.value !== '') {
+                formatMoney(pphValue, pphBaseAmount * pphPercent / 100);
+            }
+
+            const totalAmount = invoiceAmount + moneyValue(ppnValue) - moneyValue(pphValue) + moneyValue(discount);
+            formatMoney(total, totalAmount);
+        };
+
+        [invoice, ppnRate, ppnValue, pphBase, pphRate, pphValue, discount].forEach((input) => {
+            input?.addEventListener('input', recalculate);
+            input?.addEventListener('change', recalculate);
+        });
+
+        recalculate();
+    });
+});
+</script>
 @endsection

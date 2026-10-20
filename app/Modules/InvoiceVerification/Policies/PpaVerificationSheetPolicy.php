@@ -4,18 +4,26 @@ namespace App\Modules\InvoiceVerification\Policies;
 
 use App\Models\User;
 use App\Modules\InvoiceVerification\Domain\Enums\RoleCode;
+use App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus;
 use App\Modules\InvoiceVerification\Domain\Models\PpaVerificationSheet;
 
 class PpaVerificationSheetPolicy
 {
-    public function view(User $user, PpaVerificationSheet $sheet): bool
+    public function view(User $user, ?PpaVerificationSheet $sheet = null): bool
     {
-        return $user->can('view', $sheet->transaction);
+        return $sheet ? $user->can('view', $sheet->transaction) : true;
     }
 
-    public function update(User $user, PpaVerificationSheet|string $sheet): bool
+    public function update(User $user, mixed $sheet = null): bool
     {
-        return $user->hasRole(RoleCode::USER_DIVISI);
-    }
+        if (! $sheet instanceof PpaVerificationSheet) {
+            return false;
+        }
 
+        $transaction = $sheet->transaction;
+
+        return $user->hasRole(RoleCode::USER_DIVISI)
+            && $transaction->owner_user_id === $user->id
+            && in_array($transaction->status, [TransactionStatus::DRAFT, TransactionStatus::NOT_APPROVED], true);
+    }
 }

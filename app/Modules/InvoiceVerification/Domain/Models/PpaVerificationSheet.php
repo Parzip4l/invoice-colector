@@ -14,6 +14,10 @@ class PpaVerificationSheet extends InvoiceVerificationModel
             'status' => PpaVerificationSheetStatus::class,
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
+            'budget_items_json' => 'array',
+            'checklist_items_json' => 'array',
+            'advance_payment_value' => 'decimal:2',
+            'exchange_rate_value' => 'decimal:4',
         ];
     }
 

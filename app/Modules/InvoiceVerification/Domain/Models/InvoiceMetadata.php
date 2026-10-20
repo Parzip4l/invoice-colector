@@ -12,7 +12,10 @@ class InvoiceMetadata extends InvoiceVerificationModel
         'invoice_date' => 'date',
         'contract_value' => 'decimal:2',
         'invoice_value' => 'decimal:2',
+        'ppn_percentage' => 'decimal:4',
         'ppn_value' => 'decimal:2',
+        'pph_percentage' => 'decimal:4',
+        'pph_base_value' => 'decimal:2',
         'pph_value' => 'decimal:2',
         'received_date' => 'date',
     ];

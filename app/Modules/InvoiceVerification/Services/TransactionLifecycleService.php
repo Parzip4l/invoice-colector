@@ -127,20 +127,22 @@ class TransactionLifecycleService
             TransactionStatus::RECEIVED,
             TransactionStatus::SCHEDULING_PAYMENT,
             TransactionStatus::PAID,
+            TransactionStatus::WAITING_APPROVAL,
         ];
 
-        if (! in_array($sourceStatus, $activeStatuses, true) && ! in_array($targetStatus, $activeStatuses, true)) {
+        if (! in_array($sourceStatus, $activeStatuses, true) || ! in_array($targetStatus, $activeStatuses, true)) {
             return;
         }
 
         $allowed = [
-            TransactionStatus::DRAFT->value => [TransactionStatus::SUBMITTED],
-            TransactionStatus::NOT_APPROVED->value => [TransactionStatus::SUBMITTED],
+            TransactionStatus::DRAFT->value => [TransactionStatus::SUBMITTED, TransactionStatus::WAITING_APPROVAL],
+            TransactionStatus::NOT_APPROVED->value => [TransactionStatus::SUBMITTED, TransactionStatus::WAITING_APPROVAL],
             TransactionStatus::SUBMITTED->value => [TransactionStatus::IN_REVIEW],
             TransactionStatus::ACCOUNTING_VERIFICATION->value => [TransactionStatus::IN_REVIEW],
             TransactionStatus::IN_REVIEW->value => [TransactionStatus::NOT_APPROVED, TransactionStatus::RECEIVED],
             TransactionStatus::RECEIVED->value => [TransactionStatus::SCHEDULING_PAYMENT],
             TransactionStatus::SCHEDULING_PAYMENT->value => [TransactionStatus::PAID],
+            TransactionStatus::WAITING_APPROVAL->value => [TransactionStatus::NOT_APPROVED, TransactionStatus::SUBMITTED],
         ];
 
         if (! in_array($targetStatus, $allowed[$sourceStatus->value] ?? [], true)) {
@@ -164,6 +166,20 @@ class TransactionLifecycleService
             ($sourceStatus === TransactionStatus::RECEIVED && $targetStatus === TransactionStatus::SCHEDULING_PAYMENT)
             || ($sourceStatus === TransactionStatus::SCHEDULING_PAYMENT && $targetStatus === TransactionStatus::PAID)
         );
+        $approvalStartTransition = in_array($sourceStatus, [TransactionStatus::DRAFT, TransactionStatus::NOT_APPROVED], true)
+            && $targetStatus === TransactionStatus::WAITING_APPROVAL;
+        $approvalDecisionTransition = $sourceStatus === TransactionStatus::WAITING_APPROVAL
+            && in_array($targetStatus, [TransactionStatus::NOT_APPROVED, TransactionStatus::SUBMITTED], true);
+
+        if ($approvalStartTransition && $transaction->owner_user_id === $actor->id) {
+            return;
+        }
+
+        if ($approvalDecisionTransition && $transaction->approvalTransactions()
+            ->where('approver_user_id', $actor->id)
+            ->exists()) {
+            return;
+        }
 
         if ($vendorTransition) {
             $ownsTransaction = $transaction->owner_user_id === $actor->id

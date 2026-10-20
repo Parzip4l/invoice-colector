@@ -37,17 +37,13 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Departemen</label>
-                            <select name="department_id" id="department_id" class="form-select @error('department_id') is-invalid @enderror" required>
-                                <option value="">Pilih departemen</option>
-                                @foreach ($departments as $department)
-                                    <option value="{{ $department->id }}" @selected((string) old('department_id', auth()->user()?->department_id) === (string) $department->id)>{{ $department->name }}</option>
-                                @endforeach
-                            </select>
+                            <input type="hidden" name="department_id" value="{{ auth()->user()?->department_id }}">
+                            <input type="text" id="department_id" class="form-control @error('department_id') is-invalid @enderror" value="{{ auth()->user()?->department?->name ?? '-' }}" readonly>
                             @error('department_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-6" data-field="memo">
                             <label class="form-label">Memo Permohonan</label>
-                            <select name="memo_request_id" id="memo_request_id" class="form-select @error('memo_request_id') is-invalid @enderror" required>
+                            <select name="memo_request_id" id="memo_request_id" class="form-select @error('memo_request_id') is-invalid @enderror">
                                 <option value="">Pilih memo</option>
                                 @foreach ($memoRequests as $memo)
                                     <option value="{{ $memo->id }}" data-department-id="{{ $memo->department_id }}" @selected((string) old('memo_request_id') === (string) $memo->id)>{{ $memo->memo_number }} - {{ $memo->subject }}</option>
@@ -123,7 +119,7 @@
                             <label class="form-label">Nilai Top Up</label>
                             <input id="petty_cash_top_up_preview" class="form-control" readonly>
                         </div>
-                        <div class="col-12">
+                        <div class="col-12" data-field="description">
                             <label class="form-label">Deskripsi</label>
                             <textarea class="form-control" rows="3" name="description">{{ old('description') }}</textarea>
                         </div>
@@ -156,14 +152,27 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function toggleFields() {
         const code = currentCode();
-        document.querySelectorAll('[data-field]').forEach((el) => el.classList.add('d-none'));
-        const show = [];
+        document.querySelectorAll('[data-field]').forEach((el) => {
+            el.classList.add('d-none');
+            el.querySelectorAll('input, select, textarea').forEach((control) => {
+                control.disabled = true;
+            });
+        });
+
+        const show = code && code !== 'PPA_NON_CONTRACT' ? ['memo', 'description'] : [];
         if (code === 'PPA') show.push('ppa-contract');
-        if (code === 'PPA_NON_CONTRACT') show.push('activity', 'bank');
         if (code === 'SPU') show.push('activity', 'bank', 'spu-amount');
         if (code === 'SPUK') show.push('spuk');
         if (code === 'KAS_KECIL') show.push('petty-cash');
-        show.forEach((name) => document.querySelectorAll(`[data-field="${name}"]`).forEach((el) => el.classList.remove('d-none')));
+        show.forEach((name) => document.querySelectorAll(`[data-field="${name}"]`).forEach((el) => {
+            el.classList.remove('d-none');
+            el.querySelectorAll('input, select, textarea').forEach((control) => {
+                control.disabled = false;
+            });
+        }));
+
+        const memoSelect = document.getElementById('memo_request_id');
+        if (memoSelect) memoSelect.required = Boolean(code && code !== 'PPA_NON_CONTRACT');
         updateSpuk();
         updatePettyCash();
     }

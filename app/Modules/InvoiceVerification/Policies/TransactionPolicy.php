@@ -17,6 +17,8 @@ class TransactionPolicy
             RoleCode::VENDOR,
             RoleCode::AKUNTANSI,
             RoleCode::FINANCE,
+            RoleCode::KEPALA_DEPARTEMEN,
+            RoleCode::KEPALA_DIVISI,
         );
     }
 
@@ -29,6 +31,16 @@ class TransactionPolicy
 
         if ($user->hasRole(RoleCode::USER_DIVISI)) {
             return $transaction->owner_user_id === $user->id;
+        }
+
+        if ($user->hasRole(RoleCode::KEPALA_DEPARTEMEN)) {
+            return $transaction->department_id === $user->department_id
+                || $transaction->approvalTransactions()->where('approver_user_id', $user->id)->exists();
+        }
+
+        if ($user->hasRole(RoleCode::KEPALA_DIVISI)) {
+            return $transaction->division_id === $user->division_id
+                || $transaction->approvalTransactions()->where('approver_user_id', $user->id)->exists();
         }
 
         return $this->viewAny($user);

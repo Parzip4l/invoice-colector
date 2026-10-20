@@ -21,6 +21,20 @@ class ApprovalFlowSeeder extends Seeder
             TransactionTypeCode::SPU->value => [],
             TransactionTypeCode::SPUK->value => [],
             TransactionTypeCode::KAS_KECIL->value => [],
+            TransactionTypeCode::PPA_NON_CONTRACT->value => [
+                [
+                    'document_code' => null,
+                    'step_no' => 1,
+                    'step_code' => \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::KEPALA_DEPARTEMEN->value,
+                    'step_name' => 'Kepala Departemen',
+                ],
+                [
+                    'document_code' => null,
+                    'step_no' => 2,
+                    'step_code' => \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::KEPALA_DIVISI->value,
+                    'step_name' => 'Kepala Divisi',
+                ],
+            ],
         ];
 
         foreach ($flows as $transactionTypeCode => $items) {

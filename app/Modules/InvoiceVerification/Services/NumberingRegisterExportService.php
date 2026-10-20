@@ -14,6 +14,7 @@ class NumberingRegisterExportService
     private const PPA_HEADERS = [
         'Nomor Transaksi',
         'Nama Vendor',
+        'NPWP',
         'Nama Divisi',
         'Softcopy',
         'Tanggal Hardcopy',
@@ -34,7 +35,7 @@ class NumberingRegisterExportService
         'Nilai PPN',
         'Nilai PPh',
         'Discount/Denda/Materai',
-        'Total Bayar',
+        'Total After Tax',
         'Uraian Transaksi',
         'Nomor GR',
         'Jenis Jurnal',
@@ -123,7 +124,7 @@ class NumberingRegisterExportService
             }
 
             $transaction = $register->transaction;
-            $taxDocument = $this->documentInfo($register, 'PPA_FAKTUR_PAJAK');
+            $taxDocument = $this->documentInfo($register, 'PPA_FAKTUR_PAJAK') ?: $this->documentInfo($register, 'PNK_FAKTUR_PAJAK');
             $bappDocument = $this->documentInfo($register, 'PPA_BAPP');
             $bastDocument = $this->documentInfo($register, 'PPA_BAST');
             $invoiceValue = (float) ($register->invoice_value ?? 0);
@@ -134,6 +135,7 @@ class NumberingRegisterExportService
             $rows[] = [
                 $transaction?->registration_number ?: $register->register_number,
                 $this->vendorName($register),
+                $transaction?->vendor?->npwp,
                 $this->divisionName($register),
                 $this->checkMark((bool) ($register->upload_date ?? $register->received_date)),
                 $this->date($register->hardcopy_received_date),

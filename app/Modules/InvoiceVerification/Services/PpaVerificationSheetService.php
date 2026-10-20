@@ -34,6 +34,34 @@ class PpaVerificationSheetService
             ],
         );
 
+        if ($transaction->isPpaNonContract()) {
+            if (empty($sheet->budget_items_json)) {
+                $defaultRealization = (float) (($transaction->invoiceMetadata?->invoice_value ?? 0) + ($transaction->invoiceMetadata?->ppn_value ?? 0));
+                $sheet->update([
+                    'budget_items_json' => [
+                        [
+                            'kode_rab' => '',
+                            'nama_kegiatan' => $transaction->invoiceMetadata?->description ?? $transaction->description ?? 'Konsumsi Kegiatan',
+                            'nilai_realisasi' => $defaultRealization > 0 ? $defaultRealization : 0,
+                        ],
+                    ],
+                    'advance_payment_value' => 0,
+                    'exchange_rate_value' => 1.00,
+                ]);
+            }
+
+            if (! $sheet->file_path) {
+                try {
+                    $pdf = $this->pdfGenerator->generate($sheet);
+                    $sheet->update($pdf);
+                } catch (\Throwable) {
+                    // Ignore on initial create
+                }
+            }
+
+            return $sheet->fresh('transaction.latestDocuments.documentType');
+        }
+
         $checklistTypes = DocumentType::query()
             ->where('transaction_type_id', $transaction->transaction_type_id)
             ->whereIn('code', [
@@ -63,6 +91,103 @@ class PpaVerificationSheetService
         }
 
         return $sheet->fresh('items.documentType', 'transaction.latestDocuments.documentType');
+    }
+
+    public function savePpaNonContractSheet(Transaction $transaction, User $actor, array $payload): PpaVerificationSheet
+    {
+        return DB::transaction(function () use ($transaction, $actor, $payload) {
+            $sheet = $this->getOrCreate($transaction, $actor);
+
+            $checklistItems = $payload['checklist_items'] ?? $sheet->checklist_items_json;
+            if (is_array($checklistItems)) {
+                foreach ($checklistItems as $k => $item) {
+                    $checklistItems[$k]['is_required'] = filter_var($item['is_required'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                    $checklistItems[$k]['is_actual'] = filter_var($item['is_actual'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                    $checklistItems[$k]['notes'] = $item['notes'] ?? '';
+                }
+            }
+
+            $sheet->update([
+                'budget_items_json' => $payload['budget_items'] ?? $sheet->budget_items_json,
+                'checklist_items_json' => $checklistItems,
+                'advance_payment_value' => $payload['advance_payment_value'] ?? $sheet->advance_payment_value,
+                'exchange_rate_value' => $payload['exchange_rate_value'] ?? $sheet->exchange_rate_value,
+                'accounting_signer_name' => $payload['accounting_signer_name'] ?? $sheet->accounting_signer_name,
+                'filled_by_user_id' => $actor->id,
+            ]);
+
+            if (! empty($payload['description'])) {
+                $transaction->update(['description' => $payload['description']]);
+                if ($transaction->invoiceMetadata) {
+                    $transaction->invoiceMetadata->update(['description' => $payload['description']]);
+                }
+            }
+
+            $pdf = $this->pdfGenerator->generate($sheet->fresh());
+            $sheet->update($pdf);
+
+            $this->auditLogService->log(
+                module: 'ppa-verification-sheet',
+                action: 'update_transaction',
+                actor: $actor,
+                transaction: $transaction,
+                referenceType: PpaVerificationSheet::class,
+                referenceId: $sheet->id,
+                newValue: ['budget_items_count' => count($payload['budget_items'] ?? [])],
+            );
+
+            return $sheet->fresh();
+        });
+    }
+
+    public function submitPpaNonContract(Transaction $transaction, User $actor): PpaVerificationSheet
+    {
+        $sheet = $this->getOrCreate($transaction, $actor);
+
+        if (empty($sheet->budget_items_json)) {
+            throw ValidationException::withMessages([
+                'budget_items' => 'Rincian RAB minimal harus memiliki 1 baris kegiatan.',
+            ]);
+        }
+
+        // Validate all required documents and initialize Kadep/Kadiv first.
+        // If Portal or document validation fails, the sheet stays in DRAFT.
+        $approvalWorkflowService = app(ApprovalWorkflowService::class);
+        $approvalWorkflowService->triggerPpaNonContractApprovalIfComplete($transaction->fresh(), $actor);
+
+        $sheet->update([
+            'status' => PpaVerificationSheetStatus::SUBMITTED,
+            'submitted_at' => now(),
+        ]);
+
+        $pdf = $this->pdfGenerator->generate($sheet->fresh());
+        $sheet->update($pdf);
+
+        $this->auditLogService->log(
+            module: 'ppa-verification-sheet',
+            action: 'submit_approval',
+            actor: $actor,
+            transaction: $transaction,
+            referenceType: PpaVerificationSheet::class,
+            referenceId: $sheet->id,
+            newValue: ['status' => PpaVerificationSheetStatus::SUBMITTED->value],
+        );
+
+        return $sheet->fresh();
+    }
+
+    public function regeneratePdf(Transaction $transaction): ?PpaVerificationSheet
+    {
+        $sheet = $transaction->ppaVerificationSheet;
+
+        if (! $sheet) {
+            return null;
+        }
+
+        $pdf = $this->pdfGenerator->generate($sheet->fresh());
+        $sheet->update($pdf);
+
+        return $sheet->fresh();
     }
 
     public function saveChecklist(Transaction $transaction, User $actor, array $items): PpaVerificationSheet
@@ -101,6 +226,10 @@ class PpaVerificationSheetService
 
     public function submit(Transaction $transaction, User $actor): PpaVerificationSheet
     {
+        if ($transaction->isPpaNonContract()) {
+            return $this->submitPpaNonContract($transaction, $actor);
+        }
+
         $sheet = $this->getOrCreate($transaction, $actor);
         $items = $sheet->items()->with('documentType')->get();
 

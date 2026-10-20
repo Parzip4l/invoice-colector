@@ -45,7 +45,10 @@ class UpdateInvoiceMetadataRequest extends FormRequest
             'contract_number' => ['nullable', 'string', 'max:255'],
             'contract_value' => ['nullable', 'numeric', 'min:0'],
             'invoice_value' => ['nullable', 'numeric', 'min:0'],
+            'ppn_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'ppn_value' => ['nullable', 'numeric', 'min:0'],
+            'pph_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'pph_base_value' => ['nullable', 'numeric', 'min:0'],
             'pph_value' => ['nullable', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],
             'received_date' => ['nullable', 'date'],
@@ -58,6 +61,8 @@ class UpdateInvoiceMetadataRequest extends FormRequest
             'account_number.regex' => 'Nomor rekening hanya boleh berisi angka, 6 sampai 30 digit.',
             'invoice_value.numeric' => 'Nilai invoice harus berupa angka.',
             'invoice_value.min' => 'Nilai invoice tidak boleh kurang dari 0.',
+            'ppn_percentage.max' => 'Persentase PPN maksimal 100%.',
+            'pph_percentage.max' => 'Persentase PPh maksimal 100%.',
         ];
     }
 }

@@ -2,6 +2,7 @@
 
 @section('css')
 @include('invoice-verification.partials.table-ui')
+@include('invoice-verification.partials.transaction-progress-styles')
 @endsection
 
 @section('content')
@@ -9,8 +10,8 @@
 @include('invoice-verification.partials.flash')
 
 @php
-    $isRevisionList = request('status') === \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::NOT_APPROVED->value;
-    $isVendorPortal = auth()->user()?->hasRole(\App\Modules\InvoiceVerification\Domain\Enums\RoleCode::VENDOR);
+    $isRevisionList = in_array(request('status'), [\App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::NOT_APPROVED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::REVISION_IN_PROGRESS->value], true);
+    $isVendorPortal = auth()->user()?->hasRole(\App\Modules\InvoiceVerification\Domain\Enums\RoleCode::VENDOR) && ! $isRevisionList;
 @endphp
 
 <div class="card iv-table-card">
@@ -22,12 +23,12 @@
                     {{ $isVendorPortal ? 'Pilih kontrak yang belum selesai, lalu lengkapi invoice dan dokumen tagihan.' : 'Cari, filter, dan urutkan transaksi invoice collector.' }}
                 </p>
             </div>
-            @can('create', \App\Modules\InvoiceVerification\Domain\Models\Transaction::class)
+            @if (! $isVendorPortal && auth()->user()?->can('create', \App\Modules\InvoiceVerification\Domain\Models\Transaction::class))
                 <a href="{{ route('invoice-verification.transactions.create') }}" class="btn btn-success d-inline-flex align-items-center gap-1">
                     <iconify-icon icon="solar:add-circle-outline" class="fs-18"></iconify-icon>
                     <span>Buat</span>
                 </a>
-            @endcan
+            @endif
         </div>
         @if ($isRevisionList)
             <div class="alert alert-warning border-0 mb-3">
@@ -162,15 +163,14 @@
             </div>
         @else
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 iv-table" style="--iv-table-min-width: 1180px;">
+            <table class="table table-hover align-middle mb-0 iv-table" style="--iv-table-min-width: 1380px;">
                 <thead class="table-light">
                     <tr>
                         <th class="ps-4">@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.transactions.index', 'column' => 'registration_number', 'label' => 'Registrasi'])</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.transactions.index', 'column' => 'transaction_type', 'label' => 'Jenis'])</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.transactions.index', 'column' => 'vendor', 'label' => 'Vendor'])</th>
                         <th>Invoice</th>
-                        <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.transactions.index', 'column' => 'status', 'label' => 'Status'])</th>
-                        <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.transactions.index', 'column' => 'current_step', 'label' => 'Step'])</th>
+                        <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.transactions.index', 'column' => 'status', 'label' => 'Progress Transaksi'])</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.transactions.index', 'column' => 'created_at', 'label' => 'Dibuat'])</th>
                         <th></th>
                     </tr>
@@ -185,8 +185,7 @@
                             <td>{{ $transaction->transactionType?->code?->value ?? '-' }}</td>
                             <td><div class="text-truncate iv-cell-truncate" style="--iv-cell-width: 190px;" title="{{ $transaction->vendor?->name ?? $transaction->owner?->name ?? '-' }}">{{ $transaction->vendor?->name ?? $transaction->owner?->name ?? '-' }}</div></td>
                             <td>{{ $transaction->invoiceMetadata?->invoice_number ?? '-' }}</td>
-                            <td>@include('invoice-verification.components.status-badge', ['value' => $transaction->status])</td>
-                            <td><div class="text-truncate iv-cell-truncate" style="--iv-cell-width: 180px;" title="{{ $transaction->current_step?->label() }}">{{ $transaction->current_step?->label() }}</div></td>
+                            <td>@include('invoice-verification.components.transaction-progress', ['transaction' => $transaction])</td>
                             <td>{{ $transaction->created_at?->format('d M Y H:i') }}</td>
                             <td class="text-end">
                                 <div class="iv-actions">
@@ -200,13 +199,18 @@
                                             <a href="{{ route('invoice-verification.transactions.documents.show', $transaction) }}" class="btn btn-sm btn-warning">Revisi</a>
                                         @endcan
                                     @endif
+                                    @if ($transaction->status?->value === \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::REVISION_IN_PROGRESS->value)
+                                        @can('uploadDocuments', $transaction)
+                                            <a href="{{ route('invoice-verification.transactions.documents.show', $transaction) }}" class="btn btn-sm btn-warning">Upload Ulang</a>
+                                        @endcan
+                                    @endif
                                     <a href="{{ route('invoice-verification.transactions.show', $transaction) }}" class="btn btn-sm btn-outline-primary">Detail</a>
                                 </div>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-4">Belum ada transaksi.</td>
+                            <td colspan="7" class="text-center text-muted py-4">Belum ada transaksi.</td>
                         </tr>
                     @endforelse
                 </tbody>

@@ -4,11 +4,11 @@ const analytics = window.invoiceDashboardAnalytics || {};
 
 const palette = {
     primary: "#e21a1a",
-    success: "#16a34a",
-    warning: "#c07f20",
-    danger: "#ef4444",
-    info: "#06b6d4",
-    muted: "#64748b",
+    success: "#269a5b",
+    warning: "#bc842d",
+    danger: "#dc4c52",
+    info: "#3099aa",
+    muted: "#748096",
 };
 
 const chartDefaults = {
@@ -70,25 +70,20 @@ renderChart("#iv-transaction-trend", {
     dataLabels: { enabled: false },
     stroke: {
         curve: "smooth",
-        width: 3,
+        width: 2.5,
     },
     fill: {
-        type: "gradient",
-        gradient: {
-            shadeIntensity: 1,
-            opacityFrom: 0.28,
-            opacityTo: 0.04,
-            stops: [0, 92, 100],
-        },
+        type: "solid",
+        opacity: 0.08,
     },
     markers: {
-        size: 4,
-        strokeWidth: 3,
+        size: 3,
+        strokeWidth: 2,
         strokeColors: "#ffffff",
         colors: [palette.primary],
     },
     grid: {
-        borderColor: "rgba(100, 116, 139, .16)",
+        borderColor: "rgba(100, 116, 139, .12)",
         strokeDashArray: 4,
     },
     xaxis: {
@@ -117,7 +112,7 @@ if (values(analytics.status_distribution).some((value) => value > 0)) {
         },
         series: values(analytics.status_distribution),
         labels: labels(analytics.status_distribution),
-        colors: [palette.primary, palette.warning, palette.info, palette.success, palette.danger, "#8b5cf6"],
+        colors: [palette.primary, palette.warning, palette.info, palette.success, palette.danger, "#8270c7"],
         stroke: {
             width: 3,
             colors: ["#ffffff"],
@@ -164,14 +159,14 @@ function renderAmountChart(selector, items, title, color, type = "bar") {
         colors: [color],
         plotOptions: {
             bar: {
-                borderRadius: 7,
-                columnWidth: "48%",
+                borderRadius: 5,
+                columnWidth: "44%",
             },
         },
         dataLabels: { enabled: false },
-        stroke: type === "line" ? { curve: "smooth", width: 3 } : undefined,
+        stroke: type === "line" ? { curve: "smooth", width: 2.5 } : undefined,
         grid: {
-            borderColor: "rgba(100, 116, 139, .16)",
+            borderColor: "rgba(100, 116, 139, .12)",
             strokeDashArray: 4,
         },
         xaxis: {
@@ -223,13 +218,13 @@ renderChart("#iv-top-vendors", {
     plotOptions: {
         bar: {
             horizontal: true,
-            borderRadius: 7,
+            borderRadius: 5,
             barHeight: "52%",
         },
     },
     dataLabels: { enabled: false },
     grid: {
-        borderColor: "rgba(100, 116, 139, .16)",
+        borderColor: "rgba(100, 116, 139, .12)",
         strokeDashArray: 4,
     },
     xaxis: {

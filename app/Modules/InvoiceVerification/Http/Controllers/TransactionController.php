@@ -21,6 +21,7 @@ use App\Modules\InvoiceVerification\Http\Requests\StoreTransactionRequest;
 use App\Modules\InvoiceVerification\Http\Requests\UpdateInvoiceMetadataRequest;
 use App\Modules\InvoiceVerification\Services\AuditLogService;
 use App\Modules\InvoiceVerification\Services\Contracts\EprocDataProviderInterface;
+use App\Modules\InvoiceVerification\Services\PortalApprovalResolverService;
 use App\Modules\InvoiceVerification\Services\PpaVerificationSheetService;
 use App\Modules\InvoiceVerification\Services\TransactionLifecycleService;
 use Illuminate\Http\RedirectResponse;
@@ -35,8 +36,8 @@ class TransactionController extends Controller
         protected PpaVerificationSheetService $ppaVerificationSheetService,
         protected TransactionLifecycleService $transactionLifecycleService,
         protected EprocDataProviderInterface $eprocDataProvider,
-    ) {
-    }
+        protected PortalApprovalResolverService $portalApprovalResolver,
+    ) {}
 
     public function index(Request $request)
     {
@@ -68,6 +69,14 @@ class TransactionController extends Controller
                     ->when(! $vendorId, fn ($vendorQuery) => $vendorQuery->whereRaw('1 = 0'));
             })
             ->when($user?->hasRole(RoleCode::USER_DIVISI), fn ($query) => $query->where('owner_user_id', $user->id))
+            ->when($user?->hasRole(RoleCode::KEPALA_DEPARTEMEN), fn ($query) => $query->where(function ($sub) use ($user) {
+                $sub->where('transactions.department_id', $user->department_id)
+                    ->orWhereHas('approvalTransactions', fn ($aq) => $aq->where('approver_user_id', $user->id));
+            }))
+            ->when($user?->hasRole(RoleCode::KEPALA_DIVISI), fn ($query) => $query->where(function ($sub) use ($user) {
+                $sub->where('transactions.division_id', $user->division_id)
+                    ->orWhereHas('approvalTransactions', fn ($aq) => $aq->where('approver_user_id', $user->id));
+            }))
             ->when($status !== '', fn ($query) => $query->where('transactions.status', $status))
             ->when($transactionTypeId !== '', fn ($query) => $query->where('transactions.transaction_type_id', $transactionTypeId))
             ->when($search !== '', function ($query) use ($search) {
@@ -81,7 +90,7 @@ class TransactionController extends Controller
                 });
             });
 
-        if ($user?->hasRole(RoleCode::VENDOR)) {
+        if ($user?->hasRole(RoleCode::VENDOR) && ! in_array($status, [TransactionStatus::NOT_APPROVED->value, TransactionStatus::REVISION_IN_PROGRESS->value], true)) {
             $vendorAgreements = AgreementReference::query()
                 ->with([
                     'vendor',
@@ -138,6 +147,11 @@ class TransactionController extends Controller
 
         $user = auth()->user();
 
+        if ($user?->hasRole(RoleCode::USER_DIVISI)) {
+            $this->portalApprovalResolver->syncRequesterOrganization($user);
+            $user = $user->fresh(['division', 'department']);
+        }
+
         $memoRequests = MemoRequest::query()
             ->when(! $user?->hasRole(RoleCode::AKUNTANSI), function ($query) use ($user) {
                 $query->where('division_id', $user?->division_id);
@@ -188,7 +202,7 @@ class TransactionController extends Controller
             'linkedVendor' => $user?->linkedVendor(),
             'currentDivision' => $user?->division,
             'departments' => Department::query()
-                ->where('division_id', $user?->division_id)
+                ->whereKey($user?->department_id)
                 ->orderBy('name')
                 ->get(),
             'memoRequests' => $memoRequests,
@@ -252,6 +266,12 @@ class TransactionController extends Controller
     {
         $this->authorize('update', $transaction);
 
+        if ($transaction->isPpaNonContract()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'transaction' => 'Transaksi PPA Non Kontrak tidak dapat disubmit langsung ke Accounting. Transaksi harus melalui approval Kepala Departemen dan Kepala Divisi.',
+            ]);
+        }
+
         $transaction->loadMissing('transactionType', 'latestDocuments.documentType');
         $this->validateRequiredDocumentsForSubmit($transaction);
 
@@ -281,6 +301,7 @@ class TransactionController extends Controller
             'latestDocuments.vendorReview',
             'invoiceMetadata',
             'approvalTransactions.approvalFlow',
+            'approvalTransactions.approver',
             'ppaVerificationSheet.items.documentType',
             'accountingVerification.items.transactionDocument.documentType',
             'numberingRegister',

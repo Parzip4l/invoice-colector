@@ -14,11 +14,15 @@ use App\Modules\InvoiceVerification\Domain\Models\Transaction;
 use App\Modules\InvoiceVerification\Domain\Models\TransactionStatusHistory;
 use App\Modules\InvoiceVerification\Http\Requests\UploadCombinedDocumentsRequest;
 use App\Modules\InvoiceVerification\Http\Requests\UploadPpaDocumentsRequest;
+use App\Modules\InvoiceVerification\Services\ApprovalWorkflowService;
+use App\Modules\InvoiceVerification\Services\PpaVerificationSheetService;
 
 class DocumentController extends Controller
 {
     public function __construct(
         protected UploadTransactionDocumentAction $uploadTransactionDocumentAction,
+        protected ApprovalWorkflowService $approvalWorkflowService,
+        protected PpaVerificationSheetService $ppaVerificationSheetService,
     ) {
     }
 
@@ -67,7 +71,11 @@ class DocumentController extends Controller
                 'contract_number' => $transaction->agreementReference?->contract_number,
                 'contract_value' => $transaction->agreementReference?->contract_value,
                 'invoice_value' => $payload['invoice_value'] ?? null,
+                'ppn_percentage' => $payload['ppn_percentage'] ?? null,
                 'ppn_value' => $payload['ppn_value'] ?? null,
+                'pph_percentage' => $payload['pph_percentage'] ?? null,
+                'pph_base_value' => $payload['pph_base_value'] ?? null,
+                'pph_value' => $payload['pph_value'] ?? null,
                 'description' => $payload['description'] ?? $transaction->description,
                 'received_date' => $payload['received_date'] ?? now()->toDateString(),
             ],
@@ -159,20 +167,74 @@ class DocumentController extends Controller
 
     public function storeCombined(UploadCombinedDocumentsRequest $request, Transaction $transaction)
     {
-        foreach ($request->validated('attachments') as $item) {
+        $attachments = collect($request->validated('attachments'));
+        $documentTypes = DocumentType::query()
+            ->whereIn('id', $attachments->pluck('document_type_id'))
+            ->get()
+            ->keyBy('id');
+
+        foreach ($attachments as $item) {
             $documentType = DocumentType::findOrFail($item['document_type_id']);
             $actor = DocumentSourceActor::from($item['source_actor']);
 
-            $this->uploadTransactionDocumentAction->execute(
-                transaction: $transaction,
-                documentType: $documentType,
-                file: $item['file'],
-                sourceActor: $actor,
-                user: $request->user(),
-                vendor: $actor === DocumentSourceActor::VENDOR ? $transaction->vendor : null,
-                documentLabel: $item['document_label'],
-                documentInformation: $item['document_information'] ?? null,
+            if (! empty($item['file'])) {
+                $this->uploadTransactionDocumentAction->execute(
+                    transaction: $transaction,
+                    documentType: $documentType,
+                    file: $item['file'],
+                    sourceActor: $actor,
+                    user: $request->user(),
+                    vendor: $actor === DocumentSourceActor::VENDOR ? $transaction->vendor : null,
+                    documentLabel: $item['document_label'],
+                    documentInformation: $item['document_information'] ?? null,
+                );
+            } elseif (isset($item['document_information'])) {
+                $transaction->latestDocuments()
+                    ->where('document_type_id', $documentType->id)
+                    ->where('source_actor', $actor->value)
+                    ->latest('version')
+                    ->firstOrFail()
+                    ->update(['document_information_json' => $item['document_information']]);
+            }
+        }
+
+        if ($transaction->isPpaNonContract()) {
+            $invoiceAttachment = $attachments->first(fn (array $item) => $documentTypes->get($item['document_type_id'])?->code === 'PNK_INVOICE');
+            $memoAttachment = $attachments->first(fn (array $item) => $documentTypes->get($item['document_type_id'])?->code === 'PNK_MEMO_PERMOHONAN');
+
+            if ($invoiceAttachment) {
+                $invoiceInformation = $invoiceAttachment['document_information'] ?? [];
+                $metadata = InvoiceMetadata::updateOrCreate(
+                    ['transaction_id' => $transaction->id],
+                    [
+                        'vendor_id' => $transaction->vendor_id,
+                        'invoice_number' => $invoiceInformation['document_number'],
+                        'invoice_date' => $invoiceInformation['document_date'] ?? $transaction->invoiceMetadata?->invoice_date,
+                        'memo_number' => data_get($memoAttachment, 'document_information.document_number')
+                            ?? $transaction->invoiceMetadata?->memo_number,
+                        'invoice_value' => $invoiceInformation['dpp_value'],
+                        'ppn_value' => $invoiceInformation['ppn_value'],
+                        'received_date' => now()->toDateString(),
+                    ],
+                );
+
+                $transaction->update([
+                    'title' => $metadata->invoice_number.' - '.$transaction->registration_number,
+                ]);
+            } elseif ($memoAttachment && $transaction->invoiceMetadata) {
+                $transaction->invoiceMetadata->update([
+                    'memo_number' => data_get($memoAttachment, 'document_information.document_number'),
+                ]);
+            }
+
+            $this->ppaVerificationSheetService->getOrCreate(
+                $transaction->fresh(['latestDocuments.documentType', 'owner', 'invoiceMetadata']),
+                $request->user(),
             );
+
+            return redirect()
+                ->route('invoice-verification.transactions.ppa-verification-sheets.edit', $transaction)
+                ->with('success', 'Dokumen berhasil diunggah. Silakan lengkapi formulir Pengajuan Penggunaan Anggaran & Lembar Checklist sebelum mengajukan approval.');
         }
 
         return redirect()

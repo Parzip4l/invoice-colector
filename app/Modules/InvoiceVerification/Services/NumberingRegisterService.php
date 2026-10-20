@@ -29,7 +29,7 @@ class NumberingRegisterService
         $metadata = $transaction->invoiceMetadata;
         $register = NumberingRegister::firstOrNew(['transaction_id' => $transaction->id]);
         $taxDocument = $transaction->latestDocuments
-            ->first(fn ($document) => ($document->documentType?->code?->value ?? $document->documentType?->code) === 'PPA_FAKTUR_PAJAK');
+            ->first(fn ($document) => in_array($document->documentType?->code?->value ?? $document->documentType?->code, ['PPA_FAKTUR_PAJAK', 'PNK_FAKTUR_PAJAK'], true));
         $firstUploadedAt = $transaction->latestDocuments
             ->pluck('uploaded_at')
             ->filter()
@@ -56,7 +56,10 @@ class NumberingRegisterService
             'contract_number' => $metadata?->contract_number ?? $transaction->agreementReference?->contract_number ?? $transaction->contract_number,
             'contract_value' => $metadata?->contract_value ?? $transaction->contract_value,
             'invoice_value' => $metadata?->invoice_value,
+            'ppn_percentage' => $metadata?->ppn_percentage,
             'ppn_value' => $metadata?->ppn_value,
+            'pph_percentage' => $metadata?->pph_percentage,
+            'pph_base_value' => $metadata?->pph_base_value,
             'pph_value' => $metadata?->pph_value,
             'tax_invoice_number' => $register->tax_invoice_number ?? data_get($taxDocument?->document_information_json, 'document_number'),
             'tax_invoice_date' => $register->tax_invoice_date ?? data_get($taxDocument?->document_information_json, 'document_date'),

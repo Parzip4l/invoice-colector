@@ -6,22 +6,28 @@
 .logo-box {
      position: sticky;
      overflow: hidden;
-     text-align: center;
+     display: flex;
+     align-items: center;
+     text-align: left;
      white-space: nowrap;
      transition: all 0.3s ease-in-out;
      line-height: $topbar-height;
-     padding: 0 calc($sidebar-width-sm * 0.5 - $logo-sm-height * 0.5);
+     padding: 17px 28px;
 
      .logo-sm {
           display: none;
           height: 42px;
           width: 42px;
-          object-fit: contain;
+          background-image: url('/images/lrt-jakarta-logo.png?v=20261020-1');
+          background-position: left center;
+          background-repeat: no-repeat;
+          background-size: auto 37px;
      }
 
      .logo-lg {
-          max-width: 170px;
-          max-height: 46px;
+          width: 100%;
+          max-width: 145px;
+          max-height: 54px;
           object-fit: contain;
      }
 
@@ -30,7 +36,16 @@
      }
 
      .logo-dark {
-          display: block;
+          display: flex;
+          align-items: center;
+     }
+
+     .logo-light {
+          align-items: center;
+          padding: 4px 7px;
+          border-radius: 9px;
+          background: rgba(255, 255, 255, .96);
+          line-height: 1;
      }
 }
 
@@ -48,9 +63,8 @@
      background: $sidebar-bg;
      // background-image: url("../images/bg-pattern.svg") no-repeat;
      min-width: $sidebar-width;
-     padding-bottom: $spacer;
+     padding-bottom: 20px;
      border-right: $card-border-width solid $sidebar-border-color;
-     border-left: $card-border-width solid $sidebar-border-color;
 
      .scrollbar {
           height: calc(100% - $topbar-height);
@@ -83,36 +97,45 @@
 
      .menu-title {
           cursor: default;
-          font-size: 11px;
-          letter-spacing: 0.05em;
+          display: flex;
+          align-items: flex-end;
+          font-size: 10px;
+          letter-spacing: .08em;
           text-transform: uppercase;
-          color: $sidebar-item-color;
-          opacity: .6;
-          font-weight: $font-weight-semibold;
-          padding: $sidebar-item-padding-y calc($sidebar-item-padding-x * 1.25);
+          color: var(--#{$prefix}body-color);
+          opacity: .7;
+          font-weight: 700;
+          padding: 24px 10px 8px;
           transition: all 0.3s ease-in-out;
-          height: 36px;
+          height: auto;
+
+          &:first-child {
+               padding-top: 18px;
+          }
      }
 
      .navbar-nav {
-          margin: 0 15px;
+          margin: 0 18px;
+          padding-bottom: 24px;
 
           .nav-item {
-               padding: calc($sidebar-item-padding-y * 0.1) 0;
+               padding: 1px 0;
 
                .nav-link {
+                    position: relative;
                     display: flex;
-                    gap: 12px;
+                    gap: 14px;
                     line-height: 1;
                     font-weight: 400;
                     align-items: center;
+                    min-height: 46px;
                     white-space: nowrap;
-                    transition: all 0.3s ease-in-out;
-                    border-radius: 8px;
+                    transition: color .2s ease, background-color .2s ease, transform .2s ease;
+                    border-radius: 12px;
                     color: $sidebar-item-color;
                     font-size: $sidebar-item-font-size;
-                    padding: $sidebar-item-padding-y $sidebar-item-padding-x;
-                    margin: $sidebar-item-margin-y 0;
+                    padding: 10px 11px;
+                    margin: 1px 0;
 
                     &.show,
                     &:active,
@@ -122,10 +145,19 @@
                          color: $sidebar-item-hover-color;
                     }
 
-                    &.active {
+                    &:hover,
+                    &:focus-visible {
                          background-color: $sidebar-item-hover-bg;
-                         font-weight: $font-weight-medium;
-                         box-shadow: inset 3px 0 0 $primary;
+                    }
+
+                    &.active {
+                         background-color: transparent;
+                         color: var(--#{$prefix}headings-color);
+                         font-weight: 700;
+
+                         .nav-icon {
+                              color: $sidebar-item-hover-color;
+                         }
                     }
 
                     .nav-icon {
@@ -133,7 +165,19 @@
                          align-items: center;
                          justify-content: center;
                          font-size: $sidebar-item-icon-size;
-                         width: 24px;
+                         width: 28px;
+                         min-width: 28px;
+                         color: currentColor;
+
+                         iconify-icon {
+                              display: block;
+                         }
+                    }
+
+                    .nav-text {
+                         overflow: hidden;
+                         line-height: 1.35;
+                         text-overflow: ellipsis;
                     }
 
                     .badge {
@@ -216,6 +260,8 @@ html[data-sidebar-size="condensed"] {
                top: 0;
                z-index: 1020 !important;
                background: $sidebar-bg;
+               justify-content: center;
+               padding: 0;
 
                .logo-lg {
                     display: none;
@@ -463,6 +509,9 @@ html[data-sidebar-size="sm-hover"] {
           min-width: $sidebar-width-sm;
 
           .logo-box {
+               justify-content: center;
+               padding: 0;
+
                .logo-lg {
                     display: none;
                }
@@ -580,7 +629,7 @@ html[data-sidebar-color="brand"] {
      .app-sidebar {
           .logo-box {
                .logo-light {
-                    display: block;
+                    display: flex;
                }
 
                .logo-dark {

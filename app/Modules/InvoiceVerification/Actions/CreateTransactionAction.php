@@ -3,10 +3,12 @@
 namespace App\Modules\InvoiceVerification\Actions;
 
 use App\Models\User;
+use App\Modules\InvoiceVerification\Domain\Enums\RoleCode;
 use App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus;
 use App\Modules\InvoiceVerification\Domain\Enums\TransactionStep;
 use App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode;
 use App\Modules\InvoiceVerification\Domain\Models\AgreementReference;
+use App\Modules\InvoiceVerification\Domain\Models\Department;
 use App\Modules\InvoiceVerification\Domain\Models\MemoRequest;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
 use App\Modules\InvoiceVerification\Domain\Models\TransactionParty;
@@ -25,14 +27,29 @@ class CreateTransactionAction
         protected TransactionLifecycleService $transactionLifecycleService,
         protected AuditLogService $auditLogService,
         protected EprocDataProviderInterface $eprocDataProvider,
-    ) {
-    }
+    ) {}
 
     public function execute(array $payload, User $actor): Transaction
     {
         return DB::transaction(function () use ($payload, $actor) {
             $transactionType = TransactionType::query()->findOrFail($payload['transaction_type_id']);
-            $memoRequest = MemoRequest::query()->findOrFail($payload['memo_request_id']);
+            $usesPortalOrganization = $actor->hasRole(RoleCode::USER_DIVISI);
+            if ($usesPortalOrganization && (! $actor->division_id || ! $actor->department_id)) {
+                throw ValidationException::withMessages([
+                    'organization' => 'Divisi dan departemen akun belum tersinkron dari Portal.',
+                ]);
+            }
+
+            $divisionId = $usesPortalOrganization ? $actor->division_id : $payload['division_id'];
+            $departmentId = $usesPortalOrganization ? $actor->department_id : $payload['department_id'];
+
+            $department = Department::query()
+                ->whereKey($departmentId)
+                ->where('division_id', $divisionId)
+                ->firstOrFail();
+            $memoRequest = ! empty($payload['memo_request_id'])
+                ? MemoRequest::query()->findOrFail($payload['memo_request_id'])
+                : null;
             $agreementReference = ! empty($payload['agreement_reference_id'])
                 ? $this->eprocDataProvider->getContract($payload['agreement_reference_id'])
                 : null;
@@ -53,19 +70,21 @@ class CreateTransactionAction
             $pettyCashTopUp = $pettyCashCeiling !== null && $pettyCashRemaining !== null
                 ? $this->subtractDecimal($pettyCashCeiling, $pettyCashRemaining)
                 : null;
-            $title = sprintf(
-                '%s - %s',
-                $agreementReference?->contract_number ?? $parentSpu?->registration_number ?? ($memoRequest->memo_number ?? 'Draft Tagihan'),
-                $activityName ?? $payload['description'] ?? 'Draft Tagihan Vendor'
-            );
+            $title = $transactionType->code === TransactionTypeCode::PPA_NON_CONTRACT
+                ? sprintf('%s - %s', $transactionType->name, $department->name)
+                : sprintf(
+                    '%s - %s',
+                    $agreementReference?->contract_number ?? $parentSpu?->registration_number ?? ($memoRequest?->memo_number ?? 'Draft Tagihan'),
+                    $activityName ?? $payload['description'] ?? 'Draft Tagihan Vendor'
+                );
 
             $transaction = Transaction::create([
                 'registration_number' => $this->registrationNumberService->generateTransactionNumber($transactionType),
                 'transaction_type_id' => $transactionType->id,
                 'vendor_id' => $vendorId,
-                'division_id' => $payload['division_id'],
-                'department_id' => $payload['department_id'],
-                'memo_request_id' => $memoRequest->id,
+                'division_id' => $divisionId,
+                'department_id' => $departmentId,
+                'memo_request_id' => $memoRequest?->id,
                 'agreement_reference_id' => $payload['agreement_reference_id'] ?? null,
                 'parent_spu_transaction_id' => $parentSpu?->id,
                 'title' => $title,

@@ -26,10 +26,26 @@ return [
     ],
     'roles' => [
         'ADMIN_DIVISI' => 'Admin Divisi',
+        'KEPALA_DEPARTEMEN' => 'Kepala Departemen',
+        'KEPALA_DIVISI' => 'Kepala Divisi',
         'USER_DIVISI' => 'User Divisi',
         'VENDOR' => 'Vendor',
         'AKUNTANSI' => 'Akuntansi',
         'FINANCE' => 'Finance',
+    ],
+    'approval_resolver' => [
+        'base_url' => env('INVOICE_COLLECTOR_APPROVAL_RESOLVER_BASE_URL', env('LRTJ_SPACE_BASE_URL', 'https://portal.lrtjakarta.co.id')),
+        'endpoint' => env('INVOICE_COLLECTOR_APPROVAL_RESOLVER_ENDPOINT', '/api/v1/approval/resolve'),
+        'signature_endpoint' => env('INVOICE_COLLECTOR_PORTAL_SIGNATURE_ENDPOINT', '/api/v1/signatures'),
+        'client_code' => env('INVOICE_COLLECTOR_PORTAL_CLIENT_CODE', 'invoice_collector'),
+        'shared_secret' => env('INVOICE_COLLECTOR_PORTAL_SHARED_SECRET', env('LRTJ_SPACE_SATSET_SHARED_SECRET', '')),
+        'timeout' => (int) env('INVOICE_COLLECTOR_APPROVAL_RESOLVER_TIMEOUT', 15),
+        'verify_ssl' => (bool) env('INVOICE_COLLECTOR_APPROVAL_RESOLVER_VERIFY_SSL', true),
+    ],
+    'budget_api' => [
+        'base_url' => env('BUDGET_API_BASE_URL', 'https://versus.lrtjakarta.co.id'),
+        'timeout' => (int) env('BUDGET_API_TIMEOUT', 10),
+        'verify_ssl' => (bool) env('BUDGET_API_VERIFY_SSL', true),
     ],
     'document_compile_order' => [
         'PPA' => [

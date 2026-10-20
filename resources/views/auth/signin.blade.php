@@ -14,11 +14,11 @@ class="authentication-bg"
                         <div class="text-center">
                             <div class="mx-auto mb-4 text-center auth-logo">
                                 <a href="{{ route('any', 'index') }}" class="logo-dark">
-                                    <img src="/images/logo.png" height="84" alt="logo dark">
+                                    <img src="/images/lrt-jakarta-logo.png?v=20261020-1" class="img-fluid" style="max-width: 300px;" alt="LRT Jakarta">
                                 </a>
 
                                 <a href="{{ route('any', 'index') }}" class="logo-light">
-                                    <img src="/images/logo.png" height="84" alt="logo light">
+                                    <img src="/images/lrt-jakarta-logo.png?v=20261020-1" class="img-fluid bg-white rounded px-2 py-1" style="max-width: 300px;" alt="LRT Jakarta">
                                 </a>
                             </div>
                             

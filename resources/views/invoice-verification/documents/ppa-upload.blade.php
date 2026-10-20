@@ -547,7 +547,11 @@
                             $documentNumber = old("documents.$documentType->id.document_information.document_number", data_get($rejectedDocument?->document_information_json, 'document_number', data_get($existingDocument?->document_information_json, 'document_number')));
                             $documentDate = old("documents.$documentType->id.document_information.document_date", data_get($rejectedDocument?->document_information_json, 'document_date', data_get($existingDocument?->document_information_json, 'document_date')));
                             $documentInvoiceValue = old("documents.$documentType->id.document_information.invoice_value", data_get($rejectedDocument?->document_information_json, 'invoice_value', data_get($existingDocument?->document_information_json, 'invoice_value', $isInvoiceDocument ? $transaction->invoiceMetadata?->invoice_value : null)));
+                            $documentPpnPercentage = old("documents.$documentType->id.document_information.ppn_percentage", data_get($rejectedDocument?->document_information_json, 'ppn_percentage', data_get($existingDocument?->document_information_json, 'ppn_percentage', $isInvoiceDocument ? $transaction->invoiceMetadata?->ppn_percentage : null)));
                             $documentPpnValue = old("documents.$documentType->id.document_information.ppn_value", data_get($rejectedDocument?->document_information_json, 'ppn_value', data_get($existingDocument?->document_information_json, 'ppn_value', $isInvoiceDocument ? $transaction->invoiceMetadata?->ppn_value : null)));
+                            $documentPphPercentage = old("documents.$documentType->id.document_information.pph_percentage", data_get($rejectedDocument?->document_information_json, 'pph_percentage', data_get($existingDocument?->document_information_json, 'pph_percentage', $isInvoiceDocument ? $transaction->invoiceMetadata?->pph_percentage : null)));
+                            $documentPphBaseValue = old("documents.$documentType->id.document_information.pph_base_value", data_get($rejectedDocument?->document_information_json, 'pph_base_value', data_get($existingDocument?->document_information_json, 'pph_base_value', $isInvoiceDocument ? $transaction->invoiceMetadata?->pph_base_value : null)));
+                            $documentPphValue = old("documents.$documentType->id.document_information.pph_value", data_get($rejectedDocument?->document_information_json, 'pph_value', data_get($existingDocument?->document_information_json, 'pph_value', $isInvoiceDocument ? $transaction->invoiceMetadata?->pph_value : null)));
                             $documentNotes = old("documents.$documentType->id.document_information.notes", data_get($rejectedDocument?->document_information_json, 'notes', data_get($existingDocument?->document_information_json, 'notes')));
                             $documentDomId = 'document-item-'.$documentType->id;
                             $collapseId = 'document-collapse-'.$documentType->id;
@@ -646,7 +650,7 @@
                                                 </button>
                                             </div>
                                         @endif
-                                        <div class="vendor-document-grid">
+                                        <div class="vendor-document-grid" @if($isInvoiceDocument) data-tax-calculation @endif>
                                             <div data-required-group>
                                                 <label class="form-label">Nomor Dokumen<span class="required-mark {{ $documentType->is_required ? '' : 'd-none' }}">*</span></label>
                                                 <input
@@ -682,13 +686,28 @@
                                                         name="documents[{{ $documentType->id }}][document_information][invoice_value]"
                                                         value="{{ $documentInvoiceValue }}"
                                                         data-rupiah-input
+                                                        data-tax-invoice
                                                         data-required-field="1"
                                                     >
                                                     @error("documents.$documentType->id.document_information.invoice_value")<div class="invalid-feedback">{{ $message }}</div>@enderror
                                                     <div class="validation-message">Nilai invoice wajib diisi.</div>
                                                 </div>
                                                 <div>
-                                                    <label class="form-label">PPN</label>
+                                                    <label class="form-label">PPN (%)</label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0"
+                                                        max="100"
+                                                        class="form-control @error("documents.$documentType->id.document_information.ppn_percentage") is-invalid @enderror"
+                                                        name="documents[{{ $documentType->id }}][document_information][ppn_percentage]"
+                                                        value="{{ $documentPpnPercentage }}"
+                                                        data-tax-ppn-rate
+                                                    >
+                                                    @error("documents.$documentType->id.document_information.ppn_percentage")<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                                </div>
+                                                <div>
+                                                    <label class="form-label">Nilai PPN</label>
                                                     <input
                                                         type="text"
                                                         inputmode="numeric"
@@ -696,8 +715,54 @@
                                                         name="documents[{{ $documentType->id }}][document_information][ppn_value]"
                                                         value="{{ $documentPpnValue }}"
                                                         data-rupiah-input
+                                                        data-tax-ppn-value
                                                     >
                                                     @error("documents.$documentType->id.document_information.ppn_value")<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                                </div>
+                                                <div>
+                                                    <label class="form-label">Dasar PPh</label>
+                                                    <input
+                                                        type="text"
+                                                        inputmode="numeric"
+                                                        class="form-control @error("documents.$documentType->id.document_information.pph_base_value") is-invalid @enderror"
+                                                        name="documents[{{ $documentType->id }}][document_information][pph_base_value]"
+                                                        value="{{ $documentPphBaseValue }}"
+                                                        placeholder="Kosongkan jika sama dengan invoice"
+                                                        data-rupiah-input
+                                                        data-tax-pph-base
+                                                    >
+                                                    @error("documents.$documentType->id.document_information.pph_base_value")<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                                </div>
+                                                <div>
+                                                    <label class="form-label">PPh (%)</label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0"
+                                                        max="100"
+                                                        class="form-control @error("documents.$documentType->id.document_information.pph_percentage") is-invalid @enderror"
+                                                        name="documents[{{ $documentType->id }}][document_information][pph_percentage]"
+                                                        value="{{ $documentPphPercentage }}"
+                                                        data-tax-pph-rate
+                                                    >
+                                                    @error("documents.$documentType->id.document_information.pph_percentage")<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                                </div>
+                                                <div>
+                                                    <label class="form-label">Nilai PPh</label>
+                                                    <input
+                                                        type="text"
+                                                        inputmode="numeric"
+                                                        class="form-control @error("documents.$documentType->id.document_information.pph_value") is-invalid @enderror"
+                                                        name="documents[{{ $documentType->id }}][document_information][pph_value]"
+                                                        value="{{ $documentPphValue }}"
+                                                        data-rupiah-input
+                                                        data-tax-pph-value
+                                                    >
+                                                    @error("documents.$documentType->id.document_information.pph_value")<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                                </div>
+                                                <div>
+                                                    <label class="form-label">Total After Tax</label>
+                                                    <input type="text" class="form-control fw-semibold" value="" data-tax-total readonly>
                                                 </div>
                                             @endif
                                             <div class="full">
@@ -807,6 +872,57 @@
         const stickySummary = document.querySelector('[data-sticky-summary]');
         const requiredTotal = documentItems.filter((item) => item.dataset.required === '1').length;
         let expanded = false;
+
+        const moneyValue = (input) => {
+            if (!input) {
+                return 0;
+            }
+
+            return Number(window.InvoiceRupiahInput?.cleanValue(input.value) || 0);
+        };
+
+        const formatMoney = (input, value) => {
+            if (!input) {
+                return;
+            }
+
+            input.value = Math.round(value || 0).toString();
+            window.InvoiceRupiahInput?.formatElement(input);
+        };
+
+        document.querySelectorAll('[data-tax-calculation]').forEach((taxGroup) => {
+            const invoice = taxGroup.querySelector('[data-tax-invoice]');
+            const ppnRate = taxGroup.querySelector('[data-tax-ppn-rate]');
+            const ppnValue = taxGroup.querySelector('[data-tax-ppn-value]');
+            const pphBase = taxGroup.querySelector('[data-tax-pph-base]');
+            const pphRate = taxGroup.querySelector('[data-tax-pph-rate]');
+            const pphValue = taxGroup.querySelector('[data-tax-pph-value]');
+            const total = taxGroup.querySelector('[data-tax-total]');
+
+            const recalculate = (event) => {
+                const invoiceAmount = moneyValue(invoice);
+                const ppnPercent = Number(ppnRate?.value || 0);
+                const pphPercent = Number(pphRate?.value || 0);
+                const pphBaseAmount = moneyValue(pphBase) || invoiceAmount;
+
+                if ((event?.target === ppnRate || event?.target === invoice) && ppnRate?.value !== '') {
+                    formatMoney(ppnValue, invoiceAmount * ppnPercent / 100);
+                }
+
+                if ((event?.target === pphRate || event?.target === pphBase || event?.target === invoice) && pphRate?.value !== '') {
+                    formatMoney(pphValue, pphBaseAmount * pphPercent / 100);
+                }
+
+                formatMoney(total, invoiceAmount + moneyValue(ppnValue) - moneyValue(pphValue));
+            };
+
+            [invoice, ppnRate, ppnValue, pphBase, pphRate, pphValue].forEach((input) => {
+                input?.addEventListener('input', recalculate);
+                input?.addEventListener('change', recalculate);
+            });
+
+            recalculate();
+        });
 
         const formatBytes = (bytes) => {
             if (!bytes) return '0 KB';

@@ -29,12 +29,28 @@ class UploadPpaDocumentsRequest extends FormRequest
         $ppnValue = $this->input('ppn_value')
             ?: data_get($invoiceDocument, 'document_information.ppn_value')
             ?: $this->route('transaction')?->invoiceMetadata?->ppn_value;
+        $ppnPercentage = $this->input('ppn_percentage')
+            ?: data_get($invoiceDocument, 'document_information.ppn_percentage')
+            ?: $this->route('transaction')?->invoiceMetadata?->ppn_percentage;
+        $pphPercentage = $this->input('pph_percentage')
+            ?: data_get($invoiceDocument, 'document_information.pph_percentage')
+            ?: $this->route('transaction')?->invoiceMetadata?->pph_percentage;
+        $pphBaseValue = $this->input('pph_base_value')
+            ?: data_get($invoiceDocument, 'document_information.pph_base_value')
+            ?: $this->route('transaction')?->invoiceMetadata?->pph_base_value;
+        $pphValue = $this->input('pph_value')
+            ?: data_get($invoiceDocument, 'document_information.pph_value')
+            ?: $this->route('transaction')?->invoiceMetadata?->pph_value;
 
         $this->merge([
             'invoice_number' => $invoiceNumber,
             'invoice_date' => $invoiceDate,
             'invoice_value' => $invoiceValue,
+            'ppn_percentage' => $ppnPercentage,
             'ppn_value' => $ppnValue,
+            'pph_percentage' => $pphPercentage,
+            'pph_base_value' => $pphBaseValue,
+            'pph_value' => $pphValue,
         ]);
     }
 
@@ -65,7 +81,11 @@ class UploadPpaDocumentsRequest extends FormRequest
             'account_name' => ['nullable', 'string', 'max:255'],
             'bank_name' => ['nullable', 'string', 'max:255'],
             'invoice_value' => ['nullable', 'numeric', 'min:0'],
+            'ppn_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'ppn_value' => ['nullable', 'numeric', 'min:0'],
+            'pph_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'pph_base_value' => ['nullable', 'numeric', 'min:0'],
+            'pph_value' => ['nullable', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],
             'documents' => ['required', 'array', 'min:1'],
             'documents.*.document_type_id' => ['required', 'exists:document_types,id'],
@@ -73,7 +93,11 @@ class UploadPpaDocumentsRequest extends FormRequest
             'documents.*.document_information.document_number' => ['required', 'string', 'max:255'],
             'documents.*.document_information.document_date' => ['required', 'date'],
             'documents.*.document_information.invoice_value' => ['nullable', 'numeric', 'min:0'],
+            'documents.*.document_information.ppn_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'documents.*.document_information.ppn_value' => ['nullable', 'numeric', 'min:0'],
+            'documents.*.document_information.pph_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'documents.*.document_information.pph_base_value' => ['nullable', 'numeric', 'min:0'],
+            'documents.*.document_information.pph_value' => ['nullable', 'numeric', 'min:0'],
             'documents.*.document_information.notes' => ['nullable', 'string'],
         ];
     }
@@ -142,7 +166,7 @@ class UploadPpaDocumentsRequest extends FormRequest
             foreach ($submittedDocuments as $index => $document) {
                 $code = (string) ($documentTypes[$document['document_type_id'] ?? null] ?? '');
 
-                if ($code === 'PPA_INVOICE' && blank(data_get($document, 'document_information.invoice_value'))) {
+                if ($code === 'PPA_INVOICE' && blank(data_get($document, 'document_information.invoice_value')) && blank($this->input('invoice_value')) && blank($this->route('transaction')?->invoiceMetadata?->invoice_value)) {
                     $validator->errors()->add(
                         "documents.{$index}.document_information.invoice_value",
                         'Nilai Invoice wajib diisi pada dokumen Invoice.',

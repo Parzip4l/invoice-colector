@@ -1,6 +1,7 @@
 @extends('layouts.vertical', ['subtitle' => 'Dashboard'])
 
 @section('content')
+{{-- Soft, minimal dashboard shell aligned with the primary navigation. --}}
 @php
     $periodChange = $analytics['insights']['period_change'];
     $periodTone = $periodChange >= 0 ? 'success' : 'danger';
@@ -12,46 +13,58 @@
 <style>
     .invoice-dashboard {
         --iv-surface: #ffffff;
-        --iv-soft: #f6f8fb;
-        --iv-border: rgba(33, 37, 41, .075);
-        --iv-shadow: 0 12px 32px rgba(27, 36, 54, .08);
-        color: #1f2937;
+        --iv-soft: #f7f8fa;
+        --iv-muted: #748096;
+        --iv-border: #e9ebef;
+        --iv-shadow: 0 1px 2px rgba(16, 24, 40, .025), 0 8px 24px rgba(16, 24, 40, .035);
+        color: #273044;
     }
 
     .invoice-dashboard .dashboard-hero {
         position: relative;
         overflow: hidden;
-        border: 1px solid rgba(226, 26, 26, .14);
-        border-radius: 18px;
-        background: linear-gradient(135deg, rgba(226, 26, 26, .10), rgba(192, 127, 32, .10) 52%, rgba(22, 163, 74, .07));
+        border: 1px solid var(--iv-border);
+        border-radius: 16px;
+        background: var(--iv-surface);
         box-shadow: var(--iv-shadow);
     }
 
-    .invoice-dashboard .dashboard-hero::after {
+    .invoice-dashboard .dashboard-hero::before {
         content: "";
         position: absolute;
-        inset: auto -80px -120px auto;
-        width: 280px;
-        height: 280px;
-        background: radial-gradient(circle, rgba(226, 26, 26, .18), transparent 68%);
+        inset: 0 auto 0 0;
+        width: 4px;
+        background: var(--bs-primary);
         pointer-events: none;
     }
 
     .invoice-dashboard .hero-kicker,
     .invoice-dashboard .metric-label,
     .invoice-dashboard .chart-kicker {
-        font-size: .72rem;
+        font-size: .68rem;
         font-weight: 700;
-        letter-spacing: .06em;
+        letter-spacing: .075em;
         text-transform: uppercase;
+    }
+
+    .invoice-dashboard .dashboard-hero h2 {
+        color: #252d3d;
+        font-size: clamp(1.5rem, 2.4vw, 2rem);
+        letter-spacing: -.025em;
+    }
+
+    .invoice-dashboard .dashboard-hero p,
+    .invoice-dashboard .card-header p {
+        color: var(--iv-muted) !important;
     }
 
     .invoice-dashboard .metric-card,
     .invoice-dashboard .analytics-card,
     .invoice-dashboard .queue-panel,
-    .invoice-dashboard .table-panel {
+    .invoice-dashboard .table-panel,
+    .invoice-dashboard .pipeline-card {
         border: 1px solid var(--iv-border);
-        border-radius: 16px;
+        border-radius: 14px;
         background: var(--iv-surface);
         box-shadow: var(--iv-shadow);
     }
@@ -94,16 +107,24 @@
 
     .invoice-dashboard .analytics-card .card-header,
     .invoice-dashboard .queue-panel .card-header,
-    .invoice-dashboard .table-panel .card-header {
+    .invoice-dashboard .table-panel .card-header,
+    .invoice-dashboard .pipeline-card .card-header {
         border-bottom: 1px solid var(--iv-border);
         background: transparent;
-        padding: 18px 20px 12px;
+        padding: 20px 22px 16px;
     }
 
     .invoice-dashboard .analytics-card .card-body,
     .invoice-dashboard .queue-panel .card-body,
-    .invoice-dashboard .table-panel .card-body {
-        padding: 18px 20px 20px;
+    .invoice-dashboard .table-panel .card-body,
+    .invoice-dashboard .pipeline-card .card-body {
+        padding: 20px 22px 22px;
+    }
+
+    .invoice-dashboard .card-title {
+        color: #30384a;
+        font-weight: 700;
+        letter-spacing: -.01em;
     }
 
     .invoice-dashboard .apex-charts {
@@ -117,11 +138,11 @@
 
     .invoice-dashboard .hero-total-card {
         border: 1px solid var(--iv-border);
-        border-radius: 16px;
-        background: rgba(255, 255, 255, .78);
+        border-radius: 14px;
+        background: var(--iv-soft);
         padding: 18px 20px;
-        min-width: 188px;
-        box-shadow: 0 12px 28px rgba(27, 36, 54, .06);
+        min-width: 220px;
+        box-shadow: none;
     }
 
     .invoice-dashboard .hero-total-icon {
@@ -130,14 +151,7 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 14px;
-    }
-
-    .invoice-dashboard .pipeline-card {
-        border: 1px solid var(--iv-border);
-        border-radius: 16px;
-        background: var(--iv-surface);
-        box-shadow: var(--iv-shadow);
+        border-radius: 12px;
     }
 
     .invoice-dashboard .pipeline-grid {
@@ -148,21 +162,18 @@
 
     .invoice-dashboard .pipeline-item {
         position: relative;
-        min-height: 128px;
+        min-height: 136px;
         overflow: hidden;
         border: 1px solid var(--iv-border);
-        border-radius: 14px;
-        background: linear-gradient(180deg, #fff, #fbfcfe);
-        padding: 14px;
+        border-radius: 12px;
+        background: #fbfcfd;
+        padding: 16px;
+        transition: border-color .2s ease, background-color .2s ease;
     }
 
-    .invoice-dashboard .pipeline-item::after {
-        content: "";
-        position: absolute;
-        inset: auto 0 0 0;
-        height: 3px;
-        background: currentColor;
-        opacity: .58;
+    .invoice-dashboard .pipeline-item:hover {
+        border-color: #dfe2e7;
+        background: #fff;
     }
 
     .invoice-dashboard .pipeline-icon {
@@ -171,22 +182,30 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 12px;
+        border-radius: 10px;
     }
 
     .invoice-dashboard .pipeline-count {
-        color: #1f2a4d;
-        font-size: 1.75rem;
+        color: #293246;
+        font-size: 1.65rem;
         line-height: 1;
         letter-spacing: 0;
     }
 
     .invoice-dashboard .pipeline-amount {
-        color: #64748b;
+        color: var(--iv-muted);
         font-size: .78rem;
-        font-weight: 700;
+        font-weight: 600;
         line-height: 1.35;
         overflow-wrap: anywhere;
+    }
+
+    .invoice-dashboard .pipeline-item .badge,
+    .invoice-dashboard .pipeline-card > .card-header .badge,
+    .invoice-dashboard .analytics-card .badge {
+        border: 1px solid rgba(100, 116, 139, .08);
+        border-radius: 999px;
+        font-weight: 600;
     }
 
     .invoice-dashboard .clean-table thead th {
@@ -197,20 +216,29 @@
         font-weight: 700;
         letter-spacing: .04em;
         text-transform: uppercase;
-        background: #f9fafb;
+        background: #fafbfc;
     }
 
     .invoice-dashboard .clean-table tbody td {
-        border-color: rgba(33, 37, 41, .055);
+        border-color: var(--iv-border);
         padding-top: 14px;
         padding-bottom: 14px;
         vertical-align: middle;
     }
 
+    .invoice-dashboard .clean-table tbody tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .invoice-dashboard .btn {
+        border-radius: 9px;
+        font-weight: 600;
+    }
+
     .invoice-dashboard .queue-item {
         border: 1px solid var(--iv-border);
-        border-radius: 14px;
-        background: linear-gradient(180deg, #fff, #fbfcfe);
+        border-radius: 12px;
+        background: var(--iv-soft);
         padding: 12px 14px;
     }
 
@@ -239,7 +267,8 @@
         .invoice-dashboard .metric-card,
         .invoice-dashboard .analytics-card,
         .invoice-dashboard .queue-panel,
-        .invoice-dashboard .table-panel {
+        .invoice-dashboard .table-panel,
+        .invoice-dashboard .pipeline-card {
             border-radius: 14px;
         }
 
@@ -250,7 +279,7 @@
 </style>
 
 <div class="invoice-dashboard">
-    <div class="dashboard-hero p-4 p-xl-5 mb-4">
+    <div class="dashboard-hero p-4 mb-4">
         <div class="row align-items-center g-4">
             <div class="col-xl-7">
                 <span class="hero-kicker text-primary">Sistem Verifikasi</span>

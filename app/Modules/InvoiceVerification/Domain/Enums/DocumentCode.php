@@ -17,6 +17,9 @@ enum DocumentCode: string
     case PPA_LAPORAN_PEKERJAAN = 'PPA_LAPORAN_PEKERJAAN';
     case PNK_INVOICE = 'PNK_INVOICE';
     case PNK_KWITANSI = 'PNK_KWITANSI';
+    case PNK_FAKTUR_PAJAK = 'PNK_FAKTUR_PAJAK';
+    case PNK_MEMO_PERMOHONAN = 'PNK_MEMO_PERMOHONAN';
+    case PNK_LAPORAN_PEKERJAAN = 'PNK_LAPORAN_PEKERJAAN';
     case PNK_LEMBAR_TANDA_TERIMA = 'PNK_LEMBAR_TANDA_TERIMA';
     case PNK_DOKUMEN_PENDUKUNG = 'PNK_DOKUMEN_PENDUKUNG';
     case SPU_INITIAL_FORM = 'SPU_INITIAL_FORM';
@@ -45,6 +48,9 @@ enum DocumentCode: string
             self::PPA_LAPORAN_PEKERJAAN => 'Laporan Pekerjaan',
             self::PNK_INVOICE => 'Invoice',
             self::PNK_KWITANSI => 'Kwitansi',
+            self::PNK_FAKTUR_PAJAK => 'Faktur Pajak',
+            self::PNK_MEMO_PERMOHONAN => 'Memo Permohonan',
+            self::PNK_LAPORAN_PEKERJAAN => 'Laporan Pekerjaan',
             self::PNK_LEMBAR_TANDA_TERIMA => 'Lembar Tanda Terima Dokumen',
             self::PNK_DOKUMEN_PENDUKUNG => 'Dokumen Pendukung',
             self::SPU_INITIAL_FORM => 'Dokumen Awal SPU',

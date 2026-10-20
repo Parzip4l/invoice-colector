@@ -3,8 +3,10 @@
 use App\Http\Controllers\RoutingController;
 use App\Modules\InvoiceVerification\Http\Controllers\AdminDocumentGenerationController;
 use App\Modules\InvoiceVerification\Http\Controllers\AccountingVerificationController;
+use App\Modules\InvoiceVerification\Http\Controllers\ApprovalController;
 use App\Modules\InvoiceVerification\Http\Controllers\ArchiveController;
 use App\Modules\InvoiceVerification\Http\Controllers\AuditLogController;
+use App\Modules\InvoiceVerification\Http\Controllers\BudgetPlanCodeController;
 use App\Modules\InvoiceVerification\Http\Controllers\CompiledDocumentController;
 use App\Modules\InvoiceVerification\Http\Controllers\DashboardController;
 use App\Modules\InvoiceVerification\Http\Controllers\DocumentController;
@@ -44,11 +46,18 @@ Route::group(['prefix' => '/', 'middleware' => 'auth'], function () {
                 Route::post('/{transaction}/generate-admin-documents', [AdminDocumentGenerationController::class, 'store'])->name('admin-documents.generate');
                 Route::get('/{transaction}/ppa-verification-sheet', [PpaVerificationSheetController::class, 'edit'])->name('ppa-verification-sheets.edit');
                 Route::get('/{transaction}/ppa-verification-sheet/preview', [PpaVerificationSheetController::class, 'preview'])->name('ppa-verification-sheets.preview');
+                Route::get('/{transaction}/ppa-verification-sheet/download', [PpaVerificationSheetController::class, 'download'])->name('ppa-verification-sheets.download');
                 Route::put('/{transaction}/ppa-verification-sheet', [PpaVerificationSheetController::class, 'update'])->name('ppa-verification-sheets.update');
                 Route::post('/{transaction}/ppa-verification-sheet/submit', [PpaVerificationSheetController::class, 'submit'])->name('ppa-verification-sheets.submit');
                 Route::get('/{transaction}/accounting-verification', [AccountingVerificationController::class, 'edit'])->name('accounting-verifications.edit');
                 Route::put('/{transaction}/accounting-verification', [AccountingVerificationController::class, 'update'])->name('accounting-verifications.update');
             });
+
+            Route::get('/budget-plan-codes/search', [BudgetPlanCodeController::class, 'search'])->name('budget-plan-codes.search');
+            Route::get('/budget-plan-codes/{identifier}', [BudgetPlanCodeController::class, 'show'])->name('budget-plan-codes.show');
+
+            Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals.index');
+            Route::put('/approvals/{approvalTransaction}', [ApprovalController::class, 'update'])->name('approvals.update');
 
             Route::get('/generated-documents/{generatedDocument}', [GeneratedDocumentController::class, 'show'])->name('generated-documents.show');
             Route::get('/generated-documents/{generatedDocument}/preview', [GeneratedDocumentController::class, 'preview'])->name('generated-documents.preview');

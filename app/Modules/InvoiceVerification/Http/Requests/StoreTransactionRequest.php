@@ -19,7 +19,13 @@ class StoreTransactionRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $payload = ['division_id' => $this->user()?->division_id];
+        $payload = [];
+        if ($this->user()?->hasRole(RoleCode::USER_DIVISI)) {
+            $payload = [
+                'division_id' => $this->user()?->division_id,
+                'department_id' => $this->user()?->department_id,
+            ];
+        }
 
         if ($this->filled('transaction_account_number')) {
             $payload['transaction_account_number'] = preg_replace('/[\s-]+/', '', (string) $this->input('transaction_account_number'));
@@ -33,13 +39,18 @@ class StoreTransactionRequest extends FormRequest
         return [
             'transaction_type_id' => ['required', 'exists:transaction_types,id'],
             'vendor_id' => ['nullable', 'exists:vendors,id'],
-            'division_id' => ['required', 'exists:divisions,id'],
+            'division_id' => array_values(array_filter([
+                'required',
+                $this->user()?->hasRole(RoleCode::USER_DIVISI) ? Rule::in([(string) $this->user()?->division_id]) : null,
+                'exists:divisions,id',
+            ])),
             'department_id' => [
                 'required',
+                ...($this->user()?->hasRole(RoleCode::USER_DIVISI) ? [Rule::in([(string) $this->user()?->department_id])] : []),
                 Rule::exists('departments', 'id')->where(fn ($query) => $query->where('division_id', $this->input('division_id'))),
             ],
             'memo_request_id' => [
-                'required',
+                'nullable',
                 Rule::exists('memo_requests', 'id')->where(function ($query) {
                     return $query
                         ->where('division_id', $this->input('division_id'))
@@ -101,7 +112,11 @@ class StoreTransactionRequest extends FormRequest
                 $validator->errors()->add('agreement_reference_id', 'Kontrak wajib dipilih untuk PPA Kontrak.');
             }
 
-            if (in_array($code, [TransactionTypeCode::PPA_NON_CONTRACT, TransactionTypeCode::SPU], true)) {
+            if ($code !== TransactionTypeCode::PPA_NON_CONTRACT && blank($this->input('memo_request_id'))) {
+                $validator->errors()->add('memo_request_id', 'Memo permohonan wajib dipilih.');
+            }
+
+            if ($code === TransactionTypeCode::SPU) {
                 foreach (['activity_name' => 'Nama kegiatan wajib diisi.', 'transaction_bank_name' => 'Nama bank wajib diisi.', 'transaction_account_number' => 'Nomor rekening wajib diisi.'] as $field => $message) {
                     if (blank($this->input($field))) {
                         $validator->errors()->add($field, $message);

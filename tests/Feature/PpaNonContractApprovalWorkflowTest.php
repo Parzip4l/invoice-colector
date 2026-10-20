@@ -1,0 +1,513 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\User;
+use App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus;
+use App\Modules\InvoiceVerification\Domain\Enums\RoleCode;
+use App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus;
+use App\Modules\InvoiceVerification\Domain\Enums\TransactionStep;
+use App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode;
+use App\Modules\InvoiceVerification\Domain\Models\ApprovalTransaction;
+use App\Modules\InvoiceVerification\Domain\Models\Department;
+use App\Modules\InvoiceVerification\Domain\Models\Division;
+use App\Modules\InvoiceVerification\Domain\Models\DocumentType;
+use App\Modules\InvoiceVerification\Domain\Models\Transaction;
+use App\Modules\InvoiceVerification\Domain\Models\TransactionType;
+use App\Modules\InvoiceVerification\Domain\Models\Vendor;
+use Database\Seeders\InvoiceVerification\InvoiceVerificationSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
+
+class PpaNonContractApprovalWorkflowTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected User $owner;
+
+    protected User $uploader;
+
+    protected User $kadep;
+
+    protected User $kadiv;
+
+    protected User $accounting;
+
+    protected Transaction $transaction;
+
+    protected TransactionType $ppaNonContractType;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(InvoiceVerificationSeeder::class);
+
+        $division = Division::firstOrFail();
+        $department = Department::where('division_id', $division->id)->firstOrFail();
+        $vendor = Vendor::firstOrFail();
+
+        $this->owner = User::factory()->create([
+            'name' => 'Owner PPA Non Kontrak',
+            'email' => 'owner.ppa@lrtjakarta.co.id',
+            'role_code' => RoleCode::USER_DIVISI,
+            'division_id' => $division->id,
+            'department_id' => $department->id,
+            'is_active' => true,
+        ]);
+
+        $this->uploader = User::factory()->create([
+            'name' => 'Uploader Khusus',
+            'email' => 'uploader.accidental@lrtjakarta.co.id',
+            'role_code' => RoleCode::USER_DIVISI,
+            'division_id' => $division->id,
+            'department_id' => $department->id,
+            'is_active' => true,
+        ]);
+
+        $this->kadep = User::factory()->create([
+            'name' => 'Kepala Departemen Test',
+            'email' => 'kadep.test@lrtjakarta.co.id',
+            'role_code' => RoleCode::KEPALA_DEPARTEMEN,
+            'division_id' => $division->id,
+            'department_id' => $department->id,
+            'is_active' => true,
+        ]);
+
+        $this->kadiv = User::factory()->create([
+            'name' => 'Kepala Divisi Test',
+            'email' => 'kadiv.test@lrtjakarta.co.id',
+            'role_code' => RoleCode::KEPALA_DIVISI,
+            'division_id' => $division->id,
+            'department_id' => null,
+            'is_active' => true,
+        ]);
+
+        $this->accounting = User::factory()->create([
+            'name' => 'Akuntansi Verifier',
+            'email' => 'akuntansi.verifier@lrtjakarta.co.id',
+            'role_code' => RoleCode::AKUNTANSI,
+            'is_active' => true,
+        ]);
+
+        $this->ppaNonContractType = TransactionType::where('code', TransactionTypeCode::PPA_NON_CONTRACT->value)->firstOrFail();
+
+        $this->transaction = Transaction::create([
+            'transaction_type_id' => $this->ppaNonContractType->id,
+            'registration_number' => 'REG-PNK-2026-TEST',
+            'title' => 'Pengadaan Sparepart Non Kontrak',
+            'description' => 'Transaksi PPA Non Kontrak Uji Coba',
+            'status' => TransactionStatus::DRAFT,
+            'current_step' => TransactionStep::INTERNAL_DOCUMENT_UPLOAD,
+            'owner_user_id' => $this->owner->id,
+            'created_by' => $this->owner->id,
+            'division_id' => $division->id,
+            'department_id' => $department->id,
+            'vendor_id' => $vendor->id,
+        ]);
+
+        config([
+            'invoice_verification.approval_resolver.base_url' => 'https://portal.lrtjakarta.co.id',
+            'invoice_verification.approval_resolver.endpoint' => '/api/v1/approval/resolve',
+            'invoice_verification.approval_resolver.client_code' => 'invoice_collector',
+            'invoice_verification.approval_resolver.shared_secret' => 'test-secret-key-123',
+            'invoice_verification.approval_resolver.verify_ssl' => true,
+        ]);
+    }
+
+    public function test_approval_not_triggered_until_all_required_documents_uploaded(): void
+    {
+        $requiredDocs = DocumentType::query()
+            ->where('transaction_type_id', $this->ppaNonContractType->id)
+            ->where('is_required', true)
+            ->get();
+
+        // Upload only the first required document
+        $firstDoc = $requiredDocs->first();
+
+        $this->actingAs($this->owner)
+            ->post(route('invoice-verification.transactions.documents.combined.store', $this->transaction), [
+                'attachments' => [
+                    [
+                        'document_type_id' => $firstDoc->id,
+                        'source_actor' => 'VENDOR',
+                        'document_label' => $firstDoc->name,
+                        'file' => UploadedFile::fake()->create('doc1.pdf', 100, 'application/pdf'),
+                        'document_information' => [
+                            'document_number' => 'DOC-001',
+                            'document_date' => '2026-10-20',
+                            'dpp_value' => 10000000,
+                            'ppn_value' => 1100000,
+                        ],
+                    ],
+                ],
+            ]);
+
+        $this->transaction->refresh();
+        $this->assertSame(TransactionStatus::DRAFT, $this->transaction->status);
+        $this->assertCount(0, $this->transaction->approvalTransactions);
+    }
+
+    public function test_uploading_all_required_documents_triggers_approval_with_owner_email_and_signed_portal_request(): void
+    {
+        $secret = 'test-secret-key-123';
+        $capturedRequest = null;
+
+        Http::fake([
+            'https://portal.lrtjakarta.co.id/api/v1/approval/resolve' => function ($request) use (&$capturedRequest) {
+                $capturedRequest = $request;
+
+                return Http::response([
+                    'success' => true,
+                    'message' => 'Approval resolved successfully.',
+                    'data' => [
+                        'steps' => [
+                            [
+                                'step_order' => 1,
+                                'step_type' => 'approval',
+                                'approver' => [
+                                    'name' => 'Kepala Departemen Test',
+                                    'email' => 'kadep.test@lrtjakarta.co.id',
+                                    'employee_number' => 'EMP-KADEP',
+                                ],
+                            ],
+                            [
+                                'step_order' => 2,
+                                'step_type' => 'approval',
+                                'approver' => [
+                                    'name' => 'Kepala Divisi Test',
+                                    'email' => 'kadiv.test@lrtjakarta.co.id',
+                                    'employee_number' => 'EMP-KADIV',
+                                ],
+                            ],
+                        ],
+                    ],
+                ], 200);
+            },
+            'https://portal.lrtjakarta.co.id/api/v1/signatures' => Http::response([
+                'success' => true,
+                'data' => [
+                    'signature' => [
+                        'portal_signature_id' => 'sig-invoice-collector-test',
+                        'portal_signature_url' => 'https://portal.lrtjakarta.co.id/verify/sig-invoice-collector-test',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $requiredDocs = DocumentType::query()
+            ->where('transaction_type_id', $this->ppaNonContractType->id)
+            ->where('is_required', true)
+            ->get();
+
+        $attachments = [];
+        foreach ($requiredDocs as $doc) {
+            $attachments[] = [
+                'document_type_id' => $doc->id,
+                'source_actor' => 'VENDOR',
+                'document_label' => $doc->name,
+                'file' => UploadedFile::fake()->create($doc->code.'.pdf', 100, 'application/pdf'),
+                'document_information' => [
+                    'document_number' => 'NUM-'.$doc->code,
+                    'document_date' => '2026-10-20',
+                    'dpp_value' => 15000000,
+                    'ppn_value' => 1650000,
+                ],
+            ];
+        }
+
+        // Upload using $this->uploader (NOT the transaction owner)
+        // Must still use $this->owner->email in the resolver call!
+        $this->actingAs($this->owner)
+            ->post(route('invoice-verification.transactions.documents.combined.store', $this->transaction), [
+                'attachments' => $attachments,
+            ])
+            ->assertRedirect(route('invoice-verification.transactions.ppa-verification-sheets.edit', $this->transaction));
+
+        // Submit PPA verification sheet to trigger Kadep & Kadiv approval
+        $this->actingAs($this->owner)
+            ->post(route('invoice-verification.transactions.ppa-verification-sheets.submit', $this->transaction))
+            ->assertRedirect(route('invoice-verification.transactions.show', $this->transaction));
+
+        $this->assertNotNull($capturedRequest, 'HTTP request to Portal approval resolver must be made.');
+
+        // 1. Check client code is invoice_collector (NOT satset)
+        $this->assertSame('invoice_collector', $capturedRequest->header('X-App-Code')[0]);
+
+        // 2. Check requester email is owner->email (NOT uploader)
+        $payload = json_decode($capturedRequest->body(), true);
+        $this->assertSame($this->owner->email, $payload['requester_email']);
+        $this->assertSame('invoice_collector', $payload['module']);
+        $this->assertSame('ppa_non_contract', $payload['request_type']);
+        $this->assertSame(16650000.0, (float) $payload['amount']);
+
+        // 3. Check HMAC-SHA256 signature
+        $timestamp = $capturedRequest->header('X-Timestamp')[0];
+        $signature = $capturedRequest->header('X-Signature')[0];
+        $expectedSignature = hash_hmac('sha256', $timestamp.'.'.$capturedRequest->body(), $secret);
+        $this->assertSame($expectedSignature, $signature);
+
+        // 4. Exactly 2 approval transactions created
+        $this->transaction->refresh();
+        $this->assertSame(TransactionStatus::WAITING_APPROVAL, $this->transaction->status);
+        $this->assertSame(TransactionStep::KADEP_REVIEW, $this->transaction->current_step);
+        $this->assertCount(2, $this->transaction->approvalTransactions);
+
+        $kadepApproval = $this->transaction->approvalTransactions->firstWhere('approvalFlow.step_no', 1);
+        $kadivApproval = $this->transaction->approvalTransactions->firstWhere('approvalFlow.step_no', 2);
+
+        $this->assertNotNull($kadepApproval);
+        $this->assertNotNull($kadivApproval);
+        $this->assertSame($this->kadep->id, $kadepApproval->approver_user_id);
+        $this->assertSame($this->kadiv->id, $kadivApproval->approver_user_id);
+        $this->assertSame(ApprovalStatus::PENDING, $kadepApproval->status);
+        $this->assertSame(ApprovalStatus::PENDING, $kadivApproval->status);
+    }
+
+    public function test_documents_are_locked_while_approval_is_in_progress(): void
+    {
+        $this->test_uploading_all_required_documents_triggers_approval_with_owner_email_and_signed_portal_request();
+
+        // Count is 2
+        $this->assertDatabaseCount('approval_transactions', 2);
+
+        // Re-upload a document while in WAITING_APPROVAL
+        $invoiceDocType = DocumentType::where('code', 'PNK_INVOICE')->firstOrFail();
+
+        $this->actingAs($this->owner)
+            ->post(route('invoice-verification.transactions.documents.combined.store', $this->transaction), [
+                'attachments' => [
+                    [
+                        'document_type_id' => $invoiceDocType->id,
+                        'source_actor' => 'VENDOR',
+                        'document_label' => $invoiceDocType->name,
+                        'file' => UploadedFile::fake()->create('invoice_updated.pdf', 100, 'application/pdf'),
+                        'document_information' => [
+                            'document_number' => 'INV-UPDATED',
+                            'document_date' => '2026-10-20',
+                            'dpp_value' => 20000000,
+                            'ppn_value' => 2200000,
+                        ],
+                    ],
+                ],
+            ])
+            ->assertForbidden();
+
+        // Must still have exactly 2 approval_transactions for this transaction
+        $this->assertSame(2, ApprovalTransaction::where('transaction_id', $this->transaction->id)->count());
+    }
+
+    public function test_submit_with_missing_required_documents_keeps_sheet_and_transaction_in_draft(): void
+    {
+        $response = $this->actingAs($this->owner)
+            ->from(route('invoice-verification.transactions.ppa-verification-sheets.edit', $this->transaction))
+            ->post(route('invoice-verification.transactions.ppa-verification-sheets.submit', $this->transaction));
+
+        $response->assertSessionHasErrors('approval');
+        $this->assertSame(TransactionStatus::DRAFT, $this->transaction->fresh()->status);
+        $this->assertSame('DRAFT', $this->transaction->fresh('ppaVerificationSheet')->ppaVerificationSheet->status->value);
+        $this->assertCount(0, $this->transaction->approvalTransactions);
+    }
+
+    public function test_other_department_head_cannot_process_assigned_approval(): void
+    {
+        $this->test_uploading_all_required_documents_triggers_approval_with_owner_email_and_signed_portal_request();
+        $otherKadep = User::factory()->create([
+            'role_code' => RoleCode::KEPALA_DEPARTEMEN,
+            'is_active' => true,
+        ]);
+        $approval = $this->transaction->approvalTransactions->firstWhere('approvalFlow.step_no', 1);
+
+        $this->actingAs($otherKadep)
+            ->put(route('invoice-verification.approvals.update', $approval), [
+                'status' => 'APPROVED',
+                'notes' => 'Tidak berhak.',
+            ])
+            ->assertForbidden();
+
+        $this->assertSame(ApprovalStatus::PENDING, $approval->fresh()->status);
+    }
+
+    public function test_kadiv_cannot_process_before_kadep_completes(): void
+    {
+        $this->test_uploading_all_required_documents_triggers_approval_with_owner_email_and_signed_portal_request();
+
+        $kadivApproval = $this->transaction->approvalTransactions->firstWhere('approvalFlow.step_no', 2);
+
+        // Kadiv attempts to approve directly while Kadep is still PENDING
+        $response = $this->actingAs($this->kadiv)
+            ->from(route('invoice-verification.approvals.index'))
+            ->put(route('invoice-verification.approvals.update', $kadivApproval), [
+                'status' => 'APPROVED',
+                'notes' => 'Langsung approve Kadiv tanpa Kadep',
+            ]);
+
+        $response->assertSessionHasErrors('approval');
+        $this->assertSame(ApprovalStatus::PENDING, $kadivApproval->fresh()->status);
+        $this->assertSame(TransactionStatus::WAITING_APPROVAL, $this->transaction->fresh()->status);
+        $this->assertSame(TransactionStep::KADEP_REVIEW, $this->transaction->fresh()->current_step);
+    }
+
+    public function test_kadep_rejection_returns_transaction_to_pemohon_and_blocks_accounting(): void
+    {
+        $this->test_uploading_all_required_documents_triggers_approval_with_owner_email_and_signed_portal_request();
+
+        $kadepApproval = $this->transaction->approvalTransactions->firstWhere('approvalFlow.step_no', 1);
+
+        // Rejection requires notes
+        $responseWithoutNotes = $this->actingAs($this->kadep)
+            ->from(route('invoice-verification.approvals.index'))
+            ->put(route('invoice-verification.approvals.update', $kadepApproval), [
+                'status' => 'REJECTED',
+                'notes' => '',
+            ]);
+        $responseWithoutNotes->assertSessionHasErrors('notes');
+
+        // Kadep rejects with note
+        $response = $this->actingAs($this->kadep)
+            ->from(route('invoice-verification.approvals.index'))
+            ->put(route('invoice-verification.approvals.update', $kadepApproval), [
+                'status' => 'REJECTED',
+                'notes' => 'Nominal tagihan tidak sesuai dengan memo realisasi.',
+            ]);
+
+        $response->assertRedirect(route('invoice-verification.approvals.index'));
+
+        $this->transaction->refresh();
+        $this->assertSame(TransactionStatus::NOT_APPROVED, $this->transaction->status);
+        $this->assertSame(TransactionStep::INTERNAL_DOCUMENT_UPLOAD, $this->transaction->current_step);
+        $this->assertSame(ApprovalStatus::REJECTED, $kadepApproval->fresh()->status);
+        $this->assertSame('Nominal tagihan tidak sesuai dengan memo realisasi.', $kadepApproval->fresh()->notes);
+
+        // Transaction is NOT in Accounting review or submitted
+        $this->assertNotSame(TransactionStatus::SUBMITTED, $this->transaction->status);
+        $this->assertNotSame(TransactionStatus::IN_REVIEW, $this->transaction->status);
+        $this->assertNotSame(TransactionStep::ACCOUNTING_VERIFICATION, $this->transaction->current_step);
+    }
+
+    public function test_kadiv_rejection_returns_transaction_to_pemohon_and_blocks_accounting(): void
+    {
+        $this->test_uploading_all_required_documents_triggers_approval_with_owner_email_and_signed_portal_request();
+
+        $kadepApproval = $this->transaction->approvalTransactions->firstWhere('approvalFlow.step_no', 1);
+        $kadivApproval = $this->transaction->approvalTransactions->firstWhere('approvalFlow.step_no', 2);
+
+        // Step 1: Kadep approves
+        $this->actingAs($this->kadep)
+            ->put(route('invoice-verification.approvals.update', $kadepApproval), [
+                'status' => 'APPROVED',
+                'notes' => 'Dokumen sesuai.',
+            ]);
+
+        $this->transaction->refresh();
+        $this->assertSame(TransactionStatus::WAITING_APPROVAL, $this->transaction->status);
+        $this->assertSame(TransactionStep::KADIV_REVIEW, $this->transaction->current_step);
+
+        // Step 2: Kadiv rejects with note
+        $this->actingAs($this->kadiv)
+            ->put(route('invoice-verification.approvals.update', $kadivApproval), [
+                'status' => 'REJECTED',
+                'notes' => 'Pekerjaan belum diverifikasi di lapangan.',
+            ]);
+
+        $this->transaction->refresh();
+        $this->assertSame(TransactionStatus::NOT_APPROVED, $this->transaction->status);
+        $this->assertSame(TransactionStep::INTERNAL_DOCUMENT_UPLOAD, $this->transaction->current_step);
+        $this->assertSame(ApprovalStatus::REJECTED, $kadivApproval->fresh()->status);
+        $this->assertNotSame(TransactionStatus::SUBMITTED, $this->transaction->status);
+    }
+
+    public function test_kadiv_approval_transitions_transaction_to_submitted_and_accounting_verification(): void
+    {
+        $this->test_uploading_all_required_documents_triggers_approval_with_owner_email_and_signed_portal_request();
+
+        $kadepApproval = $this->transaction->approvalTransactions->firstWhere('approvalFlow.step_no', 1);
+        $kadivApproval = $this->transaction->approvalTransactions->firstWhere('approvalFlow.step_no', 2);
+
+        // Step 1: Kadep approves
+        $this->actingAs($this->kadep)
+            ->put(route('invoice-verification.approvals.update', $kadepApproval), [
+                'status' => 'APPROVED',
+                'notes' => 'Disetujui Kadep.',
+            ]);
+
+        $this->assertSame(TransactionStatus::WAITING_APPROVAL, $this->transaction->fresh()->status);
+        $this->assertSame(TransactionStep::KADIV_REVIEW, $this->transaction->fresh()->current_step);
+
+        // Step 2: Kadiv approves
+        $this->actingAs($this->kadiv)
+            ->put(route('invoice-verification.approvals.update', $kadivApproval), [
+                'status' => 'APPROVED',
+                'notes' => 'Disetujui Kadiv.',
+            ]);
+
+        $this->transaction->refresh();
+        $this->assertSame(TransactionStatus::SUBMITTED, $this->transaction->status);
+        $this->assertSame(TransactionStep::ACCOUNTING_VERIFICATION, $this->transaction->current_step);
+        $this->assertNotNull($this->transaction->submitted_at);
+
+        Http::assertSent(function ($request) {
+            if ($request->url() !== 'https://portal.lrtjakarta.co.id/api/v1/signatures') {
+                return false;
+            }
+
+            $payload = json_decode($request->body(), true);
+
+            return data_get($payload, 'module') === 'invoice_collector'
+                && $request->hasHeader('X-App-Code', 'invoice_collector')
+                && ! $request->hasHeader('X-Satset-Signature');
+        });
+
+        // Accounting can now verify it
+        $this->actingAs($this->accounting)
+            ->get(route('invoice-verification.transactions.show', $this->transaction))
+            ->assertOk()
+            ->assertSee('Submitted')
+            ->assertSee('Verifikasi akuntansi');
+    }
+
+    public function test_legacy_submit_endpoint_blocks_ppa_non_contract(): void
+    {
+        // PPA Non Contract cannot be directly submitted via old submit endpoint
+        $response = $this->actingAs($this->owner)
+            ->from(route('invoice-verification.transactions.show', $this->transaction))
+            ->post(route('invoice-verification.transactions.submit', $this->transaction));
+
+        $response->assertSessionHasErrors('transaction');
+        $this->assertSame(TransactionStatus::DRAFT, $this->transaction->fresh()->status);
+    }
+
+    public function test_inbox_approval_page_and_transaction_detail_stepper(): void
+    {
+        $this->test_uploading_all_required_documents_triggers_approval_with_owner_email_and_signed_portal_request();
+
+        // Kadep accesses Inbox Approval
+        $response = $this->actingAs($this->kadep)
+            ->get(route('invoice-verification.approvals.index'));
+
+        $response->assertOk();
+        $response->assertSee('Inbox Approval');
+        $response->assertSee($this->transaction->registration_number);
+        $response->assertSee('Kepala Departemen');
+
+        // Kadiv accesses Inbox Approval
+        $responseKadiv = $this->actingAs($this->kadiv)
+            ->get(route('invoice-verification.approvals.index'));
+
+        $responseKadiv->assertOk();
+        $responseKadiv->assertSee('Kepala Divisi');
+
+        // View detail transaction page shows Kadep & Kadiv Stepper
+        $detailResponse = $this->actingAs($this->kadep)
+            ->get(route('invoice-verification.transactions.show', $this->transaction));
+
+        $detailResponse->assertOk();
+        $detailResponse->assertSee('Persetujuan Kepala Departemen & Kepala Divisi', false);
+        $detailResponse->assertSee('Kepala Departemen');
+        $detailResponse->assertSee('Kepala Divisi');
+        $detailResponse->assertSee('Setujui (Approve)');
+        $detailResponse->assertSee('Tolak (Reject)');
+    }
+}

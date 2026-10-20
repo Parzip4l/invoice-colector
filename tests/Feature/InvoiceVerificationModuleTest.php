@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus;
+use App\Modules\InvoiceVerification\Domain\Enums\TransactionStep;
 use App\Modules\InvoiceVerification\Domain\Models\AgreementReference;
 use App\Modules\InvoiceVerification\Domain\Models\Department;
 use App\Modules\InvoiceVerification\Domain\Models\DocumentType;
@@ -44,6 +46,34 @@ class InvoiceVerificationModuleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Dashboard');
+    }
+
+    public function test_internal_user_can_create_ppa_non_contract_with_department_only(): void
+    {
+        $user = User::where('email', 'user.divisi@demo.local')->firstOrFail();
+        $department = $user->department;
+        $transactionType = TransactionType::query()
+            ->where('code', 'PPA_NON_CONTRACT')
+            ->firstOrFail();
+
+        $response = $this->actingAs($user)->post(route('invoice-verification.transactions.store'), [
+            'transaction_type_id' => $transactionType->id,
+            'department_id' => $department->id,
+        ]);
+
+        $transaction = Transaction::query()
+            ->where('owner_user_id', $user->id)
+            ->where('transaction_type_id', $transactionType->id)
+            ->latest('id')
+            ->firstOrFail();
+
+        $response->assertRedirect(route('invoice-verification.transactions.show', $transaction));
+        $this->assertSame($department->id, $transaction->department_id);
+        $this->assertNull($transaction->memo_request_id);
+        $this->assertNull($transaction->activity_name);
+        $this->assertNull($transaction->transaction_bank_name);
+        $this->assertNull($transaction->transaction_account_number);
+        $this->assertNull($transaction->description);
     }
 
     public function test_vendor_cannot_access_audit_logs(): void
@@ -381,6 +411,10 @@ class InvoiceVerificationModuleTest extends TestCase
         $vendor = User::where('email', 'vendor@demo.local')->firstOrFail();
         $admin = User::where('email', 'admin.divisi@demo.local')->firstOrFail();
         $transaction = $this->createTransactionOfType('PPA', 'INV-ADMIN-REVIEW-001', $vendor);
+        $transaction->forceFill([
+            'status' => TransactionStatus::ADMIN_REVIEW,
+            'current_step' => TransactionStep::ADMIN_DOCUMENT_REVIEW,
+        ])->save();
         $document = $transaction->fresh('latestDocuments')->latestDocuments()->firstOrFail();
 
         $response = $this->actingAs($admin)->put(route('invoice-verification.vendor-reviews.update', $document), [
@@ -565,9 +599,9 @@ class InvoiceVerificationModuleTest extends TestCase
     public function test_accounting_reject_note_is_visible_to_vendor_for_revision(): void
     {
         $accounting = User::where('email', 'akuntansi@demo.local')->firstOrFail();
-        $vendor = User::where('email', 'vendor.konstruksi@demo.local')->firstOrFail();
+        $vendor = User::where('email', 'vendor@demo.local')->firstOrFail();
         $transaction = Transaction::query()
-            ->where('registration_number', 'TRX/DEMO/2026/0004')
+            ->where('registration_number', 'PPA-00003')
             ->firstOrFail();
         $verification = $transaction->accountingVerification()->with('items.transactionDocument')->firstOrFail();
         $rejectedItem = $verification->items->firstOrFail();
@@ -591,7 +625,7 @@ class InvoiceVerificationModuleTest extends TestCase
         $response->assertRedirect(route('invoice-verification.transactions.show', $transaction));
 
         $transaction->refresh();
-        $this->assertSame('REVISION_IN_PROGRESS', $transaction->status->value);
+        $this->assertSame('NOT_APPROVED', $transaction->status->value);
         $this->assertSame('REVISION_REQUIRED', $rejectedItem->transactionDocument->fresh()->status->value);
 
         $uploadPageResponse = $this->actingAs($vendor)->get(route('invoice-verification.transactions.documents.show', $transaction));
@@ -736,7 +770,7 @@ class InvoiceVerificationModuleTest extends TestCase
         $response->assertOk();
         $response->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $zip->open($response->baseResponse->getFile()->getPathname());
 
         $workbookXml = $zip->getFromName('xl/workbook.xml');
@@ -749,7 +783,7 @@ class InvoiceVerificationModuleTest extends TestCase
         $this->assertStringContainsString('name="KK"', $workbookXml);
         $this->assertStringContainsString('Nomor Transaksi', $firstSheetXml);
         $this->assertStringContainsString('Tanggal Hardcopy', $firstSheetXml);
-        $this->assertStringContainsString('Total Bayar', $firstSheetXml);
+        $this->assertStringContainsString('Total After Tax', $firstSheetXml);
         $this->assertStringContainsString('INV-EXPORT-001', $firstSheetXml);
         $this->assertStringContainsString('&quot;Rp&quot; #,##0', $stylesXml);
         $this->assertStringContainsString('s="2"', $firstSheetXml);
@@ -839,6 +873,10 @@ class InvoiceVerificationModuleTest extends TestCase
             'department_id' => $department->id,
             'memo_request_id' => $memoRequest->id,
             'agreement_reference_id' => $agreementReference->id,
+            'activity_name' => 'Testing '.$transactionTypeCode,
+            'spu_amount' => 10000000,
+            'transaction_bank_name' => 'Bank Central Asia',
+            'transaction_account_number' => '1234567890',
             'description' => 'Testing '.$transactionTypeCode,
         ]);
 

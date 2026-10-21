@@ -114,6 +114,7 @@ class PpaNonContractApprovalWorkflowTest extends TestCase
             'invoice_verification.approval_resolver.client_code' => 'invoice_collector',
             'invoice_verification.approval_resolver.shared_secret' => 'test-secret-key-123',
             'invoice_verification.approval_resolver.verify_ssl' => true,
+            'invoice_verification.portal_api.shared_secret' => 'test-secret-key-123',
         ]);
     }
 
@@ -157,6 +158,20 @@ class PpaNonContractApprovalWorkflowTest extends TestCase
 
         Http::fake([
             'https://portal.lrtjakarta.co.id/api/v1/approval/resolve' => function ($request) use (&$capturedRequest) {
+                $payload = json_decode($request->body(), true);
+                if (data_get($payload, 'metadata.purpose') === 'position_lookup') {
+                    return Http::response([
+                        'success' => true,
+                        'data' => ['position_holder' => [
+                            'id' => 'portal-finance-head',
+                            'name' => 'Adityawarman Nugroho',
+                            'email' => 'adityawarman.nugroho@lrtjakarta.co.id',
+                            'employee_number' => 'EMP-FIN-001',
+                            'position' => 'Finance & Accounting Division Head',
+                        ]],
+                    ], 200);
+                }
+
                 $capturedRequest = $request;
 
                 return Http::response([
@@ -509,5 +524,42 @@ class PpaNonContractApprovalWorkflowTest extends TestCase
         $detailResponse->assertSee('Kepala Divisi');
         $detailResponse->assertSee('Setujui (Approve)');
         $detailResponse->assertSee('Tolak (Reject)');
+    }
+
+    public function test_portal_api_only_lists_the_current_step_for_the_assigned_email(): void
+    {
+        $this->test_uploading_all_required_documents_triggers_approval_with_owner_email_and_signed_portal_request();
+
+        $timestamp = (string) now()->timestamp;
+        $signature = hash_hmac('sha256', $timestamp.'.', 'test-secret-key-123');
+        $response = $this->call('GET', '/api/portal/v1/invoice-collector/approvals', [
+            'status' => 'pending', 'approver_email' => $this->kadep->email,
+        ], [], [], [
+            'HTTP_ACCEPT' => 'application/json', 'HTTP_X_INVOICE_TIMESTAMP' => $timestamp,
+            'HTTP_X_INVOICE_SIGNATURE' => $signature,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.module', 'invoice_collector')
+            ->assertJsonPath('data.data.0.approver.email', $this->kadep->email)
+            ->assertJsonPath('data.data.0.step.number', 1);
+
+        $kadivResponse = $this->call('GET', '/api/portal/v1/invoice-collector/approvals', [
+            'status' => 'pending', 'approver_email' => $this->kadiv->email,
+        ], [], [], [
+            'HTTP_ACCEPT' => 'application/json', 'HTTP_X_INVOICE_TIMESTAMP' => $timestamp,
+            'HTTP_X_INVOICE_SIGNATURE' => $signature,
+        ]);
+        $kadivResponse->assertOk()->assertJsonCount(0, 'data.data');
+    }
+
+    public function test_portal_api_rejects_invalid_signature(): void
+    {
+        $this->withHeaders([
+            'X-Invoice-Timestamp' => (string) now()->timestamp,
+            'X-Invoice-Signature' => 'invalid',
+        ])->getJson('/api/portal/v1/invoice-collector/approvals?status=pending&approver_email='.$this->kadep->email)
+            ->assertUnauthorized();
     }
 }

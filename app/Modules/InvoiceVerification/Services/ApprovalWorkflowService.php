@@ -81,7 +81,7 @@ class ApprovalWorkflowService
             TransactionStatus::DRAFT,
         ], true);
 
-        ApprovalTransaction::updateOrCreate(
+        $kadepApproval = ApprovalTransaction::updateOrCreate(
             [
                 'transaction_id' => $transaction->id,
                 'approval_flow_id' => $kadepFlow->id,
@@ -122,6 +122,8 @@ class ApprovalWorkflowService
                 'Seluruh dokumen wajib PPA Non Kontrak lengkap. Approval Kepala Departemen dimulai.',
             );
         }
+
+        $this->portalResolver->notifyApprovalRequested($kadepApproval->fresh(['transaction.owner', 'approvalFlow', 'approver']));
 
         return true;
     }
@@ -259,6 +261,14 @@ class ApprovalWorkflowService
                         $actor,
                         'Disetujui oleh Kepala Departemen. Dokumen diteruskan ke Kepala Divisi.'.($notes ? ' Catatan: '.$notes : ''),
                     );
+                    $kadivApproval = ApprovalTransaction::query()
+                        ->with(['transaction.owner', 'approvalFlow', 'approver'])
+                        ->where('transaction_id', $transaction->id)
+                        ->whereHas('approvalFlow', fn ($query) => $query->where('step_no', 2))
+                        ->first();
+                    if ($kadivApproval) {
+                        $this->portalResolver->notifyApprovalRequested($kadivApproval);
+                    }
                 } elseif ($stepNo === 2) {
                     // Kadiv approved -> status becomes SUBMITTED / ACCOUNTING_VERIFICATION
                     $transaction->forceFill(['submitted_at' => now()])->save();

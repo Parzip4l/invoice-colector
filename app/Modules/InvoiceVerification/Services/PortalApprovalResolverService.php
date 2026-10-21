@@ -4,6 +4,7 @@ namespace App\Modules\InvoiceVerification\Services;
 
 use App\Models\User;
 use App\Modules\InvoiceVerification\Domain\Enums\RoleCode;
+use App\Modules\InvoiceVerification\Domain\Models\ApprovalTransaction;
 use App\Modules\InvoiceVerification\Domain\Models\Department;
 use App\Modules\InvoiceVerification\Domain\Models\Division;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
@@ -15,6 +16,92 @@ use Illuminate\Validation\ValidationException;
 
 class PortalApprovalResolverService
 {
+    /** @return array{id: ?string, name: string, email: string, employee_number: ?string, position: ?string} */
+    public function resolvePositionHolder(User $requester, string $position): array
+    {
+        if (blank($requester->email)) {
+            throw ValidationException::withMessages(['position_holder' => 'Email pemohon tidak tersedia untuk lookup jabatan Portal.']);
+        }
+
+        $data = $this->signedPortalRequest(
+            (string) config('invoice_verification.approval_resolver.base_url'),
+            (string) config('invoice_verification.approval_resolver.endpoint', '/api/v1/approval/resolve'),
+            (string) config('invoice_verification.approval_resolver.client_code', 'invoice_collector'),
+            (string) config('invoice_verification.approval_resolver.shared_secret'),
+            [
+                'module' => (string) config('invoice_verification.approval_resolver.client_code', 'invoice_collector'),
+                'request_type' => 'directory_position_holder',
+                'requester_email' => $requester->email,
+                'target_position' => $position,
+                'metadata' => ['purpose' => 'position_lookup'],
+            ],
+            'position_holder',
+        );
+
+        $holder = data_get($data, 'position_holder');
+        if (! is_array($holder) || blank($holder['name'] ?? null) || blank($holder['email'] ?? null)) {
+            throw ValidationException::withMessages([
+                'position_holder' => "Pemegang jabatan {$position} tidak ditemukan atau tidak aktif di Portal.",
+            ]);
+        }
+
+        return [
+            'id' => isset($holder['id']) ? (string) $holder['id'] : null,
+            'name' => (string) $holder['name'],
+            'email' => (string) $holder['email'],
+            'employee_number' => filled($holder['employee_number'] ?? null) ? (string) $holder['employee_number'] : null,
+            'position' => filled($holder['position'] ?? null) ? (string) $holder['position'] : null,
+        ];
+    }
+
+    public function notifyApprovalRequested(ApprovalTransaction $approval): void
+    {
+        $approval->loadMissing(['transaction.owner', 'approvalFlow', 'approver']);
+        $baseUrl = (string) config('invoice_verification.approval_resolver.base_url');
+        $endpoint = (string) config('invoice_verification.approval_resolver.notification_endpoint');
+        $secret = (string) config('invoice_verification.approval_resolver.shared_secret');
+        if ($baseUrl === '' || $endpoint === '' || $secret === '' || blank($approval->approver?->email)) {
+            Log::warning('Portal approval notification skipped because configuration or approver email is missing.', ['approval_id' => $approval->id]);
+
+            return;
+        }
+
+        $transaction = $approval->transaction;
+        $payload = [
+            'event_type' => 'invoice_approval_requested',
+            'recipient_email' => $approval->approver->email,
+            'approval_id' => (string) $approval->id,
+            'transaction_id' => (string) $transaction->id,
+            'registration_number' => (string) $transaction->registration_number,
+            'transaction_title' => (string) $transaction->title,
+            'requester_name' => (string) ($transaction->owner?->name ?? '-'),
+            'approval_step' => (string) ($approval->approvalFlow?->step_name ?? 'Approval'),
+            'priority' => 'high',
+        ];
+        $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($body === false) {
+            return;
+        }
+        $timestamp = (string) now()->timestamp;
+        $signature = hash_hmac('sha256', $timestamp.'.'.$body, $secret);
+        try {
+            $client = Http::withHeaders([
+                'Accept' => 'application/json', 'Content-Type' => 'application/json',
+                'X-App-Code' => (string) config('invoice_verification.approval_resolver.client_code', 'invoice_collector'),
+                'X-Timestamp' => $timestamp, 'X-Signature' => $signature,
+            ])->timeout((int) config('invoice_verification.approval_resolver.timeout', 15));
+            if (! config('invoice_verification.approval_resolver.verify_ssl', true)) {
+                $client = $client->withoutVerifying();
+            }
+            $response = $client->withBody($body, 'application/json')->post(rtrim($baseUrl, '/').'/'.ltrim($endpoint, '/'));
+            if (! $response->successful()) {
+                Log::warning('Portal approval notification rejected.', ['approval_id' => $approval->id, 'status' => $response->status(), 'body' => $response->body()]);
+            }
+        } catch (\Throwable $exception) {
+            Log::warning('Portal approval notification failed: '.$exception->getMessage(), ['approval_id' => $approval->id]);
+        }
+    }
+
     /**
      * Resolve Kepala Departemen and Kepala Divisi for a PPA Non Contract transaction.
      *

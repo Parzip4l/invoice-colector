@@ -7,6 +7,7 @@ use App\Modules\InvoiceVerification\Domain\Enums\RoleCode;
 use App\Modules\InvoiceVerification\Domain\Models\PpaVerificationSheet;
 use App\Modules\InvoiceVerification\Services\Contracts\PpaVerificationSheetPdfGenerator;
 use App\Modules\InvoiceVerification\Services\PdfRenderingService;
+use App\Modules\InvoiceVerification\Services\PortalApprovalResolverService;
 use App\Modules\InvoiceVerification\Services\SignatureQrService;
 use App\Modules\InvoiceVerification\Support\NumberToWords;
 
@@ -15,8 +16,8 @@ class FunctionalPpaVerificationSheetPdfGenerator implements PpaVerificationSheet
     public function __construct(
         protected PdfRenderingService $pdfRenderingService,
         protected SignatureQrService $signatureQrService,
-    ) {
-    }
+        protected PortalApprovalResolverService $portalApprovalResolver,
+    ) {}
 
     public function generate(PpaVerificationSheet $sheet): array
     {
@@ -26,6 +27,7 @@ class FunctionalPpaVerificationSheetPdfGenerator implements PpaVerificationSheet
             'transaction.vendor',
             'transaction.division',
             'transaction.department.users',
+            'transaction.owner',
             'transaction.invoiceMetadata',
             'transaction.latestDocuments.documentType',
             'transaction.approvalTransactions.approvalFlow',
@@ -141,7 +143,11 @@ class FunctionalPpaVerificationSheetPdfGenerator implements PpaVerificationSheet
         $kadivTitle = $kadivApproval?->approvalFlow?->step_name
             ?? ('Kepala Divisi '.($transaction->division?->name ?? ''));
 
-        $accountingName = $sheet->accounting_signer_name ?: 'Budi Sarjono';
+        $accountingSigner = $this->portalApprovalResolver->resolvePositionHolder(
+            $transaction->owner,
+            'Finance & Accounting Division Head',
+        );
+        $accountingName = $accountingSigner['name'];
 
         $kadepQrBase64 = null;
         if ($kadepApproval && $kadepApproval->status === ApprovalStatus::APPROVED) {

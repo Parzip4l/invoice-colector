@@ -37,10 +37,15 @@ return [
         'base_url' => env('INVOICE_COLLECTOR_APPROVAL_RESOLVER_BASE_URL', env('LRTJ_SPACE_BASE_URL', 'https://portal.lrtjakarta.co.id')),
         'endpoint' => env('INVOICE_COLLECTOR_APPROVAL_RESOLVER_ENDPOINT', '/api/v1/approval/resolve'),
         'signature_endpoint' => env('INVOICE_COLLECTOR_PORTAL_SIGNATURE_ENDPOINT', '/api/v1/signatures'),
+        'notification_endpoint' => env('INVOICE_COLLECTOR_PORTAL_NOTIFICATION_ENDPOINT', '/api/v1/invoice-collector/notifications'),
         'client_code' => env('INVOICE_COLLECTOR_PORTAL_CLIENT_CODE', 'invoice_collector'),
         'shared_secret' => env('INVOICE_COLLECTOR_PORTAL_SHARED_SECRET', env('LRTJ_SPACE_SATSET_SHARED_SECRET', '')),
         'timeout' => (int) env('INVOICE_COLLECTOR_APPROVAL_RESOLVER_TIMEOUT', 15),
         'verify_ssl' => (bool) env('INVOICE_COLLECTOR_APPROVAL_RESOLVER_VERIFY_SSL', true),
+    ],
+    'portal_api' => [
+        'shared_secret' => env('INVOICE_COLLECTOR_PORTAL_SHARED_SECRET', env('LRTJ_SPACE_SATSET_SHARED_SECRET', '')),
+        'signature_ttl' => (int) env('INVOICE_COLLECTOR_PORTAL_SIGNATURE_TTL', 300),
     ],
     'budget_api' => [
         'base_url' => env('BUDGET_API_BASE_URL', 'https://versus.lrtjakarta.co.id'),

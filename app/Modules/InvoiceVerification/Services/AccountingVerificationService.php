@@ -9,7 +9,6 @@ use App\Modules\InvoiceVerification\Domain\Enums\AccountingVerificationStatus;
 use App\Modules\InvoiceVerification\Domain\Enums\DocumentSourceActor;
 use App\Modules\InvoiceVerification\Domain\Enums\TransactionDocumentStatus;
 use App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus;
-use App\Modules\InvoiceVerification\Domain\Enums\TransactionStep;
 use App\Modules\InvoiceVerification\Domain\Enums\VendorDocumentReviewStatus;
 use App\Modules\InvoiceVerification\Domain\Models\AccountingVerification;
 use App\Modules\InvoiceVerification\Domain\Models\AccountingVerificationItem;
@@ -27,8 +26,7 @@ class AccountingVerificationService
         protected FinalizationService $finalizationService,
         protected PpaVerificationSheetService $ppaVerificationSheetService,
         protected NumberingRegisterService $numberingRegisterService,
-    ) {
-    }
+    ) {}
 
     public function getOrCreate(Transaction $transaction, User $actor): AccountingVerification
     {
@@ -77,8 +75,7 @@ class AccountingVerificationService
         string $administrationStatus,
         ?string $administrationNotes = null,
         ?string $notes = null,
-    ): AccountingVerification
-    {
+    ): AccountingVerification {
         return DB::transaction(function () use ($transaction, $actor, $items, $administrationStatus, $administrationNotes, $notes) {
             $transaction->refresh();
 
@@ -194,6 +191,9 @@ class AccountingVerificationService
 
             $receivedTransaction = $this->transactionLifecycleService->markReceived($transaction, $actor);
             $this->numberingRegisterService->syncFromTransaction($receivedTransaction);
+            if ($receivedTransaction->isPpaNonContract()) {
+                $this->ppaVerificationSheetService->regeneratePdf($receivedTransaction->fresh());
+            }
 
             DB::afterCommit(function () use ($receivedTransaction) {
                 $receivedTransaction->loadMissing('transactionType', 'vendor');

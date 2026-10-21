@@ -15,6 +15,7 @@ use App\Modules\InvoiceVerification\Domain\Models\DocumentType;
 use App\Modules\InvoiceVerification\Domain\Models\InvoiceMetadata;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
 use App\Modules\InvoiceVerification\Domain\Models\TransactionType;
+use App\Modules\InvoiceVerification\Services\Implementations\FunctionalPpaVerificationSheetPdfGenerator;
 use App\Modules\InvoiceVerification\Services\PpaVerificationSheetService;
 use Database\Seeders\InvoiceVerification\InvoiceVerificationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -94,6 +95,12 @@ class PpaNonContractVerificationSheetTest extends TestCase
             'ppn_value' => 275000,
             'received_date' => now()->toDateString(),
         ]);
+
+        config([
+            'invoice_verification.approval_resolver.base_url' => 'https://portal.test',
+            'invoice_verification.approval_resolver.client_code' => 'invoice_collector',
+            'invoice_verification.approval_resolver.shared_secret' => 'test-secret-key-12345',
+        ]);
     }
 
     public function test_user_can_access_edit_form_and_see_categories(): void
@@ -114,11 +121,11 @@ class PpaNonContractVerificationSheetTest extends TestCase
 
     public function test_user_can_save_draft_with_dynamic_rab_and_checklist(): void
     {
+        $this->fakeFinanceHeadPositionLookup();
         $payload = [
             'description' => 'Konsumsi Koordinasi Bulanan Tim Stasiun',
             'advance_payment_value' => 500000,
             'exchange_rate_value' => 1.00,
-            'accounting_signer_name' => 'Budi Sarjono',
             'budget_items' => [
                 [
                     'kode_rab' => '5.01.02.001',
@@ -168,6 +175,7 @@ class PpaNonContractVerificationSheetTest extends TestCase
 
     public function test_user_can_preview_and_download_generated_pdf(): void
     {
+        $this->fakeFinanceHeadPositionLookup();
         // First save sheet to ensure PDF generated
         app(PpaVerificationSheetService::class)->getOrCreate($this->transaction, $this->owner);
 
@@ -185,6 +193,22 @@ class PpaNonContractVerificationSheetTest extends TestCase
         $this->assertStringContainsString('attachment', (string) $downloadResponse->headers->get('Content-Disposition'));
     }
 
+    public function test_pdf_resolves_finance_accounting_division_head_from_portal_position(): void
+    {
+        $this->fakeFinanceHeadPositionLookup();
+        $sheet = app(PpaVerificationSheetService::class)->getOrCreate($this->transaction, $this->owner);
+        $data = app(FunctionalPpaVerificationSheetPdfGenerator::class)->buildPpaNonContractData($sheet->fresh());
+
+        $this->assertSame('Adityawarman Nugroho', $data['accountingName']);
+        Http::assertSent(function ($request) {
+            $payload = json_decode($request->body(), true);
+
+            return data_get($payload, 'metadata.purpose') === 'position_lookup'
+                && data_get($payload, 'target_position') === 'Finance & Accounting Division Head'
+                && data_get($payload, 'module') === 'invoice_collector';
+        });
+    }
+
     public function test_submitting_sheet_triggers_kadep_kadiv_approval_and_approval_stamps_qr_code(): void
     {
         $secret = 'test-secret-key-12345';
@@ -194,12 +218,18 @@ class PpaNonContractVerificationSheetTest extends TestCase
             'invoice_verification.approval_resolver.shared_secret' => $secret,
         ]);
 
-        Http::fake([
-            'https://portal.test/api/v1/approval/resolve' => Http::response([
-                'success' => true,
-                'status' => 'OK',
-                'data' => [
-                    'steps' => [
+        Http::fake(function ($request) {
+            $payload = json_decode($request->body(), true);
+            if (data_get($payload, 'metadata.purpose') === 'position_lookup') {
+                return Http::response(['success' => true, 'data' => ['position_holder' => [
+                    'id' => 'portal-finance-head', 'name' => 'Adityawarman Nugroho',
+                    'email' => 'adityawarman.nugroho@lrtjakarta.co.id',
+                    'employee_number' => 'EMP-FIN-001', 'position' => 'Finance & Accounting Division Head',
+                ]]], 200);
+            }
+            if ($request->url() === 'https://portal.test/api/v1/approval/resolve') {
+                return Http::response([
+                    'success' => true, 'status' => 'OK', 'data' => ['steps' => [
                         [
                             'step_no' => 1,
                             'approver' => [
@@ -216,17 +246,18 @@ class PpaNonContractVerificationSheetTest extends TestCase
                                 'email' => $this->kadivUser->email,
                             ],
                         ],
-                    ],
-                ],
-            ], 200),
-            'https://portal.test/api/v1/signatures' => Http::response([
-                'success' => true,
-                'data' => ['signature' => [
+                    ]],
+                ], 200);
+            }
+            if ($request->url() === 'https://portal.test/api/v1/signatures') {
+                return Http::response(['success' => true, 'data' => ['signature' => [
                     'portal_signature_id' => 'sig-invoice-collector',
                     'portal_signature_url' => 'https://portal.test/verify/sig-invoice-collector',
-                ]],
-            ], 200),
-        ]);
+                ]]], 200);
+            }
+
+            return Http::response(['success' => true], 200);
+        });
 
         $requiredDocs = DocumentType::query()
             ->where('transaction_type_id', $this->transaction->transaction_type_id)
@@ -294,5 +325,21 @@ class PpaNonContractVerificationSheetTest extends TestCase
         $sheet->refresh();
         $this->assertNotNull($sheet->file_path);
         $this->assertTrue(Storage::disk($sheet->file_disk)->exists($sheet->file_path));
+    }
+
+    private function fakeFinanceHeadPositionLookup(): void
+    {
+        Http::fake([
+            'https://portal.test/api/v1/approval/resolve' => Http::response([
+                'success' => true,
+                'data' => ['position_holder' => [
+                    'id' => 'portal-finance-head',
+                    'name' => 'Adityawarman Nugroho',
+                    'email' => 'adityawarman.nugroho@lrtjakarta.co.id',
+                    'employee_number' => 'EMP-FIN-001',
+                    'position' => 'Finance & Accounting Division Head',
+                ]],
+            ]),
+        ]);
     }
 }

@@ -21,8 +21,7 @@ class PpaVerificationSheetService
         protected AuditLogService $auditLogService,
         protected TransactionLifecycleService $transactionLifecycleService,
         protected PpaVerificationSheetPdfGenerator $pdfGenerator,
-    ) {
-    }
+    ) {}
 
     public function getOrCreate(Transaction $transaction, User $actor): PpaVerificationSheet
     {
@@ -112,7 +111,6 @@ class PpaVerificationSheetService
                 'checklist_items_json' => $checklistItems,
                 'advance_payment_value' => $payload['advance_payment_value'] ?? $sheet->advance_payment_value,
                 'exchange_rate_value' => $payload['exchange_rate_value'] ?? $sheet->exchange_rate_value,
-                'accounting_signer_name' => $payload['accounting_signer_name'] ?? $sheet->accounting_signer_name,
                 'filled_by_user_id' => $actor->id,
             ]);
 

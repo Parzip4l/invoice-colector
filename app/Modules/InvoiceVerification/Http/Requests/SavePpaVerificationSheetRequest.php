@@ -51,7 +51,6 @@ class SavePpaVerificationSheetRequest extends FormRequest
                 'description' => ['nullable', 'string', 'max:1000'],
                 'advance_payment_value' => ['nullable', 'numeric', 'min:0'],
                 'exchange_rate_value' => ['nullable', 'numeric', 'min:0'],
-                'accounting_signer_name' => ['nullable', 'string', 'max:255'],
                 'budget_items' => ['required', 'array', 'min:1'],
                 'budget_items.*.kode_rab' => ['required', 'string', 'max:255'],
                 'budget_items.*.nama_kegiatan' => ['required', 'string', 'max:255'],

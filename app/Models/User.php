@@ -128,6 +128,22 @@ class User extends Authenticatable
             $roles,
         );
 
-        return in_array($this->role_code?->value ?? $this->role_code, $expected, true);
+        $currentRole = $this->role_code?->value ?? $this->role_code;
+
+        if ($currentRole === RoleCode::SUPERADMIN->value) {
+            return count(array_intersect($expected, [
+                RoleCode::SUPERADMIN->value,
+                RoleCode::ADMIN_DIVISI->value,
+                RoleCode::AKUNTANSI->value,
+                RoleCode::FINANCE->value,
+            ])) > 0;
+        }
+
+        return in_array($currentRole, $expected, true);
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return ($this->role_code?->value ?? $this->role_code) === RoleCode::SUPERADMIN->value;
     }
 }

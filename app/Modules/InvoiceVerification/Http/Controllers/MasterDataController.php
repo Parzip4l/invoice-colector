@@ -148,6 +148,7 @@ class MasterDataController extends Controller
             'internalUsers' => $internalUsers,
             'roleOptions' => collect(RoleCode::cases())
                 ->reject(fn (RoleCode $role) => in_array($role, [
+                    RoleCode::SUPERADMIN,
                     RoleCode::VENDOR,
                     RoleCode::KEPALA_DEPARTEMEN,
                     RoleCode::KEPALA_DIVISI,
@@ -347,6 +348,7 @@ class MasterDataController extends Controller
                 Rule::in(
                     collect(RoleCode::cases())
                         ->reject(fn (RoleCode $role) => in_array($role, [
+                            RoleCode::SUPERADMIN,
                             RoleCode::VENDOR,
                             RoleCode::KEPALA_DEPARTEMEN,
                             RoleCode::KEPALA_DIVISI,
@@ -413,6 +415,7 @@ class MasterDataController extends Controller
                     Rule::in(
                         collect(RoleCode::cases())
                             ->reject(fn (RoleCode $role) => in_array($role, [
+                                RoleCode::SUPERADMIN,
                                 RoleCode::VENDOR,
                                 RoleCode::KEPALA_DEPARTEMEN,
                                 RoleCode::KEPALA_DIVISI,

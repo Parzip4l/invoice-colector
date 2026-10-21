@@ -4,6 +4,7 @@ namespace App\Modules\InvoiceVerification\Domain\Enums;
 
 enum RoleCode: string
 {
+    case SUPERADMIN = 'SUPERADMIN';
     case ADMIN_DIVISI = 'ADMIN_DIVISI';
     case KEPALA_DEPARTEMEN = 'KEPALA_DEPARTEMEN';
     case KEPALA_DIVISI = 'KEPALA_DIVISI';

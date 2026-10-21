@@ -22,6 +22,36 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote')->hourly();
 
+Artisan::command('invoice:grant-superadmin {email : Email akun internal yang akan diberi akses penuh}', function () {
+    $email = Str::lower(trim((string) $this->argument('email')));
+
+    if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $this->error('Email tidak valid.');
+
+        return Command::FAILURE;
+    }
+
+    $user = User::query()
+        ->whereRaw('LOWER(email) = ?', [$email])
+        ->first();
+
+    if (! $user) {
+        $this->error("Akun {$email} tidak ditemukan. Login melalui Microsoft 365 terlebih dahulu agar akun dibuat.");
+
+        return Command::FAILURE;
+    }
+
+    $user->forceFill([
+        'role_code' => RoleCode::SUPERADMIN,
+        'is_active' => true,
+        'email_verified_at' => $user->email_verified_at ?? now(),
+    ])->save();
+
+    $this->info("Akun {$email} sekarang berstatus Super Admin dan dapat membuka seluruh menu internal.");
+
+    return Command::SUCCESS;
+})->purpose('Grant full internal menu access to an existing Microsoft 365 user');
+
 Artisan::command('invoice:whitelist-user
     {email : User email}
     {--name= : Display name}

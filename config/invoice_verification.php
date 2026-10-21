@@ -25,6 +25,7 @@ return [
         'timeout' => (int) env('EPROC_TIMEOUT', 30),
     ],
     'roles' => [
+        'SUPERADMIN' => 'Super Admin',
         'ADMIN_DIVISI' => 'Admin Divisi',
         'KEPALA_DEPARTEMEN' => 'Kepala Departemen',
         'KEPALA_DIVISI' => 'Kepala Divisi',

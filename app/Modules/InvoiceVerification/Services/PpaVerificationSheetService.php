@@ -176,7 +176,7 @@ class PpaVerificationSheetService
 
     public function regeneratePdf(Transaction $transaction): ?PpaVerificationSheet
     {
-        $sheet = $transaction->ppaVerificationSheet;
+        $sheet = $transaction->ppaVerificationSheet()->first() ?? $transaction->ppaVerificationSheet;
 
         if (! $sheet) {
             return null;
@@ -184,6 +184,7 @@ class PpaVerificationSheetService
 
         $pdf = $this->pdfGenerator->generate($sheet->fresh());
         $sheet->update($pdf);
+        $sheet->touch();
 
         return $sheet->fresh();
     }

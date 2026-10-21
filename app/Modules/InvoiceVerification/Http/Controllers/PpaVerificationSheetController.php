@@ -36,9 +36,16 @@ class PpaVerificationSheetController extends Controller
     {
         $this->authorize('view', $transaction);
 
-        $sheet = $transaction->ppaVerificationSheet;
+        $sheet = $transaction->ppaVerificationSheet()->first() ?? $transaction->ppaVerificationSheet;
+        $latestApprovalUpdate = $transaction->approvalTransactions()->max('updated_at');
 
-        if (! $sheet || ! $sheet->file_path || ! Storage::disk($sheet->file_disk)->exists($sheet->file_path)) {
+        $needsRegeneration = ! $sheet
+            || ! $sheet->file_path
+            || ! Storage::disk($sheet->file_disk)->exists($sheet->file_path)
+            || request()->boolean('refresh')
+            || ($latestApprovalUpdate && $sheet->updated_at && $sheet->updated_at->lt($latestApprovalUpdate));
+
+        if ($needsRegeneration) {
             $sheet = $this->ppaVerificationSheetService->regeneratePdf($transaction);
         }
 
@@ -62,9 +69,16 @@ class PpaVerificationSheetController extends Controller
     {
         $this->authorize('view', $transaction);
 
-        $sheet = $transaction->ppaVerificationSheet;
+        $sheet = $transaction->ppaVerificationSheet()->first() ?? $transaction->ppaVerificationSheet;
+        $latestApprovalUpdate = $transaction->approvalTransactions()->max('updated_at');
 
-        if (! $sheet || ! $sheet->file_path || ! Storage::disk($sheet->file_disk)->exists($sheet->file_path)) {
+        $needsRegeneration = ! $sheet
+            || ! $sheet->file_path
+            || ! Storage::disk($sheet->file_disk)->exists($sheet->file_path)
+            || request()->boolean('refresh')
+            || ($latestApprovalUpdate && $sheet->updated_at && $sheet->updated_at->lt($latestApprovalUpdate));
+
+        if ($needsRegeneration) {
             $sheet = $this->ppaVerificationSheetService->regeneratePdf($transaction);
         }
 

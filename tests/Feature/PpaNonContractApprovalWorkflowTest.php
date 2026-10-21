@@ -645,4 +645,35 @@ class PpaNonContractApprovalWorkflowTest extends TestCase
         $this->assertNotNull($step3);
         $this->assertSame(ApprovalStatus::PENDING, $step3->status);
     }
+
+    public function test_kadiv_finance_approval_generates_qr_code_on_ppa_verification_sheet_pdf(): void
+    {
+        $this->test_accounting_completion_routes_ppa_non_contract_to_kadiv_finance_and_approval_transitions_to_received();
+
+        $sheet = $this->transaction->ppaVerificationSheet;
+        $this->assertNotNull($sheet);
+
+        $generator = app(\App\Modules\InvoiceVerification\Services\Implementations\FunctionalPpaVerificationSheetPdfGenerator::class);
+        $data = $generator->buildPpaNonContractData($sheet);
+
+        // QR Base64 for Kadiv Finance should be generated
+        $this->assertNotNull($data['accountingQrBase64']);
+        $this->assertStringStartsWith('data:image/svg+xml;base64,', $data['accountingQrBase64']);
+
+        // Check preview response
+        $response = $this->actingAs($this->owner)
+            ->get(route('invoice-verification.transactions.ppa-verification-sheets.preview', $this->transaction));
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'application/pdf');
+
+        // Check detail page UI
+        $detailResponse = $this->actingAs($this->owner)
+            ->get(route('invoice-verification.transactions.show', $this->transaction));
+
+        $detailResponse->assertOk();
+        $detailResponse->assertSee('Persetujuan Kepala Departemen & Kepala Divisi serta Kadiv Keuangan', false);
+        $detailResponse->assertSee('Verifikasi QR Portal');
+        $detailResponse->assertDontSee('Edit Form & Checklist');
+    }
 }

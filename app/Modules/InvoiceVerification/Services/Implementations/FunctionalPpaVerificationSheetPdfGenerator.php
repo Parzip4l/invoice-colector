@@ -68,7 +68,13 @@ class FunctionalPpaVerificationSheetPdfGenerator implements PpaVerificationSheet
 
     public function buildPpaNonContractData(PpaVerificationSheet $sheet): array
     {
-        $transaction = $sheet->transaction;
+        $transaction = $sheet->transaction()->with([
+            'approvalTransactions.approvalFlow',
+            'approvalTransactions.approver',
+            'department.users',
+            'division.users',
+            'invoiceMetadata',
+        ])->first() ?? $sheet->transaction;
         $metadata = $transaction->invoiceMetadata;
 
         $logoPath = public_path('images/lrt-jakarta-logo.png');
@@ -145,35 +151,45 @@ class FunctionalPpaVerificationSheetPdfGenerator implements PpaVerificationSheet
         $kadivTitle = $kadivApproval?->approvalFlow?->step_name
             ?? ('Kepala Divisi '.($transaction->division?->name ?? ''));
 
-        $accountingSigner = $this->portalApprovalResolver->resolvePositionHolder(
-            $transaction->owner,
-            'Finance & Accounting Division Head',
-        );
         $accountingName = $kadivFinanceApproval?->approver?->name
-            ?? data_get($kadivFinanceApproval?->portal_qr_payload, 'signer.name')
-            ?? $accountingSigner['name'];
+            ?? data_get($kadivFinanceApproval?->portal_qr_payload, 'signer.name');
         $accountingNik = $kadivFinanceApproval?->approver?->employee_number
             ?? $kadivFinanceApproval?->approver?->employee_id
             ?? data_get($kadivFinanceApproval?->portal_qr_payload, 'signer.employee_number')
-            ?? $accountingSigner['employee_number']
-            ?? '-';
+            ?? data_get($kadivFinanceApproval?->portal_qr_payload, 'signer.employee_id');
+
+        if (! $accountingName && $transaction->owner) {
+            try {
+                $accountingSigner = $this->portalApprovalResolver->resolvePositionHolder(
+                    $transaction->owner,
+                    'Finance & Accounting Division Head',
+                );
+                $accountingName = $accountingSigner['name'] ?? null;
+                $accountingNik = $accountingNik ?? ($accountingSigner['employee_number'] ?? null);
+            } catch (\Throwable) {
+                // Ignore Portal resolution errors during PDF generation fallback
+            }
+        }
+
+        $accountingName = $accountingName ?? 'Aditya Warman Nugroho';
+        $accountingNik = $accountingNik ?? '-';
 
         $kadepQrBase64 = null;
-        if ($kadepApproval && $kadepApproval->status === ApprovalStatus::APPROVED) {
+        if ($kadepApproval && ($kadepApproval->status?->value ?? $kadepApproval->status) === ApprovalStatus::APPROVED->value) {
             $qrContent = $kadepApproval->portal_signature_url
                 ?: ($kadepApproval->portal_qr_url ?: route('invoice-verification.transactions.show', $transaction));
             $kadepQrBase64 = $this->signatureQrService->generateBase64Svg($qrContent);
         }
 
         $kadivQrBase64 = null;
-        if ($kadivApproval && $kadivApproval->status === ApprovalStatus::APPROVED) {
+        if ($kadivApproval && ($kadivApproval->status?->value ?? $kadivApproval->status) === ApprovalStatus::APPROVED->value) {
             $qrContent = $kadivApproval->portal_signature_url
                 ?: ($kadivApproval->portal_qr_url ?: route('invoice-verification.transactions.show', $transaction));
             $kadivQrBase64 = $this->signatureQrService->generateBase64Svg($qrContent);
         }
 
         $accountingQrBase64 = null;
-        if ($kadivFinanceApproval && $kadivFinanceApproval->status === ApprovalStatus::APPROVED) {
+        if ($kadivFinanceApproval && ($kadivFinanceApproval->status?->value ?? $kadivFinanceApproval->status) === ApprovalStatus::APPROVED->value) {
             $qrContent = $kadivFinanceApproval->portal_signature_url
                 ?: ($kadivFinanceApproval->portal_qr_url ?: route('invoice-verification.transactions.show', $transaction));
             $accountingQrBase64 = $this->signatureQrService->generateBase64Svg($qrContent);

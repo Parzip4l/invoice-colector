@@ -982,7 +982,7 @@
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <div>
                             <div class="section-kicker mb-1">Approval Workflow</div>
-                            <h5 class="section-title">Persetujuan Kepala Departemen & Kepala Divisi{{ $transaction->isPpaNonContract() ? ' & Kadiv Keuangan' : '' }}</h5>
+                            <h5 class="section-title">Persetujuan Kepala Departemen & Kepala Divisi{{ $transaction->isPpaNonContract() ? ' serta Kadiv Keuangan' : '' }}</h5>
                         </div>
                         <div>
                             <span class="badge {{ $transaction->status->badgeClass() }}">{{ $transaction->status->label() }}</span>
@@ -1005,9 +1005,9 @@
                                         @endif
                                     </div>
                                     <div class="small text-muted mb-2">
-                                        Pejabat: <strong class="text-dark">{{ $step1?->approver?->name ?? 'Belum ditentukan' }}</strong>
+                                        <div>Pejabat: <strong class="text-dark">{{ $step1?->approver?->name ?? 'Belum ditentukan' }}</strong></div>
                                         @if($step1?->approver?->email)
-                                            ({{ $step1->approver->email }})
+                                            <div class="text-secondary text-truncate" style="font-size: 0.8rem;">{{ $step1->approver->email }}</div>
                                         @endif
                                     </div>
                                     @if($step1?->action_at)
@@ -1074,9 +1074,9 @@
                                         @endif
                                     </div>
                                     <div class="small text-muted mb-2">
-                                        Pejabat: <strong class="text-dark">{{ $step2?->approver?->name ?? 'Belum ditentukan' }}</strong>
+                                        <div>Pejabat: <strong class="text-dark">{{ $step2?->approver?->name ?? 'Belum ditentukan' }}</strong></div>
                                         @if($step2?->approver?->email)
-                                            ({{ $step2->approver->email }})
+                                            <div class="text-secondary text-truncate" style="font-size: 0.8rem;">{{ $step2->approver->email }}</div>
                                         @endif
                                     </div>
                                     @if($step2?->action_at)
@@ -1148,9 +1148,9 @@
                                         @endif
                                     </div>
                                     <div class="small text-muted mb-2">
-                                        Pejabat: <strong class="text-dark">{{ $step3?->approver?->name ?? 'Finance & Accounting Division Head' }}</strong>
+                                        <div>Pejabat: <strong class="text-dark">{{ $step3?->approver?->name ?? 'Finance & Accounting Division Head' }}</strong></div>
                                         @if($step3?->approver?->email)
-                                            ({{ $step3->approver->email }})
+                                            <div class="text-secondary text-truncate" style="font-size: 0.8rem;">{{ $step3->approver->email }}</div>
                                         @endif
                                     </div>
                                     @if($step3?->action_at)
@@ -1170,7 +1170,7 @@
                                             <div class="mt-2">
                                                 <a href="{{ $step3->portal_signature_url ?: $step3->portal_qr_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1">
                                                     <iconify-icon icon="solar:qr-code-outline" class="fs-16"></iconify-icon>
-                                                    <span>Verifikasi QR Portal (Lembar 2)</span>
+                                                    <span>Verifikasi QR Portal</span>
                                                 </a>
                                             </div>
                                         @else
@@ -1217,15 +1217,17 @@
                                     </div>
                                     <div class="text-muted small">
                                         Formulir LRTJ-FR-KDA-001 & Lembar Verifikasi LRTJ-FR-KDA-004
-                                        @if (($step1 && $step1->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED) || ($step2 && $step2->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED))
+                                        @if (($step1 && $step1->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED) || ($step2 && $step2->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED) || ($step3 && $step3->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED))
                                             &bull; <span class="text-success fw-semibold"><iconify-icon icon="solar:qr-code-outline"></iconify-icon> QR Code Approval sudah tertempel pada PDF</span>
                                         @endif
                                     </div>
                                 </div>
                                 <div class="d-flex align-items-center gap-2 flex-wrap">
-                                    <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.edit', $transaction) }}" class="btn btn-sm btn-outline-primary">
-                                        <iconify-icon icon="solar:pen-new-square-outline" class="me-1"></iconify-icon>Edit Form & Checklist
-                                    </a>
+                                    @if(in_array($transaction->status, [\App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::DRAFT, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::NOT_APPROVED], true))
+                                        <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.edit', $transaction) }}" class="btn btn-sm btn-outline-primary">
+                                            <iconify-icon icon="solar:pen-new-square-outline" class="me-1"></iconify-icon>Edit Form & Checklist
+                                        </a>
+                                    @endif
                                     @if ($transaction->ppaVerificationSheet?->file_path)
                                         <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-sm btn-outline-secondary">
                                             <iconify-icon icon="solar:eye-outline" class="me-1"></iconify-icon>Preview PDF (2 Lembar)

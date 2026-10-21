@@ -9,6 +9,89 @@ import bootstrap from 'bootstrap/dist/js/bootstrap'
 window.bootstrap = bootstrap;
 import 'iconify-icon';
 import 'simplebar/dist/simplebar'
+import Swal from 'sweetalert2'
+import 'sweetalert2/dist/sweetalert2.min.css'
+
+window.Swal = Swal
+
+function sweetAlertOptions(options = {}) {
+    return {
+        confirmButtonColor: '#ed1c24',
+        cancelButtonColor: '#64748b',
+        reverseButtons: true,
+        ...options,
+    }
+}
+
+function initSweetAlerts() {
+    document.querySelectorAll('[data-swal-flash]').forEach(element => {
+        Swal.fire(sweetAlertOptions({
+            icon: element.dataset.icon || 'info',
+            title: element.dataset.title || 'Informasi',
+            text: element.dataset.message || '',
+        }))
+    })
+
+    document.querySelectorAll('[data-swal-confirm]').forEach(button => {
+        button.addEventListener('click', event => {
+            if (button.dataset.swalConfirmed === '1') {
+                delete button.dataset.swalConfirmed
+                return
+            }
+
+            event.preventDefault()
+            Swal.fire(sweetAlertOptions({
+                icon: 'question',
+                title: button.dataset.confirmTitle || 'Konfirmasi',
+                text: button.dataset.confirmMessage || 'Apakah Anda yakin?',
+                showCancelButton: true,
+                confirmButtonText: button.dataset.confirmButton || 'Ya, lanjutkan',
+                cancelButtonText: 'Batal',
+            })).then(result => {
+                if (result.isConfirmed) {
+                    button.dataset.swalConfirmed = '1'
+                    button.click()
+                }
+            })
+        })
+    })
+
+    document.querySelectorAll('form[data-confirm-form]').forEach(form => {
+        form.addEventListener('submit', event => {
+            if (form.dataset.swalConfirmed === '1') {
+                delete form.dataset.swalConfirmed
+                return
+            }
+
+            event.preventDefault()
+            const submitter = event.submitter
+            Swal.fire(sweetAlertOptions({
+                icon: 'question',
+                title: form.dataset.confirmTitle || 'Konfirmasi',
+                text: form.dataset.confirmMessage || 'Apakah Anda yakin?',
+                showCancelButton: true,
+                confirmButtonText: form.dataset.confirmButton || 'Ya, lanjutkan',
+                cancelButtonText: 'Batal',
+            })).then(result => {
+                if (result.isConfirmed) {
+                    form.dataset.swalConfirmed = '1'
+                    form.requestSubmit(submitter || undefined)
+                }
+            })
+        })
+    })
+
+    document.querySelectorAll('[data-confirm-message]:not(form):not([data-swal-confirm])').forEach(button => {
+        button.addEventListener('click', event => {
+            event.preventDefault()
+            Swal.fire(sweetAlertOptions({
+                icon: 'info',
+                title: button.dataset.confirmTitle || 'Informasi',
+                text: button.dataset.confirmMessage || 'Informasi belum tersedia.',
+            }))
+        })
+    })
+}
 
 class Components {
     initBootstrapComponents() {
@@ -45,7 +128,11 @@ class Components {
         const alertTrigger = document.getElementById('liveAlertBtn')
         if (alertTrigger) {
             alertTrigger.addEventListener('click', () => {
-                alert('Nice, you triggered this alert message!', 'success')
+                Swal.fire(sweetAlertOptions({
+                    icon: 'success',
+                    title: 'Berhasil',
+                    text: 'Aksi berhasil diproses.',
+                }))
             })
         }
 
@@ -145,6 +232,7 @@ class FormValidation {
 document.addEventListener('DOMContentLoaded', function (e) {
     new Components().init();
     new FormValidation().init();
+    initSweetAlerts();
 });
 
 

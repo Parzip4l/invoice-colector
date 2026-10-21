@@ -1085,16 +1085,6 @@
     <div class="offcanvas-body" data-detail-content></div>
 </div>
 
-<div class="modal fade" id="referenceConfirmModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title">Konfirmasi</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-            <div class="modal-body" data-confirm-text>Apakah Anda yakin?</div>
-            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" data-confirm-submit>Ya, lanjutkan</button></div>
-        </div>
-    </div>
-</div>
-
 @include('invoice-verification.components.file-preview-modal')
 @include('invoice-verification.partials.rupiah-input')
 
@@ -1130,7 +1120,6 @@
         const agreementFileForm = document.getElementById('agreementFileForm');
         const agreementFileSubtitle = document.querySelector('[data-agreement-file-subtitle]');
         let activeTab = @json($activeTab);
-        let pendingForm = null;
         let filterTimer = null;
 
         function updateContext() {
@@ -1364,36 +1353,6 @@
                     agreementFileSubtitle.textContent = button.dataset.contractNumber || 'Lengkapi file untuk reference PO.';
                 }
             });
-        });
-
-        const confirmModalElement = document.getElementById('referenceConfirmModal');
-        const confirmModal = confirmModalElement ? new bootstrap.Modal(confirmModalElement) : null;
-        const confirmText = document.querySelector('[data-confirm-text]');
-        const confirmSubmit = document.querySelector('[data-confirm-submit]');
-
-        document.querySelectorAll('[data-confirm-form]').forEach(function (form) {
-            form.addEventListener('submit', function (event) {
-                event.preventDefault();
-                pendingForm = form;
-                if (confirmText) confirmText.textContent = form.dataset.confirmMessage || 'Apakah Anda yakin?';
-                confirmModal?.show();
-            });
-        });
-
-        document.querySelectorAll('[data-confirm-message]:not(form)').forEach(function (button) {
-            button.addEventListener('click', function () {
-                pendingForm = null;
-                if (confirmText) confirmText.textContent = button.dataset.confirmMessage || 'Action belum tersedia.';
-                confirmModal?.show();
-            });
-        });
-
-        confirmSubmit?.addEventListener('click', function () {
-            if (pendingForm) {
-                pendingForm.submit();
-                return;
-            }
-            confirmModal?.hide();
         });
 
         updateContext();

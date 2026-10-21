@@ -8,6 +8,7 @@ use App\Modules\InvoiceVerification\Domain\Enums\RoleCode;
 use App\Providers\RouteServiceProvider;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -85,7 +86,7 @@ class MicrosoftSsoController extends Controller
         try {
             $token = $this->exchangeCodeForToken($request->query('code'));
             $profile = $this->fetchProfile($token['access_token']);
-            $user = $this->whitelistedUser($profile);
+            $user = $this->resolveInternalUser($profile);
 
             Auth::login($user, true);
             $request->session()->regenerate();
@@ -138,7 +139,7 @@ class MicrosoftSsoController extends Controller
         return $response->json();
     }
 
-    private function whitelistedUser(array $profile): User
+    private function resolveInternalUser(array $profile): User
     {
         $email = Str::lower($profile['mail'] ?? $profile['userPrincipalName'] ?? '');
 
@@ -155,16 +156,22 @@ class MicrosoftSsoController extends Controller
             ->whereRaw('LOWER(email) = ?', [$email])
             ->first();
 
-        if (! $user || ! $user->is_active || ! $user->role_code) {
-            throw new \RuntimeException('Akun belum masuk whitelist Invoice Collector.');
-        }
-
-        if ($user->hasRole(RoleCode::VENDOR)) {
+        if ($user?->hasRole(RoleCode::VENDOR)) {
             throw new \RuntimeException('Akun vendor tidak dapat login menggunakan Microsoft SSO internal.');
         }
 
+        $defaultRole = RoleCode::tryFrom((string) config('services.microsoft_sso.default_role'))
+            ?? RoleCode::USER_DIVISI;
+
+        $user ??= new User([
+            'email' => $email,
+            'password' => Hash::make(Str::random(64)),
+        ]);
+
         $user->forceFill([
-            'name' => $profile['displayName'] ?? $user->name,
+            'name' => $profile['displayName'] ?? $user->name ?? Str::before($email, '@'),
+            'role_code' => $user->role_code ?: $defaultRole,
+            'is_active' => true,
             'email_verified_at' => $user->email_verified_at ?: now(),
             'last_synced_at' => now(),
         ])->save();

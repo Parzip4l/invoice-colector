@@ -127,7 +127,7 @@ class PortalApprovalResolverService
                 'transaction_id' => $transaction->id,
             ]);
 
-            $message = data_get($response->json(), 'message') ?: 'Portal menolak permintaan resolver approval.';
+            $message = $this->portalErrorMessage($response->json(), 'Portal menolak permintaan resolver approval.');
             throw ValidationException::withMessages(['approval' => $message]);
         }
 
@@ -241,11 +241,21 @@ class PortalApprovalResolverService
         }
 
         if (! $response->successful()) {
-            $message = data_get($response->json(), 'message') ?: 'Portal menolak permintaan aplikasi.';
+            $message = $this->portalErrorMessage($response->json(), 'Portal menolak permintaan aplikasi.');
             throw ValidationException::withMessages([$errorKey => $message]);
         }
 
         return (array) ($response->json('data') ?? []);
+    }
+
+    /** @param array<string, mixed>|null $payload */
+    protected function portalErrorMessage(?array $payload, string $fallback): string
+    {
+        $errors = collect((array) data_get($payload, 'errors'))
+            ->flatten()
+            ->filter(fn ($message) => is_string($message) && $message !== '');
+
+        return (string) ($errors->first() ?: data_get($payload, 'message') ?: $fallback);
     }
 
     /**

@@ -46,6 +46,7 @@ return [
         'prompt' => env('MICROSOFT_PROMPT'),
         'scopes' => env('MICROSOFT_SCOPES', 'openid profile email User.Read'),
         'timeout' => (int) env('MICROSOFT_TIMEOUT', 20),
+        'default_role' => env('MICROSOFT_SSO_DEFAULT_ROLE', 'USER_DIVISI'),
     ],
 
 ];

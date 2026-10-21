@@ -412,7 +412,10 @@
                     name="action"
                     value="submit"
                     class="btn btn-primary d-inline-flex align-items-center gap-1"
-                    onclick="return confirm('Apakah Anda yakin data RAB & Checklist sudah benar? Pengajuan akan diteruskan ke Kepala Departemen & Kepala Divisi.');"
+                    data-swal-confirm
+                    data-confirm-title="Submit Pengajuan?"
+                    data-confirm-message="Apakah Anda yakin data RAB & Checklist sudah benar? Pengajuan akan diteruskan ke Kepala Departemen dan Kepala Divisi."
+                    data-confirm-button="Ya, submit"
                 >
                     <iconify-icon icon="solar:plain-2-outline"></iconify-icon>
                     <span>Simpan & Submit ke Kadep & Kadiv</span>

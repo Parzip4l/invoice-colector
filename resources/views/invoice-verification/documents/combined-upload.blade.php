@@ -214,14 +214,24 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (oversizedFiles.length > 0) {
             e.preventDefault();
-            alert('File berikut melebihi batas maksimal 30 MB per file:\n- ' + oversizedFiles.join('\n- ') + '\n\nSilakan kompres file tersebut sebelum diunggah.');
+            window.Swal.fire({
+                icon: 'error',
+                title: 'Ukuran file terlalu besar',
+                text: 'File berikut melebihi batas maksimal 30 MB per file:\n• ' + oversizedFiles.join('\n• ') + '\n\nSilakan kompres file tersebut sebelum diunggah.',
+                confirmButtonColor: '#ed1c24',
+            });
             return false;
         }
 
         // Check total size > 150MB
         if (totalBytes > 150 * 1024 * 1024) {
             e.preventDefault();
-            alert(`Total ukuran seluruh file yang diunggah (${(totalBytes / (1024 * 1024)).toFixed(1)} MB) melebihi batas maksimal server (150 MB).\n\nSilakan kompres file dokumen Anda terlebih dahulu.`);
+            window.Swal.fire({
+                icon: 'error',
+                title: 'Total upload terlalu besar',
+                text: `Total ukuran seluruh file yang diunggah (${(totalBytes / (1024 * 1024)).toFixed(1)} MB) melebihi batas maksimal server (150 MB). Silakan kompres file dokumen Anda terlebih dahulu.`,
+                confirmButtonColor: '#ed1c24',
+            });
             return false;
         }
     });

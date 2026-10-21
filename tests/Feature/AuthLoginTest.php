@@ -9,8 +9,8 @@ use App\Modules\InvoiceVerification\Domain\Models\Division;
 use App\Modules\InvoiceVerification\Domain\Models\Vendor;
 use Database\Seeders\InvoiceVerification\InvoiceVerificationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AuthLoginTest extends TestCase
@@ -102,7 +102,7 @@ class AuthLoginTest extends TestCase
         $this->assertAuthenticatedAs(User::where('email', 'admin.divisi@demo.local')->firstOrFail());
     }
 
-    public function test_non_whitelisted_user_cannot_login_with_microsoft_sso(): void
+    public function test_new_internal_user_is_provisioned_without_whitelist_when_using_microsoft_sso(): void
     {
         config([
             'services.microsoft_sso.enabled' => true,
@@ -123,10 +123,12 @@ class AuthLoginTest extends TestCase
 
         $this->withSession(['microsoft_sso_state' => 'valid-state'])
             ->get(route('auth.microsoft.callback', ['code' => 'auth-code', 'state' => 'valid-state']))
-            ->assertRedirect(route('login'))
-            ->assertSessionHasErrors('email');
+            ->assertRedirect(route('invoice-verification.dashboard'));
 
-        $this->assertGuest();
+        $user = User::where('email', 'unknown@demo.local')->firstOrFail();
+        $this->assertAuthenticatedAs($user);
+        $this->assertTrue($user->is_active);
+        $this->assertTrue($user->hasRole(RoleCode::USER_DIVISI));
     }
 
     public function test_vendor_uses_local_login_even_when_ldap_is_enabled(): void

@@ -20,7 +20,7 @@ class StoreTransactionRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $payload = [];
-        if ($this->user()?->hasRole(RoleCode::USER_DIVISI)) {
+        if ($this->user()?->hasRole(RoleCode::ADMIN_DIVISI, RoleCode::USER_DIVISI)) {
             $payload = [
                 'division_id' => $this->user()?->division_id,
                 'department_id' => $this->user()?->department_id,
@@ -41,12 +41,12 @@ class StoreTransactionRequest extends FormRequest
             'vendor_id' => ['nullable', 'exists:vendors,id'],
             'division_id' => array_values(array_filter([
                 'required',
-                $this->user()?->hasRole(RoleCode::USER_DIVISI) ? Rule::in([(string) $this->user()?->division_id]) : null,
+                $this->user()?->hasRole(RoleCode::ADMIN_DIVISI, RoleCode::USER_DIVISI) ? Rule::in([(string) $this->user()?->division_id]) : null,
                 'exists:divisions,id',
             ])),
             'department_id' => [
                 'required',
-                ...($this->user()?->hasRole(RoleCode::USER_DIVISI) ? [Rule::in([(string) $this->user()?->department_id])] : []),
+                ...($this->user()?->hasRole(RoleCode::ADMIN_DIVISI, RoleCode::USER_DIVISI) ? [Rule::in([(string) $this->user()?->department_id])] : []),
                 Rule::exists('departments', 'id')->where(fn ($query) => $query->where('division_id', $this->input('division_id'))),
             ],
             'memo_request_id' => [

@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\InvoiceVerification\Domain\Enums\RoleCode;
 use App\Modules\InvoiceVerification\Domain\Models\Department;
 use App\Modules\InvoiceVerification\Domain\Models\Division;
+use App\Modules\InvoiceVerification\Domain\Models\TransactionType;
 use Database\Seeders\InvoiceVerification\InvoiceVerificationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -61,5 +62,56 @@ class PortalOrganizationSyncTest extends TestCase
         $this->assertSame('DIV-PORTAL', Division::findOrFail($user->division_id)->ldap_code);
         $this->assertSame('DEP-PORTAL', Department::findOrFail($user->department_id)->ldap_code);
         $this->assertSame('EMP-PORTAL-001', $user->employee_number);
+    }
+
+    public function test_division_admin_syncs_portal_organization_and_can_select_every_transaction_type(): void
+    {
+        $this->seed(InvoiceVerificationSeeder::class);
+        $user = User::factory()->create([
+            'name' => 'Admin Divisi Portal',
+            'email' => 'admin.portal@lrtjakarta.co.id',
+            'role_code' => RoleCode::ADMIN_DIVISI,
+            'division_id' => null,
+            'department_id' => null,
+        ]);
+
+        config([
+            'invoice_verification.approval_resolver.base_url' => 'https://portal.test',
+            'invoice_verification.approval_resolver.shared_secret' => 'portal-test-secret',
+            'invoice_verification.approval_resolver.client_code' => 'invoice_collector',
+        ]);
+
+        Http::fake([
+            'https://portal.test/api/v1/approval/resolve' => Http::response([
+                'success' => true,
+                'data' => [
+                    'requester' => [
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'employee_number' => 'EMP-ADMIN-001',
+                        'organization' => [
+                            'division' => ['id' => 'portal-div-it', 'code' => 'DIV-IT', 'name' => 'IT', 'type' => 'division'],
+                            'department' => ['id' => 'portal-dept-security', 'code' => 'DEP-IT-SEC', 'name' => 'Keamanan TI', 'type' => 'department'],
+                        ],
+                    ],
+                    'steps' => [],
+                ],
+            ]),
+        ]);
+
+        $response = $this->actingAs($user)->get(route('invoice-verification.transactions.create'));
+
+        $response->assertOk()
+            ->assertSee('IT')
+            ->assertSee('Keamanan TI');
+
+        TransactionType::query()->pluck('name')->each(
+            fn (string $name) => $response->assertSee($name),
+        );
+
+        $user->refresh();
+        $this->assertSame('DIV-IT', Division::findOrFail($user->division_id)->ldap_code);
+        $this->assertSame('DEP-IT-SEC', Department::findOrFail($user->department_id)->ldap_code);
+        $this->assertSame('EMP-ADMIN-001', $user->employee_number);
     }
 }

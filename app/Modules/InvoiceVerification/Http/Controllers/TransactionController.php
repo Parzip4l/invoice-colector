@@ -147,7 +147,7 @@ class TransactionController extends Controller
 
         $user = auth()->user();
 
-        if ($user?->hasRole(RoleCode::USER_DIVISI)) {
+        if ($user?->hasRole(RoleCode::ADMIN_DIVISI, RoleCode::USER_DIVISI)) {
             $this->portalApprovalResolver->syncRequesterOrganization($user);
             $user = $user->fresh(['division', 'department']);
         }
@@ -174,6 +174,10 @@ class TransactionController extends Controller
             ->filter(function (TransactionType $type) use ($user) {
                 if ($user?->hasRole(RoleCode::VENDOR)) {
                     return $type->code?->value === 'PPA';
+                }
+
+                if ($user?->hasRole(RoleCode::ADMIN_DIVISI)) {
+                    return true;
                 }
 
                 if ($user?->hasRole(RoleCode::USER_DIVISI)) {

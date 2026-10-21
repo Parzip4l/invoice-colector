@@ -33,7 +33,7 @@ class CreateTransactionAction
     {
         return DB::transaction(function () use ($payload, $actor) {
             $transactionType = TransactionType::query()->findOrFail($payload['transaction_type_id']);
-            $usesPortalOrganization = $actor->hasRole(RoleCode::USER_DIVISI);
+            $usesPortalOrganization = $actor->hasRole(RoleCode::ADMIN_DIVISI, RoleCode::USER_DIVISI);
             if ($usesPortalOrganization && (! $actor->division_id || ! $actor->department_id)) {
                 throw ValidationException::withMessages([
                     'organization' => 'Divisi dan departemen akun belum tersinkron dari Portal.',

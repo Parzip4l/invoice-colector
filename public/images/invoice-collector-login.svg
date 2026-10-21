@@ -1,0 +1,31 @@
+<svg width="760" height="560" viewBox="0 0 760 560" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Invoice Collector workflow illustration</title>
+  <desc id="desc">Ilustrasi dokumen invoice yang melalui proses pemeriksaan, persetujuan, dan penyelesaian.</desc>
+  <rect x="74" y="60" width="612" height="438" rx="40" fill="#FFF9F9" stroke="#F3DCDD" stroke-width="2"/>
+  <circle cx="113" cy="105" r="7" fill="#ED1C24"/><circle cx="139" cy="105" r="7" fill="#F4A7AB"/><circle cx="165" cy="105" r="7" fill="#E6DADB"/>
+  <path d="M195 105H320" stroke="#E9DCDD" stroke-width="10" stroke-linecap="round"/>
+  <rect x="112" y="145" width="356" height="304" rx="24" fill="white" stroke="#E9DCDD" stroke-width="2"/>
+  <rect x="140" y="174" width="72" height="72" rx="18" fill="#FDEDEE"/>
+  <path d="M160 196H192M160 208H188M160 220H181" stroke="#ED1C24" stroke-width="5" stroke-linecap="round"/>
+  <path d="M194 174V190C194 194.418 197.582 198 202 198H212" stroke="#ED1C24" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="232" y="194" fill="#252836" font-family="Arial, sans-serif" font-size="19" font-weight="700">INVOICE</text>
+  <text x="232" y="222" fill="#8A7477" font-family="Arial, sans-serif" font-size="14">INV/LRTJ/2026/0142</text>
+  <text x="140" y="282" fill="#A28F91" font-family="Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1">TOTAL TAGIHAN</text>
+  <text x="140" y="316" fill="#252836" font-family="Arial, sans-serif" font-size="27" font-weight="700">Rp 48.750.000</text>
+  <rect x="140" y="340" width="300" height="1.5" fill="#EFE5E6"/>
+  <rect x="140" y="367" width="108" height="10" rx="5" fill="#E9DFE0"/><rect x="140" y="390" width="188" height="10" rx="5" fill="#F0E8E9"/><rect x="140" y="413" width="148" height="10" rx="5" fill="#F0E8E9"/>
+  <rect x="496" y="158" width="220" height="80" rx="20" fill="white" stroke="#E9DCDD" stroke-width="2"/>
+  <circle cx="532" cy="198" r="20" fill="#FDEDEE"/><path d="M524 198L530 204L541 191" stroke="#ED1C24" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="566" y="193" fill="#252836" font-family="Arial, sans-serif" font-size="15" font-weight="700">Dokumen diterima</text><text x="566" y="214" fill="#917D80" font-family="Arial, sans-serif" font-size="12">Data berhasil diverifikasi</text>
+  <rect x="496" y="256" width="220" height="80" rx="20" fill="white" stroke="#E9DCDD" stroke-width="2"/>
+  <circle cx="532" cy="296" r="20" fill="#FDEDEE"/><path d="M522 301V294C522 288.477 526.477 284 532 284C537.523 284 542 288.477 542 294V301M526 301V307M538 301V307" stroke="#ED1C24" stroke-width="3" stroke-linecap="round"/>
+  <text x="566" y="291" fill="#252836" font-family="Arial, sans-serif" font-size="15" font-weight="700">Approval tercatat</text><text x="566" y="312" fill="#917D80" font-family="Arial, sans-serif" font-size="12">Kadep &amp; Kadiv menyetujui</text>
+  <rect x="496" y="354" width="220" height="80" rx="20" fill="#ED1C24"/>
+  <circle cx="532" cy="394" r="20" fill="white" fill-opacity="0.18"/><path d="M524 394L530 400L541 387" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="566" y="389" fill="white" font-family="Arial, sans-serif" font-size="15" font-weight="700">Transaksi selesai</text><text x="566" y="410" fill="white" fill-opacity="0.8" font-family="Arial, sans-serif" font-size="12">Terverifikasi dan tersimpan</text>
+  <path d="M468 198H483M468 296H483M468 394H483" stroke="#ED1C24" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="475" cy="198" r="4" fill="#ED1C24"/><circle cx="475" cy="296" r="4" fill="#ED1C24"/><circle cx="475" cy="394" r="4" fill="#ED1C24"/>
+  <rect x="48" y="346" width="112" height="112" rx="28" fill="#252836"/><rect x="72" y="370" width="64" height="64" rx="12" fill="white"/>
+  <path d="M84 387H124M84 399H96M104 399H124M84 411H96M104 411H124M84 423H124" stroke="#ED1C24" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="674" cy="110" r="48" fill="#FDEDEE"/><path d="M652 110H696M674 88V132" stroke="#ED1C24" stroke-width="5" stroke-linecap="round"/>
+</svg>

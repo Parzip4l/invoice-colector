@@ -31,6 +31,11 @@ class AuthLoginTest extends TestCase
         $response->assertOk();
         $response->assertSee('<title>Login | SIGNAL</title>', false);
         $response->assertSee('id="toggle-password"', false);
+        $response->assertSee('Masuk dengan Microsoft 365');
+        $response->assertSee('invoice-collector-login.svg', false);
+        $response->assertSee('Invoice terkendali');
+        $response->assertDontSee('Register');
+        $response->assertDontSee('Buat akun');
     }
 
     public function test_internal_whitelisted_user_can_login_with_local_fallback_when_ldap_is_disabled(): void
@@ -149,6 +154,8 @@ class AuthLoginTest extends TestCase
 
     public function test_register_post_is_disabled(): void
     {
+        $this->get('/register')->assertNotFound();
+
         $response = $this->post('/register', [
             'name' => 'New User',
             'email' => 'new.user@demo.local',

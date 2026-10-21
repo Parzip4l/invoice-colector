@@ -365,19 +365,19 @@ class ApprovalWorkflowService
                         'Disetujui oleh Kepala Divisi. Dokumen diteruskan ke Accounting untuk verifikasi.'.($notes ? ' Catatan: '.$notes : ''),
                     );
                 } elseif ($stepNo === 3) {
-                    // Kadiv Finance approved -> status becomes RECEIVED and ready for finance scheduling
-                    $receivedTransaction = $this->lifecycleService->markReceived(
+                    // Kadiv Finance approved -> status becomes COMPLETED and process is finished
+                    $completedTransaction = $this->lifecycleService->markCompleted(
                         $transaction,
                         $actor,
-                        'Disetujui oleh Kepala Divisi Keuangan dan Akuntansi (Kadiv Finance). Dokumen siap diproses oleh Finance.'.($notes ? ' Catatan: '.$notes : ''),
+                        'Disetujui oleh Kepala Divisi Keuangan dan Akuntansi (Kadiv Finance). Seluruh tahapan selesai.'.($notes ? ' Catatan: '.$notes : ''),
                     );
-                    app(NumberingRegisterService::class)->syncFromTransaction($receivedTransaction);
+                    app(NumberingRegisterService::class)->syncFromTransaction($completedTransaction);
 
-                    \Illuminate\Support\Facades\DB::afterCommit(function () use ($receivedTransaction) {
-                        $receivedTransaction->loadMissing('transactionType', 'vendor');
-                        $email = $receivedTransaction->vendor?->contact_email ?? $receivedTransaction->owner?->email;
+                    \Illuminate\Support\Facades\DB::afterCommit(function () use ($completedTransaction) {
+                        $completedTransaction->loadMissing('transactionType', 'vendor');
+                        $email = $completedTransaction->vendor?->contact_email ?? $completedTransaction->owner?->email;
                         if ($email) {
-                            \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\InvoiceTransactionReceivedMail($receivedTransaction));
+                            \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\InvoiceTransactionReceivedMail($completedTransaction));
                         }
                     });
                 }

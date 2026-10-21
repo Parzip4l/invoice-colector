@@ -462,6 +462,8 @@ class PpaNonContractApprovalWorkflowTest extends TestCase
         $this->assertSame(TransactionStatus::SUBMITTED, $this->transaction->status);
         $this->assertSame(TransactionStep::ACCOUNTING_VERIFICATION, $this->transaction->current_step);
         $this->assertNotNull($this->transaction->submitted_at);
+        $this->assertNotNull($this->transaction->numberingRegister);
+        $this->assertStringStartsWith('PPA-', $this->transaction->numberingRegister->register_number);
 
         Http::assertSent(function ($request) {
             if ($request->url() !== 'https://portal.lrtjakarta.co.id/api/v1/signatures') {
@@ -609,8 +611,9 @@ class PpaNonContractApprovalWorkflowTest extends TestCase
             ->assertRedirect();
 
         $this->transaction->refresh();
-        $this->assertSame(TransactionStatus::RECEIVED, $this->transaction->status);
-        $this->assertSame(TransactionStep::FINANCE_PROCESS, $this->transaction->current_step);
+        $this->assertSame(TransactionStatus::COMPLETED, $this->transaction->status);
+        $this->assertSame(TransactionStep::COMPLETED, $this->transaction->current_step);
+        $this->assertNotNull($this->transaction->completed_at);
         $this->assertSame(ApprovalStatus::APPROVED, $step3Approval->fresh()->status);
         $this->assertNotNull($this->transaction->numberingRegister);
     }

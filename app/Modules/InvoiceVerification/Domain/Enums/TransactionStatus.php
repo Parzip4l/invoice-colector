@@ -39,6 +39,7 @@ enum TransactionStatus: string
             self::RECEIVED,
             self::SCHEDULING_PAYMENT,
             self::PAID,
+            self::COMPLETED,
         ];
     }
 
@@ -61,7 +62,7 @@ enum TransactionStatus: string
             self::ACCOUNTING_VERIFICATION => 'In Review Accounting',
             self::REVISION_IN_PROGRESS => 'Revisi Berjalan',
             self::FINANCE_PROCESS => 'Proses Finance',
-            self::COMPLETED => 'Approved',
+            self::COMPLETED => 'Selesai',
             self::ARCHIVED => 'Diarsipkan',
         };
     }

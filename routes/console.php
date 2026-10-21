@@ -362,11 +362,15 @@ Artisan::command('eproc:sync-api
 })->purpose('Sync vendor and purchase orders from eProc API.');
 
 Artisan::command('numbering-register:sync
-    {--status=* : Status transaksi yang disinkronkan. Default: RECEIVED, SCHEDULING_PAYMENT, PAID}
+    {--status=* : Status transaksi yang disinkronkan. Default: SUBMITTED, ACCOUNTING_VERIFICATION, IN_REVIEW, WAITING_APPROVAL, RECEIVED, SCHEDULING_PAYMENT, PAID}
     {--missing-only : Hanya buat register untuk transaksi yang belum punya data penomoran}
     {--dry-run : Preview data tanpa menyimpan}
 ', function () {
     $allowedStatuses = collect([
+        TransactionStatus::SUBMITTED->value,
+        TransactionStatus::ACCOUNTING_VERIFICATION->value,
+        TransactionStatus::IN_REVIEW->value,
+        TransactionStatus::WAITING_APPROVAL->value,
         TransactionStatus::RECEIVED->value,
         TransactionStatus::SCHEDULING_PAYMENT->value,
         TransactionStatus::PAID->value,

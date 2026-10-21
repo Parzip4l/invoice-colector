@@ -42,6 +42,22 @@ class TransactionLifecycleService
             'notes' => $notes,
         ]);
 
+        $isEnteringAccounting = in_array($status, [
+            TransactionStatus::SUBMITTED,
+            TransactionStatus::ACCOUNTING_VERIFICATION,
+        ], true) || in_array($step, [
+            TransactionStep::ACCOUNTING_VERIFICATION,
+            TransactionStep::ACCOUNTING_ADMINISTRATION,
+        ], true);
+
+        if ($isEnteringAccounting) {
+            try {
+                app(NumberingRegisterService::class)->syncFromTransaction($transaction);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Auto-sync numbering register failed on submit to accounting: '.$e->getMessage(), ['exception' => $e]);
+            }
+        }
+
         return $transaction->refresh();
     }
 
@@ -111,6 +127,17 @@ class TransactionLifecycleService
         );
     }
 
+    public function markCompleted(Transaction $transaction, User $actor, ?string $notes = null): Transaction
+    {
+        return $this->transition(
+            $transaction,
+            TransactionStatus::COMPLETED,
+            TransactionStep::COMPLETED,
+            $actor,
+            $notes ?: 'Transaksi telah selesai disetujui.',
+        );
+    }
+
     private function validateTransition(Transaction $transaction, TransactionStatus $targetStatus, ?User $actor): void
     {
         $sourceStatus = $transaction->status;
@@ -139,10 +166,10 @@ class TransactionLifecycleService
             TransactionStatus::NOT_APPROVED->value => [TransactionStatus::SUBMITTED, TransactionStatus::WAITING_APPROVAL],
             TransactionStatus::SUBMITTED->value => [TransactionStatus::IN_REVIEW],
             TransactionStatus::ACCOUNTING_VERIFICATION->value => [TransactionStatus::IN_REVIEW],
-            TransactionStatus::IN_REVIEW->value => [TransactionStatus::NOT_APPROVED, TransactionStatus::RECEIVED, TransactionStatus::WAITING_APPROVAL],
-            TransactionStatus::RECEIVED->value => [TransactionStatus::SCHEDULING_PAYMENT, TransactionStatus::WAITING_APPROVAL],
+            TransactionStatus::IN_REVIEW->value => [TransactionStatus::NOT_APPROVED, TransactionStatus::RECEIVED, TransactionStatus::WAITING_APPROVAL, TransactionStatus::COMPLETED],
+            TransactionStatus::RECEIVED->value => [TransactionStatus::SCHEDULING_PAYMENT, TransactionStatus::WAITING_APPROVAL, TransactionStatus::COMPLETED],
             TransactionStatus::SCHEDULING_PAYMENT->value => [TransactionStatus::PAID],
-            TransactionStatus::WAITING_APPROVAL->value => [TransactionStatus::NOT_APPROVED, TransactionStatus::SUBMITTED, TransactionStatus::RECEIVED],
+            TransactionStatus::WAITING_APPROVAL->value => [TransactionStatus::NOT_APPROVED, TransactionStatus::SUBMITTED, TransactionStatus::RECEIVED, TransactionStatus::COMPLETED],
         ];
 
         if (! in_array($targetStatus, $allowed[$sourceStatus->value] ?? [], true)) {
@@ -160,17 +187,17 @@ class TransactionLifecycleService
         $accountingTransition = (
             ($sourceStatus === TransactionStatus::SUBMITTED && $targetStatus === TransactionStatus::IN_REVIEW)
             || ($sourceStatus === TransactionStatus::ACCOUNTING_VERIFICATION && $targetStatus === TransactionStatus::IN_REVIEW)
-            || ($sourceStatus === TransactionStatus::IN_REVIEW && in_array($targetStatus, [TransactionStatus::NOT_APPROVED, TransactionStatus::RECEIVED, TransactionStatus::WAITING_APPROVAL], true))
-            || ($sourceStatus === TransactionStatus::RECEIVED && $targetStatus === TransactionStatus::WAITING_APPROVAL)
+            || ($sourceStatus === TransactionStatus::IN_REVIEW && in_array($targetStatus, [TransactionStatus::NOT_APPROVED, TransactionStatus::RECEIVED, TransactionStatus::WAITING_APPROVAL, TransactionStatus::COMPLETED], true))
+            || ($sourceStatus === TransactionStatus::RECEIVED && in_array($targetStatus, [TransactionStatus::WAITING_APPROVAL, TransactionStatus::COMPLETED], true))
         );
         $financeTransition = (
-            ($sourceStatus === TransactionStatus::RECEIVED && $targetStatus === TransactionStatus::SCHEDULING_PAYMENT)
+            ($sourceStatus === TransactionStatus::RECEIVED && in_array($targetStatus, [TransactionStatus::SCHEDULING_PAYMENT, TransactionStatus::COMPLETED], true))
             || ($sourceStatus === TransactionStatus::SCHEDULING_PAYMENT && $targetStatus === TransactionStatus::PAID)
         );
         $approvalStartTransition = in_array($sourceStatus, [TransactionStatus::DRAFT, TransactionStatus::NOT_APPROVED], true)
             && $targetStatus === TransactionStatus::WAITING_APPROVAL;
         $approvalDecisionTransition = $sourceStatus === TransactionStatus::WAITING_APPROVAL
-            && in_array($targetStatus, [TransactionStatus::NOT_APPROVED, TransactionStatus::SUBMITTED, TransactionStatus::RECEIVED], true);
+            && in_array($targetStatus, [TransactionStatus::NOT_APPROVED, TransactionStatus::SUBMITTED, TransactionStatus::RECEIVED, TransactionStatus::COMPLETED], true);
 
         if ($approvalStartTransition && $transaction->owner_user_id === $actor->id) {
             return;

@@ -154,6 +154,8 @@ class InvoiceVerificationUseCaseWorkflowTest extends TestCase
 
         $this->actingAs($internalVendor)->post(route('invoice-verification.transactions.submit', $transaction))->assertRedirect();
         $this->assertSame('SUBMITTED', $transaction->fresh()->status->value);
+        $this->assertNotNull($transaction->fresh()->numberingRegister);
+        $this->assertStringStartsWith('SPU-', $transaction->fresh()->numberingRegister->register_number);
 
         $this->actingAs($accounting)->get(route('invoice-verification.transactions.accounting-verifications.edit', $transaction))->assertOk();
         $verification = $transaction->fresh()->accountingVerification()->with('items')->firstOrFail();

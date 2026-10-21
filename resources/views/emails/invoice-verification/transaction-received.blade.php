@@ -2,9 +2,8 @@
 
 <p>
     Dokumen transaksi {{ $transaction->registration_number }} untuk
-    {{ $transaction->transactionType?->name ?? 'transaksi' }} telah dinyatakan lengkap.
+    {{ $transaction->transactionType?->name ?? 'transaksi' }} telah dinyatakan lengkap dan disetujui.
 </p>
 
-<p>Status transaksi saat ini: <strong>Received</strong>.</p>
+<p>Status transaksi saat ini: <strong>{{ $transaction->status?->label() ?? 'Selesai' }}</strong>.</p>
 
-<p>Transaksi akan dilanjutkan ke proses pembayaran oleh Finance.</p>

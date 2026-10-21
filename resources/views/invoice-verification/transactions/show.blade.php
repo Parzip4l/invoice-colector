@@ -75,7 +75,7 @@
         ],
         [
             'key' => 'completed',
-            'label' => 'Completed',
+            'label' => 'Selesai',
             'icon' => 'solar:check-circle-outline',
             'statuses' => [
                 \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT->value,
@@ -86,6 +86,7 @@
             'steps' => [
                 \App\Modules\InvoiceVerification\Domain\Enums\TransactionStep::FINANCE_PROCESS->value,
                 \App\Modules\InvoiceVerification\Domain\Enums\TransactionStep::FINALIZATION->value,
+                \App\Modules\InvoiceVerification\Domain\Enums\TransactionStep::COMPLETED->value,
                 \App\Modules\InvoiceVerification\Domain\Enums\TransactionStep::ARCHIVE->value,
             ],
         ],
@@ -113,7 +114,7 @@
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT,
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID,
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED,
-        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED => 'Completed',
+        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED => 'Selesai',
         default => $transaction->status?->label() ?? 'Draft',
     };
     $helperTone = in_array($statusValue, [\App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::REVISION_IN_PROGRESS->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::NOT_APPROVED->value], true) ? 'warning' : 'primary';
@@ -154,7 +155,7 @@
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::REVISION_IN_PROGRESS->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::NOT_APPROVED->value => 'Perbaiki dokumen yang dikembalikan agar transaksi bisa masuk review ulang.',
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ADMIN_REVIEW->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::VENDOR_REVIEW->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ADMIN_GENERATE_DOCUMENTS->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::WAITING_APPROVAL->value => 'Transaksi sedang dipetakan ke tahap In Review sesuai workflow baru.',
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::RECEIVED->value => 'Finance dapat memproses pembayaran berdasarkan transaksi yang sudah Received.',
-        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->value => 'Transaksi sudah selesai dan berstatus Completed.',
+        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->value => 'Transaksi sudah selesai dan disetujui lengkap.',
         default => 'Ikuti action utama sesuai role untuk menjaga transaksi tetap bergerak.',
     };
 @endphp
@@ -788,6 +789,9 @@
                 <h3 class="workflow-title">{{ $invoiceNumber }}</h3>
                 <div class="workflow-subtitle mt-1">
                     {{ $transaction->registration_number }} · {{ $transaction->transactionType?->name ?? 'Transaksi' }}
+                    @if($transaction->numberingRegister?->register_number)
+                        · <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><iconify-icon icon="solar:hashtag-square-outline"></iconify-icon> Reg: {{ $transaction->numberingRegister->register_number }}</span>
+                    @endif
                 </div>
                 <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
                     @include('invoice-verification.components.status-badge', ['value' => $transaction->status])

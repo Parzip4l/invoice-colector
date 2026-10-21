@@ -19,6 +19,7 @@ enum TransactionStep: string
     case FINALIZATION = 'FINALIZATION';
     case FINANCE_PROCESS = 'FINANCE_PROCESS';
     case ARCHIVE = 'ARCHIVE';
+    case COMPLETED = 'COMPLETED';
 
     public function label(): string
     {
@@ -38,6 +39,7 @@ enum TransactionStep: string
             self::FINALIZATION => 'Persiapan Finance',
             self::FINANCE_PROCESS => 'Proses Finance',
             self::ARCHIVE => 'Arsip Final',
+            self::COMPLETED => 'Selesai',
         };
     }
 }

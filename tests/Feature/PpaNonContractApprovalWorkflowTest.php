@@ -679,4 +679,71 @@ class PpaNonContractApprovalWorkflowTest extends TestCase
         $detailResponse->assertSee('Verifikasi QR Portal');
         $detailResponse->assertDontSee('Edit Form & Checklist');
     }
+
+    public function test_sync_portal_command_completes_step3_approved_transactions(): void
+    {
+        $this->test_accounting_completion_routes_ppa_non_contract_to_kadiv_finance_and_approval_transitions_to_received();
+
+        // Simulate legacy state where Step 3 was approved before code deployment,
+        // leaving transaction status at RECEIVED and current_step at FINANCE_PROCESS
+        $this->transaction->update([
+            'status' => TransactionStatus::RECEIVED,
+            'current_step' => TransactionStep::FINANCE_PROCESS,
+            'completed_at' => null,
+        ]);
+
+        $this->artisan('invoice-verification:sync-portal-approval-notifications')
+            ->expectsOutputToContain('Transaksi REG-PNK-2026-TEST berhasil diselesaikan (Status: COMPLETED, Step: Selesai).')
+            ->assertExitCode(0);
+
+        $this->transaction->refresh();
+        $this->assertSame(TransactionStatus::COMPLETED, $this->transaction->status);
+        $this->assertSame(TransactionStep::COMPLETED, $this->transaction->current_step);
+        $this->assertNotNull($this->transaction->completed_at);
+    }
+
+    public function test_show_page_auto_heals_step3_approved_transaction_to_completed(): void
+    {
+        $this->test_accounting_completion_routes_ppa_non_contract_to_kadiv_finance_and_approval_transitions_to_received();
+
+        // Simulate legacy state
+        $this->transaction->update([
+            'status' => TransactionStatus::RECEIVED,
+            'current_step' => TransactionStep::FINANCE_PROCESS,
+            'completed_at' => null,
+        ]);
+
+        $response = $this->actingAs($this->owner)
+            ->get(route('invoice-verification.transactions.show', $this->transaction));
+
+        $response->assertOk();
+        $this->transaction->refresh();
+        $this->assertSame(TransactionStatus::COMPLETED, $this->transaction->status);
+        $this->assertSame(TransactionStep::COMPLETED, $this->transaction->current_step);
+    }
+
+    public function test_sync_portal_command_with_mark_approved_option(): void
+    {
+        $this->test_kadiv_approval_transitions_transaction_to_submitted_and_accounting_verification();
+
+        // Direct to Kadiv Finance (Step 3 PENDING)
+        app(\App\Modules\InvoiceVerification\Services\ApprovalWorkflowService::class)->triggerKadivFinanceApproval($this->transaction, $this->accounting);
+        $this->transaction->refresh();
+
+        $this->assertSame(TransactionStatus::WAITING_APPROVAL, $this->transaction->status);
+        $this->assertSame(TransactionStep::KADIV_FINANCE_REVIEW, $this->transaction->current_step);
+
+        $this->artisan('invoice-verification:sync-portal-approval-notifications', [
+            '--mark-approved' => $this->transaction->registration_number,
+        ])
+            ->expectsOutputToContain("Transaksi {$this->transaction->registration_number} berhasil disetujui & diselesaikan (COMPLETED)!")
+            ->assertExitCode(0);
+
+        $this->transaction->refresh();
+        $this->assertSame(TransactionStatus::COMPLETED, $this->transaction->status);
+        $this->assertSame(TransactionStep::COMPLETED, $this->transaction->current_step);
+
+        $step3 = $this->transaction->approvalTransactions->firstWhere('approvalFlow.step_no', 3);
+        $this->assertSame(ApprovalStatus::APPROVED, $step3->status);
+    }
 }

@@ -164,7 +164,7 @@ class TransactionLifecycleService
         $allowed = [
             TransactionStatus::DRAFT->value => [TransactionStatus::SUBMITTED, TransactionStatus::WAITING_APPROVAL],
             TransactionStatus::NOT_APPROVED->value => [TransactionStatus::SUBMITTED, TransactionStatus::WAITING_APPROVAL],
-            TransactionStatus::SUBMITTED->value => [TransactionStatus::IN_REVIEW],
+            TransactionStatus::SUBMITTED->value => [TransactionStatus::IN_REVIEW, TransactionStatus::WAITING_APPROVAL],
             TransactionStatus::ACCOUNTING_VERIFICATION->value => [TransactionStatus::IN_REVIEW],
             TransactionStatus::IN_REVIEW->value => [TransactionStatus::NOT_APPROVED, TransactionStatus::RECEIVED, TransactionStatus::WAITING_APPROVAL, TransactionStatus::COMPLETED],
             TransactionStatus::RECEIVED->value => [TransactionStatus::SCHEDULING_PAYMENT, TransactionStatus::WAITING_APPROVAL, TransactionStatus::COMPLETED],
@@ -185,7 +185,7 @@ class TransactionLifecycleService
         $vendorTransition = in_array($sourceStatus, [TransactionStatus::DRAFT, TransactionStatus::NOT_APPROVED], true)
             && $targetStatus === TransactionStatus::SUBMITTED;
         $accountingTransition = (
-            ($sourceStatus === TransactionStatus::SUBMITTED && $targetStatus === TransactionStatus::IN_REVIEW)
+            ($sourceStatus === TransactionStatus::SUBMITTED && in_array($targetStatus, [TransactionStatus::IN_REVIEW, TransactionStatus::WAITING_APPROVAL], true))
             || ($sourceStatus === TransactionStatus::ACCOUNTING_VERIFICATION && $targetStatus === TransactionStatus::IN_REVIEW)
             || ($sourceStatus === TransactionStatus::IN_REVIEW && in_array($targetStatus, [TransactionStatus::NOT_APPROVED, TransactionStatus::RECEIVED, TransactionStatus::WAITING_APPROVAL, TransactionStatus::COMPLETED], true))
             || ($sourceStatus === TransactionStatus::RECEIVED && in_array($targetStatus, [TransactionStatus::WAITING_APPROVAL, TransactionStatus::COMPLETED], true))

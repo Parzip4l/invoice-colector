@@ -313,6 +313,22 @@ class TransactionController extends Controller
             'statusHistory.changer',
         ]);
 
+        if ($transaction->isPpaNonContract()) {
+            $step3Approval = $transaction->approvalTransactions
+                ->first(fn ($a) => (int) $a->approvalFlow?->step_no === 3 && ($a->status?->value ?? $a->status) === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED->value);
+
+            if ($step3Approval && ($transaction->status !== TransactionStatus::COMPLETED || $transaction->current_step !== \App\Modules\InvoiceVerification\Domain\Enums\TransactionStep::COMPLETED)) {
+                $transaction->forceFill([
+                    'status' => TransactionStatus::COMPLETED,
+                    'current_step' => \App\Modules\InvoiceVerification\Domain\Enums\TransactionStep::COMPLETED,
+                    'completed_at' => $transaction->completed_at ?? ($step3Approval->action_at ?? now()),
+                ])->save();
+
+                app(\App\Modules\InvoiceVerification\Services\NumberingRegisterService::class)->syncFromTransaction($transaction);
+                $transaction->load(['numberingRegister', 'statusHistory.changer']);
+            }
+        }
+
         $mismatches = $transaction->isPpa()
             ? $this->ppaVerificationSheetService->mismatchSummary($transaction)
             : [];

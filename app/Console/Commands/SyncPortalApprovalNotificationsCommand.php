@@ -9,19 +9,102 @@ use App\Modules\InvoiceVerification\Domain\Enums\TransactionStep;
 use App\Modules\InvoiceVerification\Domain\Enums\TransactionTypeCode;
 use App\Modules\InvoiceVerification\Domain\Models\ApprovalTransaction;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
+use App\Modules\InvoiceVerification\Domain\Models\TransactionStatusHistory;
 use App\Modules\InvoiceVerification\Services\ApprovalWorkflowService;
+use App\Modules\InvoiceVerification\Services\NumberingRegisterService;
 use App\Modules\InvoiceVerification\Services\PortalApprovalResolverService;
+use App\Modules\InvoiceVerification\Services\PpaVerificationSheetService;
 use Illuminate\Console\Command;
 
 class SyncPortalApprovalNotificationsCommand extends Command
 {
-    protected $signature = 'invoice-verification:sync-portal-approval-notifications {--dry-run : Simulasi tanpa mengirim atau memodifikasi data}';
+    protected $signature = 'invoice-verification:sync-portal-approval-notifications
+        {--dry-run : Simulasi tanpa mengirim atau memodifikasi data}
+        {--mark-approved= : Nomor registrasi transaksi (misal: PNK-00005) yang sudah diapprove di Portal untuk diselesaikan}';
 
-    protected $description = 'Kirim atau sinkronkan notifikasi approval aktif Invoice Collector ke Portal (termasuk routing Kadiv Finance untuk berkas yang sudah diverifikasi akuntansi)';
+    protected $description = 'Kirim atau sinkronkan notifikasi approval aktif Invoice Collector ke Portal, rute Kadiv Finance, dan selesaikan transaksi yang telah disetujui Kadiv Finance';
 
     public function handle(PortalApprovalResolverService $portal, ApprovalWorkflowService $workflow): int
     {
         $isDryRun = (bool) $this->option('dry-run');
+        $markApprovedReg = trim((string) $this->option('mark-approved'));
+
+        // 0. Jika ada transaksi spesifik yang ingin ditandai approved dari Portal
+        if ($markApprovedReg !== '') {
+            $this->info("Memproses penyelesaian manual dari Portal untuk transaksi {$markApprovedReg}...");
+            $tx = Transaction::query()
+                ->where('registration_number', $markApprovedReg)
+                ->with(['approvalTransactions.approvalFlow', 'approvalTransactions.approver', 'owner'])
+                ->first();
+
+            if (! $tx) {
+                $this->error("Transaksi {$markApprovedReg} tidak ditemukan.");
+
+                return self::FAILURE;
+            }
+
+            $step3Approval = $tx->approvalTransactions
+                ->first(fn ($a) => (int) $a->approvalFlow?->step_no === 3);
+
+            if (! $step3Approval) {
+                $this->error("Approval Step 3 (Kadiv Finance) tidak ditemukan pada transaksi {$markApprovedReg}.");
+
+                return self::FAILURE;
+            }
+
+            $actor = $step3Approval->approver ?? $tx->owner;
+
+            if ($isDryRun) {
+                $this->line("[Simulasi] Transaksi {$markApprovedReg} akan diselesaikan persetujuan Kadiv Finance-nya.");
+            } else {
+                if ($step3Approval->status !== ApprovalStatus::APPROVED) {
+                    try {
+                        $signatureData = $portal->requestPortalSignature($step3Approval, $actor, 'Persetujuan disinkronkan dari Portal.');
+                    } catch (\Throwable $e) {
+                        $signatureData = null;
+                        $this->warn("Gagal meminta signature Portal: {$e->getMessage()} (melanjutkan proses approval)");
+                    }
+
+                    $step3Approval->forceFill([
+                        'status' => ApprovalStatus::APPROVED,
+                        'notes' => 'Disetujui di Portal dan disinkronkan ke Invoice Collector.',
+                        'action_at' => now(),
+                        'portal_signature_id' => $signatureData['portal_signature_id'] ?? $step3Approval->portal_signature_id,
+                        'portal_signature_url' => $signatureData['portal_signature_url'] ?? $step3Approval->portal_signature_url,
+                        'portal_qr_url' => $signatureData['portal_qr_url'] ?? $step3Approval->portal_qr_url,
+                    ])->save();
+                }
+
+                $fromStatus = $tx->status?->value;
+                $fromStep = $tx->current_step?->value;
+
+                $tx->forceFill([
+                    'status' => TransactionStatus::COMPLETED,
+                    'current_step' => TransactionStep::COMPLETED,
+                    'completed_at' => $tx->completed_at ?? now(),
+                ])->save();
+
+                TransactionStatusHistory::create([
+                    'transaction_id' => $tx->id,
+                    'from_status' => $fromStatus,
+                    'to_status' => TransactionStatus::COMPLETED->value,
+                    'from_step' => $fromStep,
+                    'to_step' => TransactionStep::COMPLETED->value,
+                    'changed_by' => $actor?->id,
+                    'notes' => 'Persetujuan Kadiv Finance disinkronkan. Transaksi selesai.',
+                ]);
+
+                app(NumberingRegisterService::class)->syncFromTransaction($tx);
+
+                try {
+                    app(PpaVerificationSheetService::class)->regeneratePdf($tx);
+                } catch (\Throwable $e) {
+                    $this->warn("Gagal regenerate PDF: {$e->getMessage()}");
+                }
+
+                $this->info("Transaksi {$markApprovedReg} berhasil disetujui & diselesaikan (COMPLETED)!");
+            }
+        }
 
         // 1. Cek transaksi PPA Non Kontrak yang verifikasi akuntansinya sudah COMPLETED/VALID,
         // tetapi approval Kadiv Finance (Step 3) belum aktif / belum diarahkan ke Portal.
@@ -92,8 +175,74 @@ class SyncPortalApprovalNotificationsCommand extends Command
                 }
             });
 
+        // 3. Selesaikan transaksi PPA Non Kontrak yang Step 3-nya sudah APPROVED,
+        // tetapi status transaksi atau step-nya belum COMPLETED / Selesai.
+        $this->info('Memeriksa transaksi PPA Non Kontrak yang telah disetujui Kadiv Finance tetapi belum berstatus Selesai...');
+        $completedCount = 0;
+
+        $uncompletedApprovedTxs = Transaction::query()
+            ->whereHas('transactionType', fn ($q) => $q->where('code', TransactionTypeCode::PPA_NON_CONTRACT->value))
+            ->whereHas('approvalTransactions', function ($q) {
+                $q->whereHas('approvalFlow', fn ($af) => $af->where('step_no', 3))
+                    ->where('status', ApprovalStatus::APPROVED->value);
+            })
+            ->where(function ($q) {
+                $q->where('status', '!=', TransactionStatus::COMPLETED->value)
+                    ->orWhere('current_step', '!=', TransactionStep::COMPLETED->value)
+                    ->orWhereNull('completed_at');
+            })
+            ->with(['approvalTransactions.approvalFlow', 'approvalTransactions.approver', 'owner'])
+            ->get();
+
+        foreach ($uncompletedApprovedTxs as $transaction) {
+            $step3Approval = $transaction->approvalTransactions
+                ->first(fn ($a) => (int) $a->approvalFlow?->step_no === 3 && $a->status === ApprovalStatus::APPROVED);
+
+            if ($isDryRun) {
+                $this->line("[Simulasi Selesai] Transaksi {$transaction->registration_number} akan diperbarui ke Selesai (COMPLETED).");
+                $completedCount++;
+            } else {
+                try {
+                    $actor = $step3Approval?->approver ?? $transaction->owner;
+                    $completedAt = $step3Approval?->action_at ?? now();
+
+                    $fromStatus = $transaction->status?->value;
+                    $fromStep = $transaction->current_step?->value;
+
+                    $transaction->forceFill([
+                        'status' => TransactionStatus::COMPLETED,
+                        'current_step' => TransactionStep::COMPLETED,
+                        'completed_at' => $transaction->completed_at ?? $completedAt,
+                    ])->save();
+
+                    TransactionStatusHistory::create([
+                        'transaction_id' => $transaction->id,
+                        'from_status' => $fromStatus,
+                        'to_status' => TransactionStatus::COMPLETED->value,
+                        'from_step' => $fromStep,
+                        'to_step' => TransactionStep::COMPLETED->value,
+                        'changed_by' => $actor?->id,
+                        'notes' => 'Sinkronisasi status selesai setelah persetujuan Kepala Divisi Keuangan dan Akuntansi.',
+                    ]);
+
+                    app(NumberingRegisterService::class)->syncFromTransaction($transaction);
+
+                    try {
+                        app(PpaVerificationSheetService::class)->regeneratePdf($transaction);
+                    } catch (\Throwable $e) {
+                        $this->warn("[Warning PDF] Gagal regenerate PDF {$transaction->registration_number}: {$e->getMessage()}");
+                    }
+
+                    $this->info("[Selesai] Transaksi {$transaction->registration_number} berhasil diselesaikan (Status: COMPLETED, Step: Selesai).");
+                    $completedCount++;
+                } catch (\Throwable $e) {
+                    $this->warn("[Gagal] Transaksi {$transaction->registration_number}: {$e->getMessage()}");
+                }
+            }
+        }
+
         $this->newLine();
-        $this->info("Sinkronisasi selesai: {$routedCount} transaksi diarahkan ke Kadiv Finance, {$notifiedCount} notifikasi approval aktif diproses ke Portal.");
+        $this->info("Sinkronisasi selesai: {$routedCount} transaksi diarahkan ke Kadiv Finance, {$notifiedCount} notifikasi approval aktif diproses ke Portal, {$completedCount} transaksi diselesaikan ke Selesai (COMPLETED).");
 
         return self::SUCCESS;
     }

@@ -16,5 +16,6 @@
 <meta name="theme-color" content="#e21a1a">
 
 <!-- App favicon -->
-<link rel="icon" type="image/png" href="/favicon.png">
-<link rel="shortcut icon" type="image/png" href="/favicon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/images/lrt-logogram-favicon.png?v=20261021-1">
+<link rel="shortcut icon" type="image/png" href="/images/lrt-logogram-favicon.png?v=20261021-1">
+<link rel="apple-touch-icon" href="/images/lrt-logogram-favicon.png?v=20261021-1">

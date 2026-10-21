@@ -562,4 +562,87 @@ class PpaNonContractApprovalWorkflowTest extends TestCase
         ])->getJson('/api/portal/v1/invoice-collector/approvals?status=pending&approver_email='.$this->kadep->email)
             ->assertUnauthorized();
     }
+
+    public function test_accounting_completion_routes_ppa_non_contract_to_kadiv_finance_and_approval_transitions_to_received(): void
+    {
+        $this->test_kadiv_approval_transitions_transaction_to_submitted_and_accounting_verification();
+
+        $this->assertSame(TransactionStatus::SUBMITTED, $this->transaction->fresh()->status);
+        $this->assertSame(TransactionStep::ACCOUNTING_VERIFICATION, $this->transaction->fresh()->current_step);
+
+        $verification = app(\App\Modules\InvoiceVerification\Services\AccountingVerificationService::class)
+            ->getOrCreate($this->transaction->fresh(), $this->accounting);
+
+        // Accounting marks verification VALID
+        $res = $this->actingAs($this->accounting)
+            ->put(route('invoice-verification.transactions.accounting-verifications.update', $this->transaction), [
+                'administration_status' => 'VALID',
+                'items' => $verification->items->map(fn ($item) => [
+                    'transaction_document_id' => $item->transaction_document_id,
+                    'status' => 'VALID',
+                    'notes' => null,
+                ])->all(),
+                'notes' => 'Verifikasi akuntansi lengkap.',
+            ]);
+
+        $res->assertRedirect();
+
+        // Transaction is routed to Kadiv Finance
+        $this->transaction->refresh();
+        $this->assertSame(TransactionStatus::WAITING_APPROVAL, $this->transaction->status);
+        $this->assertSame(TransactionStep::KADIV_FINANCE_REVIEW, $this->transaction->current_step);
+
+        $step3Approval = $this->transaction->approvalTransactions->firstWhere('approvalFlow.step_no', 3);
+        $this->assertNotNull($step3Approval);
+        $this->assertSame(ApprovalStatus::PENDING, $step3Approval->status);
+        $this->assertSame('adityawarman.nugroho@lrtjakarta.co.id', $step3Approval->approver?->email);
+
+        // Kadiv Finance user approves Step 3
+        $kadivFinanceUser = $step3Approval->approver;
+        $this->assertNotNull($kadivFinanceUser);
+
+        $this->actingAs($kadivFinanceUser)
+            ->put(route('invoice-verification.approvals.update', $step3Approval), [
+                'status' => 'APPROVED',
+                'notes' => 'Disetujui Kepala Divisi Keuangan dan Akuntansi.',
+            ])
+            ->assertRedirect();
+
+        $this->transaction->refresh();
+        $this->assertSame(TransactionStatus::RECEIVED, $this->transaction->status);
+        $this->assertSame(TransactionStep::FINANCE_PROCESS, $this->transaction->current_step);
+        $this->assertSame(ApprovalStatus::APPROVED, $step3Approval->fresh()->status);
+        $this->assertNotNull($this->transaction->numberingRegister);
+    }
+
+    public function test_sync_portal_approval_notifications_command_backfills_accounting_approved_transactions(): void
+    {
+        $this->test_kadiv_approval_transitions_transaction_to_submitted_and_accounting_verification();
+
+        // Simulate a transaction that was marked verified by accounting before Kadiv Finance routing
+        $verification = app(\App\Modules\InvoiceVerification\Services\AccountingVerificationService::class)
+            ->getOrCreate($this->transaction->fresh(), $this->accounting);
+
+        $verification->update([
+            'status' => \App\Modules\InvoiceVerification\Domain\Enums\AccountingVerificationStatus::COMPLETED,
+            'verified_at' => now(),
+        ]);
+
+        $this->transaction->update([
+            'status' => TransactionStatus::RECEIVED,
+            'current_step' => TransactionStep::ACCOUNTING_VERIFICATION,
+        ]);
+
+        $this->artisan('invoice-verification:sync-portal-approval-notifications')
+            ->expectsOutputToContain('Transaksi REG-PNK-2026-TEST berhasil diarahkan ke Kadiv Finance')
+            ->assertExitCode(0);
+
+        $this->transaction->refresh();
+        $this->assertSame(TransactionStatus::WAITING_APPROVAL, $this->transaction->status);
+        $this->assertSame(TransactionStep::KADIV_FINANCE_REVIEW, $this->transaction->current_step);
+
+        $step3 = $this->transaction->approvalTransactions->firstWhere('approvalFlow.step_no', 3);
+        $this->assertNotNull($step3);
+        $this->assertSame(ApprovalStatus::PENDING, $step3->status);
+    }
 }

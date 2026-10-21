@@ -34,6 +34,12 @@ class ApprovalFlowSeeder extends Seeder
                     'step_code' => \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::KEPALA_DIVISI->value,
                     'step_name' => 'Kepala Divisi',
                 ],
+                [
+                    'document_code' => null,
+                    'step_no' => 3,
+                    'step_code' => \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::KEPALA_DIVISI->value,
+                    'step_name' => 'Kepala Divisi Keuangan dan Akuntansi',
+                ],
             ],
         ];
 

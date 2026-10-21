@@ -93,16 +93,18 @@ class FunctionalPpaVerificationSheetPdfGenerator implements PpaVerificationSheet
             $totalRealization = (float) ($metadata->invoice_value + $metadata->ppn_value);
         }
 
-        $contractValue = (float) ($metadata?->contract_value ?? $transaction->contract_value ?? $totalRealization);
+        $contractValue = (float) $totalRealization;
         $advancePaymentValue = (float) ($sheet->advance_payment_value ?? 0);
-        $invoiceValue = (float) ($metadata?->invoice_value ?? $totalRealization);
+        $invoiceValue = (float) $totalRealization;
         $exchangeRate = (float) ($sheet->exchange_rate_value ?? 1.00);
-        $terbilang = NumberToWords::terbilang($totalRealization);
+        $terbilang = NumberToWords::terbilang($invoiceValue);
 
         $kadepApproval = $transaction->approvalTransactions
             ->first(fn ($item) => (int) $item->approvalFlow?->step_no === 1);
         $kadivApproval = $transaction->approvalTransactions
             ->first(fn ($item) => (int) $item->approvalFlow?->step_no === 2);
+        $kadivFinanceApproval = $transaction->approvalTransactions
+            ->first(fn ($item) => (int) $item->approvalFlow?->step_no === 3);
 
         $kadepUserFallback = $transaction->department?->users
             ?->first(fn ($u) => ($u->role_code?->value ?? $u->role_code) === RoleCode::KEPALA_DEPARTEMEN->value);
@@ -147,7 +149,14 @@ class FunctionalPpaVerificationSheetPdfGenerator implements PpaVerificationSheet
             $transaction->owner,
             'Finance & Accounting Division Head',
         );
-        $accountingName = $accountingSigner['name'];
+        $accountingName = $kadivFinanceApproval?->approver?->name
+            ?? data_get($kadivFinanceApproval?->portal_qr_payload, 'signer.name')
+            ?? $accountingSigner['name'];
+        $accountingNik = $kadivFinanceApproval?->approver?->employee_number
+            ?? $kadivFinanceApproval?->approver?->employee_id
+            ?? data_get($kadivFinanceApproval?->portal_qr_payload, 'signer.employee_number')
+            ?? $accountingSigner['employee_number']
+            ?? '-';
 
         $kadepQrBase64 = null;
         if ($kadepApproval && $kadepApproval->status === ApprovalStatus::APPROVED) {
@@ -164,9 +173,10 @@ class FunctionalPpaVerificationSheetPdfGenerator implements PpaVerificationSheet
         }
 
         $accountingQrBase64 = null;
-        if ($transaction->accountingVerification?->status?->value === 'ACCEPTED'
-            || in_array($transaction->status?->value, ['COMPLETED', 'PAID', 'RECEIVED'], true)) {
-            $accountingQrBase64 = $this->signatureQrService->generateBase64Svg(route('invoice-verification.transactions.show', $transaction));
+        if ($kadivFinanceApproval && $kadivFinanceApproval->status === ApprovalStatus::APPROVED) {
+            $qrContent = $kadivFinanceApproval->portal_signature_url
+                ?: ($kadivFinanceApproval->portal_qr_url ?: route('invoice-verification.transactions.show', $transaction));
+            $accountingQrBase64 = $this->signatureQrService->generateBase64Svg($qrContent);
         }
 
         $checklistCategories = $this->buildChecklistCategories($sheet);
@@ -196,6 +206,7 @@ class FunctionalPpaVerificationSheetPdfGenerator implements PpaVerificationSheet
             'kadivNik' => $kadivNik,
             'kadivQrBase64' => $kadivQrBase64,
             'accountingName' => $accountingName,
+            'accountingNik' => $accountingNik,
             'accountingQrBase64' => $accountingQrBase64,
             'checklistCategories' => $checklistCategories,
         ];
@@ -251,6 +262,7 @@ class FunctionalPpaVerificationSheetPdfGenerator implements PpaVerificationSheet
                 'roman' => 'V',
                 'title' => 'Kelengkapan ERP',
                 'items' => [
+                    ['key' => 'V_1', 'no' => '1', 'name' => 'Melalui Pengadaan', 'doc_code' => null],
                     ['key' => 'V_1_a', 'no' => 'a.', 'name' => 'Purchase Requisition', 'is_sub' => true, 'doc_code' => null],
                     ['key' => 'V_1_b', 'no' => 'b.', 'name' => 'Purchase Order', 'is_sub' => true, 'doc_code' => null],
                     ['key' => 'V_1_c', 'no' => 'c.', 'name' => 'Goods Receive', 'is_sub' => true, 'doc_code' => null],

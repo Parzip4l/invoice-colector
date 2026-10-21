@@ -51,6 +51,12 @@ class ApprovalController extends Controller
                     });
                 }
 
+                if ($user->hasRole(RoleCode::FINANCE)) {
+                    $sub->orWhere(function ($q) {
+                        $q->whereHas('approvalFlow', fn ($af) => $af->where('step_no', 3));
+                    });
+                }
+
                 if ($user->hasRole(RoleCode::ADMIN_DIVISI)) {
                     $sub->orWhereRaw('1 = 1');
                 }

@@ -4,6 +4,7 @@
     $status = $transaction->status;
     $statusValue = $status?->value;
     $isComplete = in_array($statusValue, [
+        TransactionStatus::SCHEDULING_PAYMENT->value,
         TransactionStatus::PAID->value,
         TransactionStatus::COMPLETED->value,
         TransactionStatus::ARCHIVED->value,
@@ -15,8 +16,8 @@
 
     $stage = match ($status) {
         TransactionStatus::RECEIVED,
-        TransactionStatus::SCHEDULING_PAYMENT,
         TransactionStatus::FINANCE_PROCESS => 2,
+        TransactionStatus::SCHEDULING_PAYMENT,
         TransactionStatus::PAID,
         TransactionStatus::COMPLETED,
         TransactionStatus::ARCHIVED => 3,
@@ -61,21 +62,13 @@
             'Dokumen lengkap dan siap diproses oleh tim Finance.',
             'solar:inbox-in-outline',
         ],
-        TransactionStatus::SCHEDULING_PAYMENT => [
-            'Menunggu jadwal pembayaran',
-            'Pembayaran sedang dijadwalkan oleh tim Finance.',
-            'solar:calendar-mark-outline',
-        ],
         TransactionStatus::FINANCE_PROCESS => [
             'Proses pembayaran',
             'Transaksi sedang diproses oleh tim Finance.',
             'solar:wallet-money-outline',
         ],
-        TransactionStatus::PAID => [
-            'Pembayaran selesai',
-            'Pembayaran transaksi telah berhasil diselesaikan.',
-            'solar:check-circle-bold',
-        ],
+        TransactionStatus::SCHEDULING_PAYMENT,
+        TransactionStatus::PAID,
         TransactionStatus::COMPLETED => [
             'Transaksi selesai',
             'Seluruh proses transaksi telah selesai.',
@@ -97,7 +90,7 @@
     $progress = (int) round(($stage / 3) * 100);
 @endphp
 
-<div class="iv-transaction-progress is-{{ $tone }}" aria-label="{{ $title }}, tahap {{ $stage }} dari 3">
+<div class="iv-transaction-progress is-{{ $tone }}" aria-label="{{ $title }}, {{ $isComplete ? 'selesai' : 'tahap '.$stage.' dari 3' }}">
     <span class="iv-transaction-progress__icon" aria-hidden="true">
         <iconify-icon icon="{{ $icon }}"></iconify-icon>
     </span>

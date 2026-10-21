@@ -123,16 +123,15 @@ class DashboardService
         $previousPeriodStart = $now->subDays(60);
 
         $totalTransactions = Transaction::count();
-        $completedTransactions = Transaction::whereIn('status', [TransactionStatus::PAID, TransactionStatus::COMPLETED, TransactionStatus::ARCHIVED])->count();
-        $pendingTransactions = Transaction::whereNotIn('status', [TransactionStatus::PAID, TransactionStatus::COMPLETED, TransactionStatus::ARCHIVED])->count();
+        $completedStatuses = [TransactionStatus::SCHEDULING_PAYMENT, TransactionStatus::PAID, TransactionStatus::COMPLETED, TransactionStatus::ARCHIVED];
+        $completedTransactions = Transaction::whereIn('status', $completedStatuses)->count();
+        $pendingTransactions = Transaction::whereNotIn('status', $completedStatuses)->count();
         $currentPeriodTransactions = Transaction::where('created_at', '>=', $currentPeriodStart)->count();
         $previousPeriodTransactions = Transaction::whereBetween('created_at', [$previousPeriodStart, $currentPeriodStart])->count();
 
-        $statusDistribution = collect(TransactionStatus::cases())
-            ->map(fn (TransactionStatus $status) => [
-                'label' => $status->label(),
-                'value' => Transaction::where('status', $status)->count(),
-            ])
+        $pipelineSummary = $this->pipelineSummary();
+        $statusDistribution = collect($pipelineSummary)
+            ->map(fn (array $item) => ['label' => $item['label'], 'value' => $item['count']])
             ->filter(fn (array $item) => $item['value'] > 0)
             ->values();
 
@@ -174,7 +173,7 @@ class DashboardService
             'amount_yearly' => $this->amountTrend('yearly'),
             'top_vendors' => $topVendors->all(),
             'agreement_summary' => $agreementSummary,
-            'pipeline_summary' => $this->pipelineSummary(),
+            'pipeline_summary' => $pipelineSummary,
             'insights' => [
                 'period_change' => $this->percentageChange($currentPeriodTransactions, $previousPeriodTransactions),
                 'total_pending' => $pendingTransactions,
@@ -231,37 +230,26 @@ class DashboardService
             ->with('invoiceMetadata')
             ->get();
 
-        $tones = [
-            TransactionStatus::DRAFT->value => 'secondary',
-            TransactionStatus::SUBMITTED->value => 'primary',
-            TransactionStatus::IN_REVIEW->value => 'dark',
-            TransactionStatus::NOT_APPROVED->value => 'danger',
-            TransactionStatus::RECEIVED->value => 'info',
-            TransactionStatus::SCHEDULING_PAYMENT->value => 'warning',
-            TransactionStatus::PAID->value => 'success',
+        $groups = [
+            ['status' => 'DRAFT', 'label' => 'Draft', 'tone' => 'secondary', 'icon' => 'solar:document-add-outline', 'statuses' => [TransactionStatus::DRAFT, TransactionStatus::VENDOR_INPUT]],
+            ['status' => 'SUBMITTED', 'label' => 'Submitted', 'tone' => 'primary', 'icon' => 'solar:upload-square-outline', 'statuses' => [TransactionStatus::SUBMITTED, TransactionStatus::DOCUMENT_COLLECTION]],
+            ['status' => 'IN_REVIEW', 'label' => 'In Review', 'tone' => 'dark', 'icon' => 'solar:checklist-minimalistic-outline', 'statuses' => [TransactionStatus::IN_REVIEW, TransactionStatus::ADMIN_REVIEW, TransactionStatus::WAITING_APPROVAL, TransactionStatus::ADMIN_GENERATE_DOCUMENTS, TransactionStatus::VENDOR_REVIEW, TransactionStatus::ACCOUNTING_VERIFICATION]],
+            ['status' => 'NOT_APPROVED', 'label' => 'Not Approved', 'tone' => 'danger', 'icon' => 'solar:danger-triangle-outline', 'statuses' => [TransactionStatus::NOT_APPROVED, TransactionStatus::REVISION_IN_PROGRESS]],
+            ['status' => 'RECEIVED', 'label' => 'Received', 'tone' => 'info', 'icon' => 'solar:inbox-in-outline', 'statuses' => [TransactionStatus::RECEIVED, TransactionStatus::FINANCE_PROCESS]],
+            ['status' => 'COMPLETED', 'label' => 'Completed', 'tone' => 'success', 'icon' => 'solar:check-circle-outline', 'statuses' => [TransactionStatus::SCHEDULING_PAYMENT, TransactionStatus::PAID, TransactionStatus::COMPLETED, TransactionStatus::ARCHIVED]],
         ];
 
-        $icons = [
-            TransactionStatus::DRAFT->value => 'solar:document-add-outline',
-            TransactionStatus::SUBMITTED->value => 'solar:upload-square-outline',
-            TransactionStatus::IN_REVIEW->value => 'solar:checklist-minimalistic-outline',
-            TransactionStatus::NOT_APPROVED->value => 'solar:danger-triangle-outline',
-            TransactionStatus::RECEIVED->value => 'solar:inbox-in-outline',
-            TransactionStatus::SCHEDULING_PAYMENT->value => 'solar:calendar-mark-outline',
-            TransactionStatus::PAID->value => 'solar:wallet-money-outline',
-        ];
-
-        return collect(TransactionStatus::workflowCases())
-            ->map(function (TransactionStatus $status) use ($transactions, $tones, $icons) {
-                $items = $transactions->where('status', $status);
+        return collect($groups)
+            ->map(function (array $group) use ($transactions) {
+                $items = $transactions->whereIn('status', $group['statuses']);
 
                 return [
-                    'status' => $status->value,
-                    'label' => $status->label(),
+                    'status' => $group['status'],
+                    'label' => $group['label'],
                     'count' => $items->count(),
                     'amount' => (float) $items->sum(fn (Transaction $transaction) => $this->transactionAmount($transaction)),
-                    'tone' => $tones[$status->value] ?? 'secondary',
-                    'icon' => $icons[$status->value] ?? 'solar:document-text-outline',
+                    'tone' => $group['tone'],
+                    'icon' => $group['icon'],
                 ];
             })
             ->values()

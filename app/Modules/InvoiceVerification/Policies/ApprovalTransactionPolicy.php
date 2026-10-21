@@ -13,6 +13,7 @@ class ApprovalTransactionPolicy
             \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::KEPALA_DEPARTEMEN,
             \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::KEPALA_DIVISI,
             \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::ADMIN_DIVISI,
+            \App\Modules\InvoiceVerification\Domain\Enums\RoleCode::FINANCE,
         ) || $user->pendingApprovals()->exists();
     }
 

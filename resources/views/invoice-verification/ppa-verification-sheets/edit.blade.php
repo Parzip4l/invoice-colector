@@ -329,7 +329,7 @@
                 <table class="table table-ppa align-middle mb-0">
                     <thead>
                         <tr>
-                            <th style="width: 40px;" class="text-center">No</th>
+                            <th colspan="2" style="width: 70px;" class="text-center">No</th>
                             <th>Kelengkapan Dokumen</th>
                             <th style="width: 140px;" class="text-center">Dibutuhkan</th>
                             <th style="width: 140px;" class="text-center">Aktual</th>
@@ -339,8 +339,8 @@
                     <tbody>
                         @foreach ($checklistCategories as $cat)
                             <tr class="category-row">
-                                <td class="text-center">{{ $cat['roman'] }}</td>
-                                <td colspan="4">{{ $cat['title'] }}</td>
+                                <td class="text-center fw-bold" style="width: 32px;">{{ $cat['roman'] }}</td>
+                                <td colspan="5">{{ $cat['title'] }}</td>
                             </tr>
                             @foreach ($cat['items'] as $item)
                                 @php
@@ -350,8 +350,9 @@
                                     $notes = old("checklist_items.$key.notes", $item['notes'] ?? '');
                                 @endphp
                                 <tr>
-                                    <td class="text-center text-muted">{{ $item['no'] }}</td>
-                                    <td style="{{ !empty($item['is_sub']) ? 'padding-left: 28px;' : '' }}">
+                                    <td style="width: 32px;"></td>
+                                    <td class="text-center text-muted fw-semibold" style="width: 38px;">{{ $item['no'] }}</td>
+                                    <td style="{{ !empty($item['is_sub']) ? 'padding-left: 24px;' : '' }}">
                                         <div class="fw-semibold text-dark">{{ $item['name'] }}</div>
                                     </td>
                                     <td class="text-center">

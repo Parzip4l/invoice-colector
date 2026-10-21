@@ -189,11 +189,14 @@ class AccountingVerificationService
                 return $verification->fresh('items.transactionDocument.documentType');
             }
 
+            if ($transaction->isPpaNonContract()) {
+                app(ApprovalWorkflowService::class)->triggerKadivFinanceApproval($transaction, $actor);
+
+                return $verification->fresh('items.transactionDocument.documentType');
+            }
+
             $receivedTransaction = $this->transactionLifecycleService->markReceived($transaction, $actor);
             $this->numberingRegisterService->syncFromTransaction($receivedTransaction);
-            if ($receivedTransaction->isPpaNonContract()) {
-                $this->ppaVerificationSheetService->regeneratePdf($receivedTransaction->fresh());
-            }
 
             DB::afterCommit(function () use ($receivedTransaction) {
                 $receivedTransaction->loadMissing('transactionType', 'vendor');

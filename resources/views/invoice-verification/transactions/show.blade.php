@@ -1,7 +1,6 @@
 @extends('layouts.vertical', ['subtitle' => 'Transaction Detail'])
 
 @section('content')
-@include('layouts.partials.page-title', ['title' => 'Transactions', 'subtitle' => 'Transaction Detail'])
 @include('invoice-verification.partials.flash')
 
 @php
@@ -22,6 +21,10 @@
     $documentCount = $transaction->latestDocuments->count();
     $generatedCount = $transaction->generatedDocuments->count() + ($transaction->ppaVerificationSheet?->file_path ? 1 : 0);
     $invoiceValue = $transaction->invoiceMetadata?->invoice_value;
+    $metadataFormOpen = $errors->hasAny([
+        'invoice_number', 'invoice_date', 'bank_name', 'account_number', 'account_name',
+        'invoice_value', 'ppn_percentage', 'ppn_value', 'pph_base_value', 'pph_percentage', 'pph_value',
+    ]);
 
     $stageDefinitions = [
         [
@@ -71,18 +74,20 @@
             'steps' => [],
         ],
         [
-            'key' => 'scheduling-payment',
-            'label' => 'Scheduling Payment',
-            'icon' => 'solar:wallet-money-outline',
-            'statuses' => [\App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT->value],
-            'steps' => [\App\Modules\InvoiceVerification\Domain\Enums\TransactionStep::FINANCE_PROCESS->value],
-        ],
-        [
-            'key' => 'paid',
-            'label' => 'Paid',
+            'key' => 'completed',
+            'label' => 'Completed',
             'icon' => 'solar:check-circle-outline',
-            'statuses' => [\App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED->value],
-            'steps' => [\App\Modules\InvoiceVerification\Domain\Enums\TransactionStep::FINALIZATION->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStep::ARCHIVE->value],
+            'statuses' => [
+                \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT->value,
+                \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->value,
+                \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED->value,
+                \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED->value,
+            ],
+            'steps' => [
+                \App\Modules\InvoiceVerification\Domain\Enums\TransactionStep::FINANCE_PROCESS->value,
+                \App\Modules\InvoiceVerification\Domain\Enums\TransactionStep::FINALIZATION->value,
+                \App\Modules\InvoiceVerification\Domain\Enums\TransactionStep::ARCHIVE->value,
+            ],
         ],
     ];
 
@@ -90,7 +95,7 @@
         return in_array($statusValue, $stage['statuses'], true) || in_array($stepValue, $stage['steps'], true);
     });
     $currentStageIndex = $currentStageIndex === false ? 0 : $currentStageIndex;
-    if (in_array($statusValue, [\App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->value], true)) {
+    if (in_array($statusValue, [\App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->value], true)) {
         $currentStageIndex = count($stageDefinitions) - 1;
     }
 
@@ -105,18 +110,21 @@
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::VENDOR_REVIEW,
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ADMIN_GENERATE_DOCUMENTS,
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::WAITING_APPROVAL => \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::IN_REVIEW->label(),
+        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT,
+        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID,
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED,
-        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED => \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->label(),
+        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED => 'Completed',
         default => $transaction->status?->label() ?? 'Draft',
     };
     $helperTone = in_array($statusValue, [\App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::REVISION_IN_PROGRESS->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::NOT_APPROVED->value], true) ? 'warning' : 'primary';
-    if (in_array($statusValue, [\App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED->value], true)) {
+    if (in_array($statusValue, [\App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED->value], true)) {
         $helperTone = 'success';
     }
     $helperText = in_array($statusValue, [\App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::REVISION_IN_PROGRESS->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::NOT_APPROVED->value], true)
         ? 'Transaksi sedang dalam tahap revisi dan menunggu perbaikan dokumen dari vendor.'
         : 'Saat ini transaksi berada pada tahap '.$currentStage['label'].' dengan fokus kerja: '.$currentStepLabel.'.';
     $showWorkflowHelper = ! in_array($statusValue, [
+        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT->value,
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->value,
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED->value,
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED->value,
@@ -136,8 +144,8 @@
     $nextActionTitle = match ($statusValue) {
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::DRAFT->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::VENDOR_INPUT->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::REVISION_IN_PROGRESS->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::NOT_APPROVED->value => 'Upload dokumen vendor',
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SUBMITTED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ACCOUNTING_VERIFICATION->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::IN_REVIEW->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ADMIN_REVIEW->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::VENDOR_REVIEW->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ADMIN_GENERATE_DOCUMENTS->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::WAITING_APPROVAL->value => 'Verifikasi akuntansi',
-        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::RECEIVED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT->value => 'Lanjutkan proses finance',
-        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->value => 'Transaksi selesai',
+        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::RECEIVED->value => 'Lanjutkan proses finance',
+        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->value => 'Transaksi selesai',
         default => 'Lanjutkan workflow',
     };
 
@@ -145,75 +153,121 @@
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::DRAFT->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::VENDOR_INPUT->value => 'Vendor perlu melengkapi data dan dokumen pendukung sebelum submit.',
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::REVISION_IN_PROGRESS->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::NOT_APPROVED->value => 'Perbaiki dokumen yang dikembalikan agar transaksi bisa masuk review ulang.',
         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ADMIN_REVIEW->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::VENDOR_REVIEW->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ADMIN_GENERATE_DOCUMENTS->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::WAITING_APPROVAL->value => 'Transaksi sedang dipetakan ke tahap In Review sesuai workflow baru.',
-        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::RECEIVED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT->value => 'Finance dapat memproses pembayaran berdasarkan transaksi yang sudah Received.',
-        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->value => 'Transaksi sudah selesai sampai Paid.',
+        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::RECEIVED->value => 'Finance dapat memproses pembayaran berdasarkan transaksi yang sudah Received.',
+        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED->value, \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->value => 'Transaksi sudah selesai dan berstatus Completed.',
         default => 'Ikuti action utama sesuai role untuk menjaga transaksi tetap bergerak.',
     };
 @endphp
 
 <style>
     .transaction-detail-page {
-        --signal-primary: #e21a1a;
-        --signal-primary-dark: #b91515;
+        --signal-primary: #dc3d42;
+        --signal-primary-dark: #bf2f34;
+        --signal-primary-soft: #fff1f2;
         --signal-surface: #ffffff;
-        --signal-soft: #f6f8fb;
-        --signal-border: rgba(31, 41, 55, .09);
-        --signal-muted: #6b7280;
-        --signal-heading: #172033;
-        --signal-shadow: 0 14px 34px rgba(27, 36, 54, .08);
+        --signal-soft: #f8f9fb;
+        --signal-border: #e9ebef;
+        --signal-muted: #748096;
+        --signal-heading: #273044;
+        --signal-shadow: 0 1px 2px rgba(16, 24, 40, .025), 0 8px 24px rgba(16, 24, 40, .035);
         color: var(--signal-heading);
+        font-size: 13px;
+        line-height: 1.4;
     }
 
     .transaction-detail-page .workflow-card {
         border: 1px solid var(--signal-border);
-        border-radius: 16px;
+        border-radius: 14px;
         background: var(--signal-surface);
         box-shadow: var(--signal-shadow);
     }
 
+    .transaction-detail-page > .workflow-card.mb-3 {
+        margin-bottom: 12px !important;
+    }
+
     .transaction-detail-page .workflow-header {
-        padding: 22px 24px;
-        background: linear-gradient(135deg, rgba(226, 26, 26, .08), rgba(255, 255, 255, .94) 48%, rgba(22, 163, 74, .07));
+        position: relative;
+        overflow: hidden;
+        padding: 18px 20px;
+        background: var(--signal-surface);
+    }
+
+    .transaction-detail-page .workflow-header::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 4px;
+        background: var(--signal-primary);
+    }
+
+    .transaction-detail-page .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 10px;
+        color: var(--signal-muted);
+        font-size: .74rem;
+        font-weight: 650;
+        text-decoration: none;
+        transition: color .18s ease;
+    }
+
+    .transaction-detail-page .back-link:hover {
+        color: var(--signal-primary);
     }
 
     .transaction-detail-page .workflow-kicker,
     .transaction-detail-page .section-kicker,
     .transaction-detail-page .detail-label {
         color: var(--signal-muted);
-        font-size: .72rem;
+        font-size: .65rem;
         font-weight: 700;
         letter-spacing: .05em;
         text-transform: uppercase;
     }
 
+    .transaction-detail-page .workflow-kicker,
+    .transaction-detail-page .section-kicker {
+        color: var(--signal-primary);
+    }
+
     .transaction-detail-page .workflow-title {
         margin: 0;
         color: var(--signal-heading);
-        font-size: 1.45rem;
+        font-size: clamp(1.16rem, 1.7vw, 1.42rem);
         font-weight: 750;
-        letter-spacing: 0;
+        letter-spacing: -.02em;
     }
 
     .transaction-detail-page .workflow-subtitle {
         color: var(--signal-muted);
-        font-size: .92rem;
+        font-size: .78rem;
     }
 
     .transaction-detail-page .badge {
         border-radius: 999px;
-        padding: .42rem .68rem;
+        padding: .32rem .55rem;
+        font-size: .68rem;
         font-weight: 700;
     }
 
     .transaction-detail-page .btn {
-        border-radius: 10px;
+        border-radius: 9px;
+        padding: .36rem .65rem;
+        font-size: .75rem;
         font-weight: 650;
+    }
+
+    .transaction-detail-page .btn-sm {
+        padding: .28rem .52rem;
+        font-size: .7rem;
     }
 
     .transaction-detail-page .btn-primary {
         border-color: var(--signal-primary);
         background: var(--signal-primary);
-        box-shadow: 0 8px 18px rgba(226, 26, 26, .16);
+        box-shadow: 0 6px 14px rgba(220, 61, 66, .14);
     }
 
     .transaction-detail-page .btn-primary:hover {
@@ -222,7 +276,7 @@
     }
 
     .transaction-detail-page .btn-outline-primary {
-        border-color: rgba(226, 26, 26, .32);
+        border-color: rgba(220, 61, 66, .32);
         color: var(--signal-primary);
     }
 
@@ -233,7 +287,45 @@
     }
 
     .transaction-detail-page .workflow-progress {
-        padding: 22px 24px;
+        padding: 16px 20px;
+    }
+
+    .transaction-detail-page .header-actions {
+        max-width: 650px;
+        gap: 6px !important;
+    }
+
+    .transaction-detail-page .header-actions .btn {
+        min-height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .transaction-detail-page .header-facts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0;
+        margin: 15px -20px -18px;
+        border-top: 1px solid var(--signal-border);
+        background: #fbfcfd;
+    }
+
+    .transaction-detail-page .header-fact {
+        min-width: 0;
+        padding: 10px 20px;
+    }
+
+    .transaction-detail-page .header-fact + .header-fact {
+        border-left: 1px solid var(--signal-border);
+    }
+
+    .transaction-detail-page .header-fact-value {
+        margin-top: 3px;
+        color: var(--signal-heading);
+        font-size: .76rem;
+        font-weight: 700;
+        overflow-wrap: anywhere;
     }
 
     .transaction-detail-page .stage-track {
@@ -242,6 +334,8 @@
         gap: 0;
         overflow-x: auto;
         padding-bottom: 6px;
+        scrollbar-width: thin;
+        scrollbar-color: #d7dbe2 transparent;
     }
 
     .transaction-detail-page .stage-item {
@@ -254,7 +348,7 @@
     .transaction-detail-page .stage-item::before {
         content: "";
         position: absolute;
-        top: 20px;
+        top: 16px;
         right: 50%;
         left: -50%;
         height: 2px;
@@ -275,9 +369,9 @@
     .transaction-detail-page .stage-node {
         position: relative;
         z-index: 1;
-        width: 42px;
-        height: 42px;
-        margin: 0 auto 10px;
+        width: 34px;
+        height: 34px;
+        margin: 0 auto 7px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -296,9 +390,9 @@
 
     .transaction-detail-page .stage-item.is-current .stage-node {
         border-color: var(--signal-primary);
-        background: #ffffff;
+        background: var(--signal-primary-soft);
         color: var(--signal-primary);
-        box-shadow: 0 0 0 6px rgba(226, 26, 26, .10);
+        box-shadow: 0 0 0 5px rgba(220, 61, 66, .09);
     }
 
     .transaction-detail-page .stage-item.is-issue .stage-node {
@@ -310,9 +404,9 @@
 
     .transaction-detail-page .stage-label {
         display: block;
-        min-height: 34px;
+        min-height: 28px;
         color: #374151;
-        font-size: .78rem;
+        font-size: .69rem;
         font-weight: 750;
         line-height: 1.25;
     }
@@ -321,13 +415,13 @@
         display: block;
         margin-top: 4px;
         color: var(--signal-muted);
-        font-size: .72rem;
+        font-size: .64rem;
     }
 
     .transaction-detail-page .workflow-helper,
     .transaction-detail-page .quick-summary {
-        border-radius: 14px;
-        padding: 14px 16px;
+        border-radius: 12px;
+        padding: 10px 12px;
         background: #f9fafb;
         border: 1px solid var(--signal-border);
     }
@@ -345,7 +439,11 @@
     .transaction-detail-page .content-grid {
         display: grid;
         grid-template-columns: minmax(0, 1.65fr) minmax(320px, .85fr);
-        gap: 20px;
+        gap: 12px;
+    }
+
+    .transaction-detail-page .content-grid > .d-grid {
+        gap: 12px !important;
     }
 
     .transaction-detail-page .section-card .card-header,
@@ -358,45 +456,54 @@
         align-items: flex-start;
         justify-content: space-between;
         gap: 12px;
-        padding: 18px 20px 12px;
+        padding: 12px 16px 10px;
+        border-bottom: 1px solid var(--signal-border);
         background: transparent;
     }
 
     .transaction-detail-page .section-card .card-body {
-        padding: 18px 20px 20px;
+        padding: 12px 16px 14px;
     }
 
     .transaction-detail-page .section-title {
         margin: 0;
         color: var(--signal-heading);
-        font-size: 1rem;
+        font-size: .88rem;
         font-weight: 750;
+        letter-spacing: -.01em;
     }
 
     .transaction-detail-page .overview-grid {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
+        gap: 8px;
     }
 
     .transaction-detail-page .overview-item {
-        min-height: 104px;
+        min-height: 82px;
         border: 1px solid var(--signal-border);
-        border-radius: 14px;
+        border-radius: 12px;
         background: #fbfcfe;
-        padding: 14px;
+        padding: 10px;
+        transition: border-color .18s ease, background-color .18s ease, transform .18s ease;
+    }
+
+    .transaction-detail-page .overview-item:hover {
+        border-color: #dfe2e7;
+        background: #ffffff;
+        transform: translateY(-1px);
     }
 
     .transaction-detail-page .overview-icon,
     .transaction-detail-page .summary-icon,
     .transaction-detail-page .empty-icon {
-        width: 34px;
-        height: 34px;
+        width: 29px;
+        height: 29px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 10px;
-        background: rgba(226, 26, 26, .09);
+        border-radius: 8px;
+        background: var(--signal-primary-soft);
         color: var(--signal-primary);
     }
 
@@ -405,26 +512,36 @@
         font-weight: 750;
         line-height: 1.35;
         word-break: break-word;
+        font-size: .76rem;
     }
 
     .transaction-detail-page .metadata-form .form-label {
         color: var(--signal-muted);
-        font-size: .76rem;
+        font-size: .68rem;
         font-weight: 750;
-        margin-bottom: 6px;
+        margin-bottom: 4px;
     }
 
     .transaction-detail-page .metadata-form .form-control {
-        min-height: 42px;
+        min-height: 34px;
+        padding: .36rem .55rem;
+        font-size: .74rem;
         border-color: var(--signal-border);
         border-radius: 10px;
         background: #fbfcfe;
+        box-shadow: none;
+    }
+
+    .transaction-detail-page .metadata-form .form-control:focus {
+        border-color: rgba(220, 61, 66, .45);
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(220, 61, 66, .09);
     }
 
     .transaction-detail-page .meta-stat {
         border: 1px solid var(--signal-border);
         border-radius: 12px;
-        padding: 12px;
+        padding: 9px 10px;
         background: #fbfcfe;
     }
 
@@ -433,15 +550,15 @@
         border-bottom: 1px solid var(--signal-border);
         background: #f9fafb;
         color: var(--signal-muted);
-        font-size: .72rem;
+        font-size: .64rem;
         font-weight: 750;
         letter-spacing: .04em;
         text-transform: uppercase;
     }
 
     .transaction-detail-page .modern-table tbody td {
-        padding-top: 14px;
-        padding-bottom: 14px;
+        padding-top: 9px;
+        padding-bottom: 9px;
         border-color: rgba(31, 41, 55, .07);
         vertical-align: middle;
     }
@@ -450,7 +567,7 @@
         border: 1px dashed rgba(107, 114, 128, .28);
         border-radius: 14px;
         background: #fbfcfe;
-        padding: 24px;
+        padding: 16px;
         text-align: center;
     }
 
@@ -462,15 +579,15 @@
         position: relative;
         display: flex;
         gap: 12px;
-        padding-bottom: 18px;
+        padding-bottom: 12px;
     }
 
     .transaction-detail-page .activity-item:not(:last-child)::before {
         content: "";
         position: absolute;
-        top: 35px;
+        top: 29px;
         bottom: 0;
-        left: 17px;
+        left: 14px;
         width: 2px;
         background: #e5e7eb;
     }
@@ -478,22 +595,131 @@
     .transaction-detail-page .activity-node {
         position: relative;
         z-index: 1;
-        flex: 0 0 36px;
-        width: 36px;
-        height: 36px;
+        flex: 0 0 30px;
+        width: 30px;
+        height: 30px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         border-radius: 999px;
-        background: rgba(226, 26, 26, .09);
+        background: var(--signal-primary-soft);
         color: var(--signal-primary);
     }
 
     .transaction-detail-page .audit-item {
         border: 1px solid var(--signal-border);
         border-radius: 12px;
-        padding: 12px;
+        padding: 9px 10px;
         background: #fbfcfe;
+    }
+
+    .transaction-detail-page .approval-step-card {
+        height: 100%;
+        border: 1px solid var(--signal-border);
+        border-radius: 12px;
+        background: #fbfcfd;
+        padding: 12px;
+    }
+
+    .transaction-detail-page .approval-step-number {
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 24px;
+        border-radius: 7px;
+        background: var(--signal-primary-soft);
+        color: var(--signal-primary);
+        font-size: .78rem;
+        font-weight: 800;
+    }
+
+    .transaction-detail-page .scroll-card .card-body {
+        padding-right: 10px;
+    }
+
+    .transaction-detail-page .scroll-area {
+        max-height: 280px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding-right: 10px;
+        scrollbar-width: thin;
+        scrollbar-color: #d4d8df transparent;
+    }
+
+    .transaction-detail-page .scroll-area::-webkit-scrollbar,
+    .transaction-detail-page .table-scroll-area::-webkit-scrollbar {
+        width: 7px;
+        height: 7px;
+    }
+
+    .transaction-detail-page .scroll-area::-webkit-scrollbar-thumb,
+    .transaction-detail-page .table-scroll-area::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: #d4d8df;
+    }
+
+    .transaction-detail-page .table-scroll-area {
+        max-height: 360px;
+        overflow: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        scrollbar-color: #d4d8df transparent;
+    }
+
+    .transaction-detail-page .table-scroll-area table {
+        margin-bottom: 0;
+    }
+
+    .transaction-detail-page .table-scroll-area thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+
+    .transaction-detail-page .system-log-card .audit-item {
+        transition: border-color .18s ease, background-color .18s ease;
+    }
+
+    .transaction-detail-page .system-log-card .audit-item:hover {
+        border-color: #dfe2e7;
+        background: #ffffff;
+    }
+
+    .transaction-detail-page .scroll-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--signal-muted);
+        font-size: .64rem;
+        font-weight: 650;
+    }
+
+    .transaction-detail-page .metadata-form {
+        --bs-gutter-x: .6rem;
+        --bs-gutter-y: .6rem;
+        padding-top: 10px;
+        border-top: 1px dashed var(--signal-border);
+    }
+
+    .transaction-detail-page .metadata-form > .col-12 {
+        width: 50%;
+    }
+
+    .transaction-detail-page .metadata-form > .col-12:last-child {
+        width: 100%;
+    }
+
+    .transaction-detail-page .row.g-3 {
+        --bs-gutter-x: .7rem;
+        --bs-gutter-y: .7rem;
+    }
+
+    .transaction-detail-page p,
+    .transaction-detail-page .small,
+    .transaction-detail-page small {
+        font-size: .72rem !important;
     }
 
     @media (max-width: 1199.98px) {
@@ -503,6 +729,10 @@
 
         .transaction-detail-page .overview-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .transaction-detail-page .header-actions {
+            max-width: none;
         }
     }
 
@@ -516,17 +746,42 @@
         }
 
         .transaction-detail-page .workflow-title {
-            font-size: 1.18rem;
+            font-size: 1.08rem;
         }
 
         .transaction-detail-page .overview-grid {
             grid-template-columns: 1fr;
+        }
+
+        .transaction-detail-page .header-facts {
+            grid-template-columns: 1fr;
+            margin-right: -16px;
+            margin-left: -16px;
+        }
+
+        .transaction-detail-page .header-fact + .header-fact {
+            border-top: 1px solid var(--signal-border);
+            border-left: 0;
+        }
+
+        .transaction-detail-page .header-actions,
+        .transaction-detail-page .header-actions .btn,
+        .transaction-detail-page .header-actions form {
+            width: 100%;
+        }
+
+        .transaction-detail-page .metadata-form > .col-12 {
+            width: 100%;
         }
     }
 </style>
 
 <div class="transaction-detail-page">
     <div class="workflow-card workflow-header mb-3">
+        <a href="{{ route('invoice-verification.transactions.index') }}" class="back-link">
+            <iconify-icon icon="solar:arrow-left-outline"></iconify-icon>
+            <span>Kembali ke daftar transaksi</span>
+        </a>
         <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
             <div class="flex-grow-1">
                 <div class="workflow-kicker mb-2">Transaction Detail</div>
@@ -536,14 +791,16 @@
                 </div>
                 <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
                     @include('invoice-verification.components.status-badge', ['value' => $transaction->status])
-                    <span class="badge bg-light text-dark border">{{ $currentStepLabel }}</span>
+                    @if ($currentStepLabel !== $transaction->status?->label())
+                        <span class="badge bg-light text-dark border">{{ $currentStepLabel }}</span>
+                    @endif
                     @if ($documentCount > 0)
                         <span class="badge bg-success-subtle text-success">{{ $documentCount }} dokumen aktif</span>
                     @endif
                 </div>
             </div>
 
-            <div class="d-flex justify-content-end gap-2 flex-wrap">
+            <div class="header-actions d-flex justify-content-end gap-2 flex-wrap">
                 @can('uploadDocuments', $transaction)
                     <a href="{{ route('invoice-verification.transactions.documents.show', $transaction) }}" class="btn btn-outline-primary">
                         <iconify-icon icon="solar:upload-outline" class="me-1"></iconify-icon>Upload Dokumen Vendor
@@ -562,27 +819,26 @@
                         </form>
                     @endif
                 @endcan
-                <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('invoice-metadata-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })">
-                    <iconify-icon icon="solar:pen-new-square-outline" class="me-1"></iconify-icon>Update Metadata
-                </button>
+                @unless($isVendorRevisionView)
+                    <button
+                        class="btn btn-outline-secondary"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#invoice-metadata-form"
+                        aria-controls="invoice-metadata-form"
+                        aria-expanded="{{ $metadataFormOpen ? 'true' : 'false' }}"
+                        onclick="document.getElementById('invoice-metadata-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })"
+                    >
+                        <iconify-icon icon="solar:pen-new-square-outline" class="me-1"></iconify-icon>Update Metadata
+                    </button>
+                @endunless
                 @if ($transaction->isPpa() && ! $user?->hasRole(\App\Modules\InvoiceVerification\Domain\Enums\RoleCode::VENDOR))
                     <span class="btn btn-outline-secondary disabled">Upload PPA Vendor</span>
-                @endif
-                @if ($transaction->isPpa() && $transaction->ppaVerificationSheet)
-                    <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.edit', $transaction) }}" class="btn btn-outline-secondary">Lembar PPA</a>
                 @endif
                 @if ($transaction->isPpaNonContract())
                     <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.edit', $transaction) }}" class="btn btn-outline-primary">
                         <iconify-icon icon="solar:document-text-outline" class="me-1"></iconify-icon>Pengajuan & Checklist
                     </a>
-                    @if ($transaction->ppaVerificationSheet?->file_path)
-                        <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-outline-secondary">
-                            <iconify-icon icon="solar:eye-outline" class="me-1"></iconify-icon>Preview PDF
-                        </a>
-                        <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.download', $transaction) }}" class="btn btn-outline-success">
-                            <iconify-icon icon="solar:download-outline" class="me-1"></iconify-icon>Download PDF
-                        </a>
-                    @endif
                 @endif
                 @can('verifyAccounting', $transaction)
                     <a href="{{ route('invoice-verification.transactions.accounting-verifications.edit', $transaction) }}" class="btn btn-primary">
@@ -597,6 +853,20 @@
                         <a href="{{ route('invoice-verification.finance.index') }}" class="btn btn-primary">Proses Finance</a>
                     @endif
                 @endcan
+            </div>
+        </div>
+        <div class="header-facts">
+            <div class="header-fact">
+                <div class="detail-label">Vendor</div>
+                <div class="header-fact-value">{{ $transaction->vendor?->name ?? '-' }}</div>
+            </div>
+            <div class="header-fact">
+                <div class="detail-label">Nilai Invoice</div>
+                <div class="header-fact-value">{{ $invoiceValue ? 'Rp '.number_format((float) $invoiceValue, 0, ',', '.') : 'Belum diisi' }}</div>
+            </div>
+            <div class="header-fact">
+                <div class="detail-label">Terakhir Diperbarui</div>
+                <div class="header-fact-value">{{ $transaction->updated_at?->translatedFormat('d M Y, H:i') ?? '-' }}</div>
             </div>
         </div>
     </div>
@@ -618,6 +888,7 @@
                     });
                     $stageState = $index < $currentStageIndex ? 'is-complete' : ($index === $currentStageIndex ? 'is-current' : 'is-pending');
                     if ($index === $currentStageIndex && in_array($statusValue, [
+                        \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::SCHEDULING_PAYMENT->value,
                         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::PAID->value,
                         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::COMPLETED->value,
                         \App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus::ARCHIVED->value,
@@ -698,16 +969,20 @@
                 @php
                     $step1 = $transaction->approvalTransactions->first(fn ($a) => $a->approvalFlow?->step_no == 1);
                     $step2 = $transaction->approvalTransactions->first(fn ($a) => $a->approvalFlow?->step_no == 2);
+                    $step3 = $transaction->approvalTransactions->first(fn ($a) => $a->approvalFlow?->step_no == 3);
                     $kadepApproved = $step1 && $step1->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED;
+                    $kadivApproved = $step2 && $step2->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED;
+                    $accountingCompleted = $transaction->accountingVerification?->status === \App\Modules\InvoiceVerification\Domain\Enums\AccountingVerificationStatus::COMPLETED;
                     $canApproveKadep = $step1 && $step1->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::PENDING && auth()->user()?->can('process', $step1);
                     $canApproveKadiv = $step2 && $step2->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::PENDING && auth()->user()?->can('process', $step2);
+                    $canApproveKadivFinance = $step3 && $step3->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::PENDING && auth()->user()?->can('process', $step3);
                 @endphp
 
                 <div class="card workflow-card section-card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <div>
                             <div class="section-kicker mb-1">Approval Workflow</div>
-                            <h5 class="section-title">Persetujuan Kepala Departemen & Kepala Divisi</h5>
+                            <h5 class="section-title">Persetujuan Kepala Departemen & Kepala Divisi{{ $transaction->isPpaNonContract() ? ' & Kadiv Keuangan' : '' }}</h5>
                         </div>
                         <div>
                             <span class="badge {{ $transaction->status->badgeClass() }}">{{ $transaction->status->label() }}</span>
@@ -716,11 +991,11 @@
                     <div class="card-body">
                         <div class="row g-3">
                             <!-- Step 1: Kadep -->
-                            <div class="col-md-6">
-                                <div class="border rounded p-3 h-100 bg-light-subtle">
+                            <div class="col-md-4">
+                                <div class="approval-step-card h-100">
                                     <div class="d-flex justify-content-between align-items-start mb-2">
                                         <div class="d-flex align-items-center gap-2">
-                                            <span class="badge bg-primary text-white rounded-circle" style="width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;">1</span>
+                                            <span class="approval-step-number">1</span>
                                             <div class="fw-semibold">Kepala Departemen</div>
                                         </div>
                                         @if($step1)
@@ -764,7 +1039,7 @@
                                     @endif
 
                                     @if($canApproveKadep)
-                                        <div class="mt-3 d-flex gap-2">
+                                        <div class="mt-3 d-flex flex-wrap gap-2">
                                             <button type="button" class="btn btn-sm btn-success d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modal-approve-{{ $step1->id }}">
                                                 <iconify-icon icon="solar:check-circle-outline"></iconify-icon>
                                                 <span>Setujui (Approve)</span>
@@ -773,23 +1048,29 @@
                                                 <iconify-icon icon="solar:close-circle-outline"></iconify-icon>
                                                 <span>Tolak (Reject)</span>
                                             </button>
+                                            @if($transaction->ppaVerificationSheet?->file_path)
+                                                <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
+                                                    <iconify-icon icon="solar:eye-outline"></iconify-icon>
+                                                    <span>Preview PPA</span>
+                                                </a>
+                                            @endif
                                         </div>
                                     @endif
                                 </div>
                             </div>
 
                             <!-- Step 2: Kadiv -->
-                            <div class="col-md-6">
-                                <div class="border rounded p-3 h-100 bg-light-subtle">
+                            <div class="col-md-4">
+                                <div class="approval-step-card h-100">
                                     <div class="d-flex justify-content-between align-items-start mb-2">
                                         <div class="d-flex align-items-center gap-2">
-                                            <span class="badge bg-primary text-white rounded-circle" style="width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;">2</span>
+                                            <span class="approval-step-number">2</span>
                                             <div class="fw-semibold">Kepala Divisi</div>
                                         </div>
                                         @if($step2)
                                             <span class="badge {{ $step2->status->badgeClass() }}">{{ $step2->status->value }}</span>
                                         @else
-                                            <span class="badge bg-secondary-subtle text-secondary">MENUNGGU DOKUMEN</span>
+                                            <span class="badge bg-secondary-subtle text-secondary">MENUNGGU TAHAP 1</span>
                                         @endif
                                     </div>
                                     <div class="small text-muted mb-2">
@@ -832,7 +1113,7 @@
                                             Menunggu persetujuan Kepala Departemen selesai terlebih dahulu.
                                         </div>
                                     @elseif($canApproveKadiv && $kadepApproved)
-                                        <div class="mt-3 d-flex gap-2">
+                                        <div class="mt-3 d-flex flex-wrap gap-2">
                                             <button type="button" class="btn btn-sm btn-success d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modal-approve-{{ $step2->id }}">
                                                 <iconify-icon icon="solar:check-circle-outline"></iconify-icon>
                                                 <span>Setujui (Approve)</span>
@@ -841,6 +1122,86 @@
                                                 <iconify-icon icon="solar:close-circle-outline"></iconify-icon>
                                                 <span>Tolak (Reject)</span>
                                             </button>
+                                            @if($transaction->ppaVerificationSheet?->file_path)
+                                                <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
+                                                    <iconify-icon icon="solar:eye-outline"></iconify-icon>
+                                                    <span>Preview PPA</span>
+                                                </a>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+
+                            <!-- Step 3: Kadiv Finance -->
+                            <div class="col-md-4">
+                                <div class="approval-step-card h-100">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="approval-step-number">3</span>
+                                            <div class="fw-semibold">Kadiv Keuangan & Akuntansi</div>
+                                        </div>
+                                        @if($step3)
+                                            <span class="badge {{ $step3->status->badgeClass() }}">{{ $step3->status->value }}</span>
+                                        @else
+                                            <span class="badge bg-secondary-subtle text-secondary">MENUNGGU VERIFIKASI</span>
+                                        @endif
+                                    </div>
+                                    <div class="small text-muted mb-2">
+                                        Pejabat: <strong class="text-dark">{{ $step3?->approver?->name ?? 'Finance & Accounting Division Head' }}</strong>
+                                        @if($step3?->approver?->email)
+                                            ({{ $step3->approver->email }})
+                                        @endif
+                                    </div>
+                                    @if($step3?->action_at)
+                                        <div class="small text-muted mb-1">
+                                            <iconify-icon icon="solar:clock-circle-outline"></iconify-icon>
+                                            Diproses: {{ $step3->action_at->translatedFormat('d M Y H:i') }}
+                                        </div>
+                                    @endif
+                                    @if($step3?->notes)
+                                        <div class="alert alert-light border small mb-2 p-2">
+                                            <strong>Catatan:</strong> {{ $step3->notes }}
+                                        </div>
+                                    @endif
+
+                                    @if($step3 && $step3->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED)
+                                        @if($step3->portal_signature_url || $step3->portal_qr_url)
+                                            <div class="mt-2">
+                                                <a href="{{ $step3->portal_signature_url ?: $step3->portal_qr_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1">
+                                                    <iconify-icon icon="solar:qr-code-outline" class="fs-16"></iconify-icon>
+                                                    <span>Verifikasi QR Portal (Lembar 2)</span>
+                                                </a>
+                                            </div>
+                                        @else
+                                            <div class="mt-2 text-success small d-flex align-items-center gap-1">
+                                                <iconify-icon icon="solar:check-circle-outline"></iconify-icon>
+                                                <span>Disetujui secara digital</span>
+                                            </div>
+                                        @endif
+                                    @endif
+
+                                    @if($step3 && $step3->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::PENDING && (! $kadivApproved || ! $accountingCompleted))
+                                        <div class="alert alert-warning border-0 small mt-2 mb-0 py-1 px-2">
+                                            <iconify-icon icon="solar:info-circle-outline"></iconify-icon>
+                                            Menunggu verifikasi Akuntansi selesai terlebih dahulu.
+                                        </div>
+                                    @elseif($canApproveKadivFinance && $kadivApproved && $accountingCompleted)
+                                        <div class="mt-3 d-flex flex-wrap gap-2">
+                                            <button type="button" class="btn btn-sm btn-success d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modal-approve-{{ $step3->id }}">
+                                                <iconify-icon icon="solar:check-circle-outline"></iconify-icon>
+                                                <span>Setujui (Approve)</span>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modal-reject-{{ $step3->id }}">
+                                                <iconify-icon icon="solar:close-circle-outline"></iconify-icon>
+                                                <span>Tolak (Reject)</span>
+                                            </button>
+                                            @if($transaction->ppaVerificationSheet?->file_path)
+                                                <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
+                                                    <iconify-icon icon="solar:eye-outline"></iconify-icon>
+                                                    <span>Preview PPA</span>
+                                                </a>
+                                            @endif
                                         </div>
                                     @endif
                                 </div>
@@ -894,6 +1255,15 @@
                                     </div>
                                     <div class="modal-body">
                                         <p>Apakah Anda yakin menyetujui transaksi <strong>{{ $transaction->registration_number }}</strong>? Transaksi akan diteruskan ke Kepala Divisi.</p>
+                                        @if($transaction->isPpaNonContract())
+                                            <div class="mb-3 p-2 bg-light rounded border d-flex justify-content-between align-items-center">
+                                                <span class="small text-muted">Periksa dokumen transaksi:</span>
+                                                <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">
+                                                    <iconify-icon icon="solar:eye-outline"></iconify-icon>
+                                                    <span>Preview Lembar PPA & Verifikasi</span>
+                                                </a>
+                                            </div>
+                                        @endif
                                         <div class="mb-3">
                                             <label class="form-label">Catatan (Opsional)</label>
                                             <textarea name="notes" class="form-control" rows="3" placeholder="Masukkan catatan..."></textarea>
@@ -922,6 +1292,15 @@
                                     </div>
                                     <div class="modal-body">
                                         <p>Transaksi <strong>{{ $transaction->registration_number }}</strong> akan dikembalikan kepada pemohon untuk revisi dan tidak dapat masuk ke Accounting.</p>
+                                        @if($transaction->isPpaNonContract())
+                                            <div class="mb-3 p-2 bg-light rounded border d-flex justify-content-between align-items-center">
+                                                <span class="small text-muted">Periksa dokumen transaksi:</span>
+                                                <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">
+                                                    <iconify-icon icon="solar:eye-outline"></iconify-icon>
+                                                    <span>Preview Lembar PPA & Verifikasi</span>
+                                                </a>
+                                            </div>
+                                        @endif
                                         <div class="mb-3">
                                             <label class="form-label">Alasan Penolakan <span class="text-danger">*</span></label>
                                             <textarea name="notes" class="form-control" rows="3" required placeholder="Jelaskan alasan penolakan..."></textarea>
@@ -952,6 +1331,15 @@
                                     </div>
                                     <div class="modal-body">
                                         <p>Apakah Anda yakin menyetujui transaksi <strong>{{ $transaction->registration_number }}</strong>? Transaksi akan disubmit ke Accounting untuk verifikasi.</p>
+                                        @if($transaction->isPpaNonContract())
+                                            <div class="mb-3 p-2 bg-light rounded border d-flex justify-content-between align-items-center">
+                                                <span class="small text-muted">Periksa dokumen transaksi:</span>
+                                                <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">
+                                                    <iconify-icon icon="solar:eye-outline"></iconify-icon>
+                                                    <span>Preview Lembar PPA & Verifikasi</span>
+                                                </a>
+                                            </div>
+                                        @endif
                                         <div class="mb-3">
                                             <label class="form-label">Catatan (Opsional)</label>
                                             <textarea name="notes" class="form-control" rows="3" placeholder="Masukkan catatan..."></textarea>
@@ -980,6 +1368,91 @@
                                     </div>
                                     <div class="modal-body">
                                         <p>Transaksi <strong>{{ $transaction->registration_number }}</strong> akan dikembalikan kepada pemohon untuk revisi dan tidak dapat masuk ke Accounting.</p>
+                                        @if($transaction->isPpaNonContract())
+                                            <div class="mb-3 p-2 bg-light rounded border d-flex justify-content-between align-items-center">
+                                                <span class="small text-muted">Periksa dokumen transaksi:</span>
+                                                <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">
+                                                    <iconify-icon icon="solar:eye-outline"></iconify-icon>
+                                                    <span>Preview Lembar PPA & Verifikasi</span>
+                                                </a>
+                                            </div>
+                                        @endif
+                                        <div class="mb-3">
+                                            <label class="form-label">Alasan Penolakan <span class="text-danger">*</span></label>
+                                            <textarea name="notes" class="form-control" rows="3" required placeholder="Jelaskan alasan penolakan..."></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                                        <button type="submit" class="btn btn-danger">Tolak (Reject)</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                @if($canApproveKadivFinance && $step3 && $kadivApproved && $accountingCompleted)
+                    <!-- Modal Approve Kadiv Finance -->
+                    <div class="modal fade text-start" id="modal-approve-{{ $step3->id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <form action="{{ route('invoice-verification.approvals.update', $step3) }}" method="POST">
+                                    @csrf
+                                    @method('PUT')
+                                    <input type="hidden" name="status" value="APPROVED">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Persetujuan Kepala Divisi Keuangan & Akuntansi</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>Apakah Anda yakin menyetujui transaksi <strong>{{ $transaction->registration_number }}</strong>? Transaksi akan diselesaikan dan diteruskan ke Finance untuk proses pembayaran.</p>
+                                        @if($transaction->isPpaNonContract())
+                                            <div class="mb-3 p-2 bg-light rounded border d-flex justify-content-between align-items-center">
+                                                <span class="small text-muted">Periksa dokumen transaksi:</span>
+                                                <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">
+                                                    <iconify-icon icon="solar:eye-outline"></iconify-icon>
+                                                    <span>Preview Lembar PPA & Verifikasi</span>
+                                                </a>
+                                            </div>
+                                        @endif
+                                        <div class="mb-3">
+                                            <label class="form-label">Catatan (Opsional)</label>
+                                            <textarea name="notes" class="form-control" rows="3" placeholder="Masukkan catatan jika ada..."></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                                        <button type="submit" class="btn btn-success">Setujui (Approve)</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal Reject Kadiv Finance -->
+                    <div class="modal fade text-start" id="modal-reject-{{ $step3->id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <form action="{{ route('invoice-verification.approvals.update', $step3) }}" method="POST">
+                                    @csrf
+                                    @method('PUT')
+                                    <input type="hidden" name="status" value="REJECTED">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title text-danger">Tolak Transaksi</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>Transaksi <strong>{{ $transaction->registration_number }}</strong> akan dikembalikan untuk revisi.</p>
+                                        @if($transaction->isPpaNonContract())
+                                            <div class="mb-3 p-2 bg-light rounded border d-flex justify-content-between align-items-center">
+                                                <span class="small text-muted">Periksa dokumen transaksi:</span>
+                                                <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">
+                                                    <iconify-icon icon="solar:eye-outline"></iconify-icon>
+                                                    <span>Preview Lembar PPA & Verifikasi</span>
+                                                </a>
+                                            </div>
+                                        @endif
                                         <div class="mb-3">
                                             <label class="form-label">Alasan Penolakan <span class="text-danger">*</span></label>
                                             <textarea name="notes" class="form-control" rows="3" required placeholder="Jelaskan alasan penolakan..."></textarea>
@@ -1009,7 +1482,7 @@
                     </div>
                     <div class="card-body">
                         @if ($transaction->generatedDocuments->isNotEmpty())
-                            <div class="table-responsive">
+                            <div class="table-responsive table-scroll-area">
                                 <table class="table modern-table table-centered mb-0">
                                     <thead>
                                         <tr>
@@ -1111,7 +1584,7 @@
                         </div>
                     </div>
                     <div class="card-body">
-                        <div class="table-responsive">
+                        <div class="table-responsive table-scroll-area">
                             <table class="table modern-table table-centered mb-0">
                                 <thead>
                                     <tr>
@@ -1150,7 +1623,16 @@
                             <div class="section-kicker mb-1">Invoice</div>
                             <h5 class="section-title">Invoice Metadata</h5>
                         </div>
-                        <span class="badge bg-light text-dark border">Editable</span>
+                        <button
+                            class="btn btn-sm btn-outline-primary"
+                            type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#invoice-metadata-form"
+                            aria-controls="invoice-metadata-form"
+                            aria-expanded="{{ $metadataFormOpen ? 'true' : 'false' }}"
+                        >
+                            <iconify-icon icon="solar:pen-new-square-outline" class="me-1"></iconify-icon>Edit metadata
+                        </button>
                     </div>
                     <div class="card-body">
                         <div class="row g-2 mb-3">
@@ -1174,7 +1656,7 @@
                                 </div>
                             </div>
                         </div>
-                        <form method="POST" action="{{ route('invoice-verification.transactions.invoice-metadata.update', $transaction) }}" class="metadata-form row g-3" data-tax-calculation>
+                        <form id="invoice-metadata-form" method="POST" action="{{ route('invoice-verification.transactions.invoice-metadata.update', $transaction) }}" class="metadata-form collapse {{ $metadataFormOpen ? 'show' : '' }} row g-3" data-tax-calculation>
                             @csrf
                             @method('PUT')
                             <div class="col-12">
@@ -1265,15 +1747,18 @@
 
                 @include('invoice-verification.components.timeline', ['histories' => $transaction->statusHistory])
 
-                <div class="card workflow-card section-card">
+                <div class="card workflow-card section-card system-log-card scroll-card">
                     <div class="card-header">
                         <div>
                             <div class="section-kicker mb-1">System Log</div>
                             <h5 class="section-title">Audit Trail</h5>
                         </div>
+                        @if ($auditLogs->count() > 5)
+                            <span class="scroll-hint"><iconify-icon icon="solar:mouse-minimalistic-outline"></iconify-icon>Scroll untuk melihat semua</span>
+                        @endif
                     </div>
                     <div class="card-body">
-                        <div class="d-grid gap-2">
+                        <div class="scroll-area d-grid gap-2" tabindex="0" aria-label="Daftar aktivitas system log">
                             @forelse ($auditLogs as $log)
                                 <div class="audit-item">
                                     <div class="d-flex justify-content-between gap-2">

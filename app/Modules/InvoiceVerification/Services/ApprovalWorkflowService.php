@@ -129,6 +129,65 @@ class ApprovalWorkflowService
     }
 
     /**
+     * Trigger Step 3 Approval: Kepala Divisi Keuangan dan Akuntansi (Kadiv Finance)
+     * after Accounting completes verification.
+     */
+    public function triggerKadivFinanceApproval(Transaction $transaction, ?User $actor = null): ApprovalTransaction
+    {
+        $flow = ApprovalFlow::query()
+            ->where('transaction_type_id', $transaction->transaction_type_id)
+            ->where('step_no', 3)
+            ->first();
+
+        if (! $flow) {
+            throw ValidationException::withMessages([
+                'approval' => 'Flow approval Kepala Divisi Keuangan dan Akuntansi belum dikonfigurasi.',
+            ]);
+        }
+
+        $kadivFinance = $this->portalResolver->resolveKadivFinance($transaction);
+
+        $approval = ApprovalTransaction::updateOrCreate(
+            [
+                'transaction_id' => $transaction->id,
+                'approval_flow_id' => $flow->id,
+            ],
+            [
+                'approver_user_id' => $kadivFinance->id,
+                'status' => ApprovalStatus::PENDING,
+                'notes' => null,
+                'action_at' => null,
+                'portal_signature_id' => null,
+                'portal_signature_url' => null,
+                'portal_qr_url' => null,
+            ],
+        );
+
+        $resolvedActor = $actor
+            ?: auth()->user()
+            ?: $transaction->accountingVerification?->verifier
+            ?: User::where('role_code', RoleCode::AKUNTANSI->value)->first()
+            ?: $transaction->owner;
+
+        $this->lifecycleService->transition(
+            $transaction,
+            TransactionStatus::WAITING_APPROVAL,
+            TransactionStep::KADIV_FINANCE_REVIEW,
+            $resolvedActor,
+            'Verifikasi Akuntansi disetujui. Dokumen diajukan untuk persetujuan Kepala Divisi Keuangan dan Akuntansi (Kadiv Finance).',
+        );
+
+        $this->portalResolver->notifyApprovalRequested($approval->fresh(['transaction.owner', 'approvalFlow', 'approver']));
+
+        try {
+            app(PpaVerificationSheetService::class)->regeneratePdf($transaction);
+        } catch (\Throwable) {
+        }
+
+        return $approval;
+    }
+
+    /**
      * Process an approval transaction (APPROVE or REJECT).
      */
     public function process(
@@ -161,8 +220,13 @@ class ApprovalWorkflowService
                 ]);
             }
 
-            $expectedStep = $stepNo === 1 ? TransactionStep::KADEP_REVIEW : TransactionStep::KADIV_REVIEW;
-            if ($transaction->status !== TransactionStatus::WAITING_APPROVAL || $transaction->current_step !== $expectedStep) {
+            $expectedStep = match ($stepNo) {
+                1 => TransactionStep::KADEP_REVIEW,
+                2 => TransactionStep::KADIV_REVIEW,
+                3 => TransactionStep::KADIV_FINANCE_REVIEW,
+                default => null,
+            };
+            if ($expectedStep === null || $transaction->status !== TransactionStatus::WAITING_APPROVAL || $transaction->current_step !== $expectedStep) {
                 throw ValidationException::withMessages([
                     'approval' => 'Tahap approval ini tidak sedang aktif pada transaksi.',
                 ]);
@@ -178,6 +242,26 @@ class ApprovalWorkflowService
                 if (! $kadepApproval || $kadepApproval->status !== ApprovalStatus::APPROVED) {
                     throw ValidationException::withMessages([
                         'approval' => 'Approval Kepala Departemen wajib disetujui terlebih dahulu sebelum Kepala Divisi dapat memproses.',
+                    ]);
+                }
+            }
+
+            // Kadiv & Verifikasi Akuntansi wajib selesai sebelum Kadiv Finance dapat memproses
+            if ($stepNo === 3) {
+                $kadivApproval = ApprovalTransaction::query()
+                    ->where('transaction_id', $transaction->id)
+                    ->whereHas('approvalFlow', fn ($q) => $q->where('step_no', 2))
+                    ->first();
+
+                if (! $kadivApproval || $kadivApproval->status !== ApprovalStatus::APPROVED) {
+                    throw ValidationException::withMessages([
+                        'approval' => 'Approval Kepala Divisi wajib disetujui terlebih dahulu.',
+                    ]);
+                }
+
+                if ($transaction->accountingVerification?->status !== \App\Modules\InvoiceVerification\Domain\Enums\AccountingVerificationStatus::COMPLETED) {
+                    throw ValidationException::withMessages([
+                        'approval' => 'Verifikasi Akuntansi wajib diselesaikan terlebih dahulu.',
                     ]);
                 }
             }
@@ -280,6 +364,22 @@ class ApprovalWorkflowService
                         $actor,
                         'Disetujui oleh Kepala Divisi. Dokumen diteruskan ke Accounting untuk verifikasi.'.($notes ? ' Catatan: '.$notes : ''),
                     );
+                } elseif ($stepNo === 3) {
+                    // Kadiv Finance approved -> status becomes RECEIVED and ready for finance scheduling
+                    $receivedTransaction = $this->lifecycleService->markReceived(
+                        $transaction,
+                        $actor,
+                        'Disetujui oleh Kepala Divisi Keuangan dan Akuntansi (Kadiv Finance). Dokumen siap diproses oleh Finance.'.($notes ? ' Catatan: '.$notes : ''),
+                    );
+                    app(NumberingRegisterService::class)->syncFromTransaction($receivedTransaction);
+
+                    \Illuminate\Support\Facades\DB::afterCommit(function () use ($receivedTransaction) {
+                        $receivedTransaction->loadMissing('transactionType', 'vendor');
+                        $email = $receivedTransaction->vendor?->contact_email ?? $receivedTransaction->owner?->email;
+                        if ($email) {
+                            \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\InvoiceTransactionReceivedMail($receivedTransaction));
+                        }
+                    });
                 }
 
                 return $transaction->refresh();

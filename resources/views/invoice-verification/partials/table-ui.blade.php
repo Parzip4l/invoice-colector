@@ -32,8 +32,8 @@
 
     .iv-table td {
         vertical-align: middle;
-        padding-top: .62rem;
-        padding-bottom: .62rem;
+        padding-top: .45rem;
+        padding-bottom: .45rem;
         line-height: 1.25;
     }
 

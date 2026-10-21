@@ -15,6 +15,7 @@ enum TransactionStep: string
     case ACCOUNTING_ADMINISTRATION = 'ACCOUNTING_ADMINISTRATION';
     case ACCOUNTING_INVOICING = 'ACCOUNTING_INVOICING';
     case ACCOUNTING_VERIFICATION = 'ACCOUNTING_VERIFICATION';
+    case KADIV_FINANCE_REVIEW = 'KADIV_FINANCE_REVIEW';
     case FINALIZATION = 'FINALIZATION';
     case FINANCE_PROCESS = 'FINANCE_PROCESS';
     case ARCHIVE = 'ARCHIVE';
@@ -33,6 +34,7 @@ enum TransactionStep: string
             self::ACCOUNTING_ADMINISTRATION => 'Accounting - Administration',
             self::ACCOUNTING_INVOICING => 'Accounting - Invoicing',
             self::ACCOUNTING_VERIFICATION => 'Verifikasi Akuntansi',
+            self::KADIV_FINANCE_REVIEW => 'Persetujuan Kadiv Finance',
             self::FINALIZATION => 'Persiapan Finance',
             self::FINANCE_PROCESS => 'Proses Finance',
             self::ARCHIVE => 'Arsip Final',

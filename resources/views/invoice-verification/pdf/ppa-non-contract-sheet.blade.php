@@ -24,6 +24,15 @@
             padding: 7px 10px;
             box-sizing: border-box;
         }
+        .page-container-p1 {
+            height: 272mm;
+            border: 1.2px solid #000;
+            padding: 8px 10px;
+            box-sizing: border-box;
+        }
+        .signatures-area-p1 {
+            margin-top: 24px;
+        }
         .page-break {
             page-break-after: always;
         }
@@ -64,25 +73,25 @@
             margin-bottom: 4px;
         }
         .meta-box-table td {
-            padding: 1.5px 4px;
-            font-size: 7pt;
+            padding: 3px 5px;
+            font-size: 7.8pt;
             vertical-align: top;
         }
         .meta-header-row td {
             border-bottom: 1px solid #000;
-            font-size: 7pt;
-            padding: 2px 4px;
+            font-size: 7.8pt;
+            padding: 3.5px 5px;
         }
         .border-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 3px;
-            margin-bottom: 4px;
+            margin-top: 4px;
+            margin-bottom: 5px;
         }
         .border-table th, .border-table td {
             border: 1px solid #000;
-            padding: 2.5px 4px;
-            font-size: 7pt;
+            padding: 3.5px 5px;
+            font-size: 7.8pt;
         }
         .border-table th {
             background-color: #f2f2f2;
@@ -114,11 +123,11 @@
         .summary-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 4px;
+            margin-top: 5px;
         }
         .summary-table td {
-            padding: 1.5px 3px;
-            font-size: 7pt;
+            padding: 3px 4px;
+            font-size: 7.8pt;
             vertical-align: top;
         }
         .signatures-table {
@@ -170,7 +179,7 @@
 <body>
 
 {{-- ==================== HALAMAN 1: PENGAJUAN PENGGUNAAN ANGGARAN ==================== --}}
-<div class="page-container">
+<div class="page-container-p1">
     <table class="header-table">
         <tr>
             <td class="header-logo">
@@ -212,7 +221,7 @@
         </tr>
     </table>
 
-    <div class="text-center fw-bold" style="font-size: 7.8pt; margin-bottom: 2px;">
+    <div class="text-center fw-bold" style="font-size: 8.5pt; margin-top: 8px; margin-bottom: 4px;">
         Tahun Anggaran {{ $budgetYear }}
     </div>
 
@@ -227,28 +236,36 @@
         </thead>
         <tbody>
             @forelse($budgetItems as $index => $item)
-                <tr>
+                <tr style="height: 26px;">
                     <td class="text-center">{{ $loop->iteration }}</td>
                     <td class="text-center">{{ $item['kode_rab'] ?? '-' }}</td>
                     <td>{{ $item['nama_kegiatan'] ?? '-' }}</td>
                     <td class="text-right">Rp {{ number_format((float) ($item['nilai_realisasi'] ?? 0), 0, ',', '.') }}</td>
                 </tr>
             @empty
-                <tr>
+                <tr style="height: 26px;">
                     <td class="text-center">1</td>
                     <td class="text-center">-</td>
                     <td>{{ $transaction->invoiceMetadata?->description ?? $transaction->description ?? '-' }}</td>
                     <td class="text-right">Rp {{ number_format($totalRealization, 0, ',', '.') }}</td>
                 </tr>
             @endforelse
-            <tr class="fw-bold">
+            @for ($i = count($budgetItems) + 1; $i <= max(6, count($budgetItems)); $i++)
+                <tr style="height: 26px;">
+                    <td class="text-center">&nbsp;</td>
+                    <td class="text-center">&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td class="text-right">&nbsp;</td>
+                </tr>
+            @endfor
+            <tr class="fw-bold" style="height: 26px;">
                 <td colspan="3" class="text-center" style="background-color: #f2f2f2;">TOTAL BIAYA</td>
                 <td class="text-right" style="background-color: #f2f2f2;">Rp {{ number_format($totalRealization, 0, ',', '.') }}</td>
             </tr>
         </tbody>
     </table>
 
-    <table class="summary-table">
+    <table class="summary-table" style="margin-top: 10px;">
         <tr>
             <td style="width: 32%;">Nilai Pekerjaan/Kontrak</td>
             <td style="width: 3%;">:</td>
@@ -276,42 +293,44 @@
         </tr>
     </table>
 
-    <div style="margin-top: 6px; text-align: right; font-size: 7.2pt; padding-right: 14px;">
-        Jakarta, {{ $signatureDate }}<br>
-        <strong>PT LRT JAKARTA</strong><br>
-        Penggunaan Anggaran Disetujui Oleh :
-    </div>
+    <div class="signatures-area-p1">
+        <div style="margin-bottom: 3px; text-align: right; font-size: 7.2pt; padding-right: 14px;">
+            Jakarta, {{ $signatureDate }}<br>
+            <strong>PT LRT JAKARTA</strong><br>
+            Penggunaan Anggaran Disetujui Oleh :
+        </div>
 
-    <table class="signatures-table">
-        <tr>
-            <td>
-                <div class="fw-bold" style="font-size: 7.5pt;">{{ $kadepTitle }}</div>
-                <div class="qr-box">
-                    @if(!empty($kadepQrBase64))
-                        <img src="{{ $kadepQrBase64 }}" class="qr-img" alt="QR Kadep">
-                        <div class="qr-label">Tersertifikasi Portal LRTJ</div>
-                    @else
-                        <div class="qr-placeholder">(Menunggu Approval)</div>
-                    @endif
-                </div>
-                <div class="fw-bold" style="font-size: 7.5pt; text-decoration: underline;">{{ $kadepName }}</div>
-                <div style="font-size: 6.8pt;">NIK. {{ $kadepNik }}</div>
-            </td>
-            <td>
-                <div class="fw-bold" style="font-size: 7.5pt;">{{ $kadivTitle }}</div>
-                <div class="qr-box">
-                    @if(!empty($kadivQrBase64))
-                        <img src="{{ $kadivQrBase64 }}" class="qr-img" alt="QR Kadiv">
-                        <div class="qr-label">Tersertifikasi Portal LRTJ</div>
-                    @else
-                        <div class="qr-placeholder">(Menunggu Approval)</div>
-                    @endif
-                </div>
-                <div class="fw-bold" style="font-size: 7.5pt; text-decoration: underline;">{{ $kadivName }}</div>
-                <div style="font-size: 6.8pt;">NIK. {{ $kadivNik }}</div>
-            </td>
-        </tr>
-    </table>
+        <table class="signatures-table">
+            <tr>
+                <td>
+                    <div class="fw-bold" style="font-size: 7.5pt;">{{ $kadepTitle }}</div>
+                    <div class="qr-box">
+                        @if(!empty($kadepQrBase64))
+                            <img src="{{ $kadepQrBase64 }}" class="qr-img" alt="QR Kadep">
+                            <div class="qr-label">Tersertifikasi Portal LRTJ</div>
+                        @else
+                            <div class="qr-placeholder">(Menunggu Approval)</div>
+                        @endif
+                    </div>
+                    <div class="fw-bold" style="font-size: 7.5pt; text-decoration: underline;">{{ $kadepName }}</div>
+                    <div style="font-size: 6.8pt;">NIK. {{ $kadepNik }}</div>
+                </td>
+                <td>
+                    <div class="fw-bold" style="font-size: 7.5pt;">{{ $kadivTitle }}</div>
+                    <div class="qr-box">
+                        @if(!empty($kadivQrBase64))
+                            <img src="{{ $kadivQrBase64 }}" class="qr-img" alt="QR Kadiv">
+                            <div class="qr-label">Tersertifikasi Portal LRTJ</div>
+                        @else
+                            <div class="qr-placeholder">(Menunggu Approval)</div>
+                        @endif
+                    </div>
+                    <div class="fw-bold" style="font-size: 7.5pt; text-decoration: underline;">{{ $kadivName }}</div>
+                    <div style="font-size: 6.8pt;">NIK. {{ $kadivNik }}</div>
+                </td>
+            </tr>
+        </table>
+    </div>
 </div>
 
 <div class="page-break"></div>
@@ -352,30 +371,40 @@
     </table>
 
     <table class="checklist-table">
+        <colgroup>
+            <col style="width: 18px;">
+            <col style="width: 22px;">
+            <col style="width: auto;">
+            <col style="width: 72px;">
+            <col style="width: 72px;">
+            <col style="width: 135px;">
+            <col style="width: 80px;">
+        </colgroup>
         <thead>
             <tr>
-                <th style="width: 25px;">No</th>
+                <th colspan="2">No</th>
                 <th>Dokumen</th>
-                <th style="width: 75px;">DIBUTUHKAN<br>(Ya / Tidak)</th>
-                <th style="width: 75px;">AKTUAL<br>(Ada / Tidak Ada)</th>
-                <th style="width: 140px;">KETERANGAN</th>
-                <th style="width: 85px;">Verifikasi<br>(Tersedia / Tidak)</th>
+                <th>DIBUTUHKAN<br>(Ya / Tidak)</th>
+                <th>AKTUAL<br>(Ada / Tidak Ada)</th>
+                <th>KETERANGAN</th>
+                <th>Verifikasi<br>(Tersedia / Tidak)</th>
             </tr>
         </thead>
         <tbody>
             @foreach($checklistCategories as $cat)
                 <tr class="category-header">
                     <td class="text-center fw-bold">{{ $cat['roman'] }}</td>
-                    <td colspan="5" class="fw-bold">{{ $cat['title'] }}</td>
+                    <td colspan="6" class="fw-bold">{{ $cat['title'] }}</td>
                 </tr>
                 @foreach($cat['items'] as $item)
                     <tr>
+                        <td></td>
                         <td class="text-center">{{ $item['no'] }}</td>
-                        <td style="{{ !empty($item['is_sub']) ? 'padding-left: 14px;' : '' }}">{{ $item['name'] }}</td>
-                        <td class="text-center">{{ !empty($item['is_required']) ? 'Ya' : 'Tidak' }}</td>
-                        <td class="text-center">{{ !empty($item['is_actual']) ? 'Ada' : 'Tidak Ada' }}</td>
-                        <td>{{ $item['notes'] ?? '-' }}</td>
-                        <td class="text-center">{{ !empty($item['verification_status']) ? $item['verification_status'] : '-' }}</td>
+                        <td style="{{ !empty($item['is_sub']) ? 'padding-left: 10px;' : '' }}">{{ $item['name'] }}</td>
+                        <td class="text-center">{{ !empty($item['is_required']) ? 'Ya' : '' }}</td>
+                        <td class="text-center">{{ !empty($item['is_actual']) ? 'Ada' : '' }}</td>
+                        <td>{{ (!empty($item['notes']) && $item['notes'] !== '-') ? $item['notes'] : '' }}</td>
+                        <td class="text-center">{{ (!empty($item['verification_status']) && !in_array($item['verification_status'], ['-', 'Tidak', 'Tidak Tersedia'], true)) ? $item['verification_status'] : '' }}</td>
                     </tr>
                 @endforeach
             @endforeach
@@ -409,17 +438,20 @@
                 <div class="fw-bold" style="font-size: 7.5pt;">Kepala Divisi Keuangan dan Akuntansi</div>
                 <div class="qr-box">
                     @if(!empty($accountingQrBase64))
-                        <img src="{{ $accountingQrBase64 }}" class="qr-img" alt="QR Akuntansi">
-                        <div class="qr-label">Tersertifikasi Akuntansi LRTJ</div>
+                        <img src="{{ $accountingQrBase64 }}" class="qr-img" alt="QR Kadiv Keuangan">
+                        <div class="qr-label">Tersertifikasi Portal LRTJ</div>
                     @else
-                        <div class="qr-placeholder" style="border-bottom: 1px solid #000; height: 38px; line-height: 38px; margin: 4px 30px;">(Tanda Tangan)</div>
+                        <div class="qr-placeholder">(Menunggu Approval)</div>
                     @endif
                 </div>
                 <div class="fw-bold" style="font-size: 7.5pt; text-decoration: underline; margin-top: 2px;">{{ $accountingName }}</div>
+                @if(!empty($accountingNik) && $accountingNik !== '-')
+                    <div style="font-size: 6.8pt;">NIK. {{ $accountingNik }}</div>
+                @endif
             </td>
         </tr>
-    </table>
 </div>
 
 </body>
 </html>
+

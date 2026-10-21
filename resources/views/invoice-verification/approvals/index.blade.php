@@ -68,10 +68,14 @@
                             $canProcess = auth()->user()?->can('process', $approval);
                             $isPending = $approval->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::PENDING;
 
-                            $kadepApproved = true;
+                            $canProcessStep = true;
                             if ($stepNo === 2) {
                                 $kadepApproval = $transaction->approvalTransactions->first(fn ($item) => $item->approvalFlow?->step_no == 1);
-                                $kadepApproved = $kadepApproval && $kadepApproval->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED;
+                                $canProcessStep = $kadepApproval && $kadepApproval->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED;
+                            } elseif ($stepNo === 3) {
+                                $kadivApproval = $transaction->approvalTransactions->first(fn ($item) => $item->approvalFlow?->step_no == 2);
+                                $canProcessStep = $kadivApproval && $kadivApproval->status === \App\Modules\InvoiceVerification\Domain\Enums\ApprovalStatus::APPROVED
+                                    && $transaction->accountingVerification?->status === \App\Modules\InvoiceVerification\Domain\Enums\AccountingVerificationStatus::COMPLETED;
                             }
                         @endphp
                         <tr>
@@ -128,9 +132,15 @@
                                         <iconify-icon icon="solar:eye-outline"></iconify-icon>
                                     </a>
 
+                                    @if($transaction->isPpaNonContract())
+                                        <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Preview Lembar PPA & Verifikasi (2 Lembar)">
+                                            <iconify-icon icon="solar:document-text-outline"></iconify-icon>
+                                        </a>
+                                    @endif
+
                                     @if($isPending && $canProcess)
-                                        @if($stepNo === 2 && ! $kadepApproved)
-                                            <button type="button" class="btn btn-sm btn-secondary disabled" title="Menunggu approval Kadep">
+                                        @if(! $canProcessStep)
+                                            <button type="button" class="btn btn-sm btn-secondary disabled" title="Menunggu tahapan sebelumnya selesai">
                                                 <iconify-icon icon="solar:lock-outline"></iconify-icon>
                                             </button>
                                         @else
@@ -144,7 +154,7 @@
                                     @endif
                                 </div>
 
-                                @if($isPending && $canProcess && ($stepNo !== 2 || $kadepApproved))
+                                @if($isPending && $canProcess && $canProcessStep)
                                     <!-- Modal Approve -->
                                     <div class="modal fade text-start" id="approveModal-{{ $approval->id }}" tabindex="-1" aria-hidden="true">
                                         <div class="modal-dialog">
@@ -159,6 +169,15 @@
                                                     </div>
                                                     <div class="modal-body">
                                                         <p>Apakah Anda yakin menyetujui transaksi <strong>{{ $transaction->registration_number }}</strong> ({{ $approval->approvalFlow?->step_name }})?</p>
+                                                        @if($transaction->isPpaNonContract())
+                                                            <div class="mb-3 p-2 bg-light rounded border d-flex justify-content-between align-items-center">
+                                                                <span class="small text-muted">Periksa dokumen:</span>
+                                                                <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">
+                                                                    <iconify-icon icon="solar:eye-outline"></iconify-icon>
+                                                                    <span>Preview Lembar PPA & Verifikasi</span>
+                                                                </a>
+                                                            </div>
+                                                        @endif
                                                         <div class="mb-3">
                                                             <label class="form-label">Catatan (Opsional)</label>
                                                             <textarea name="notes" class="form-control" rows="3" placeholder="Masukkan catatan jika ada..."></textarea>
@@ -186,10 +205,19 @@
                                                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
                                                     </div>
                                                     <div class="modal-body">
-                                                        <p>Transaksi <strong>{{ $transaction->registration_number }}</strong> akan dikembalikan kepada pemohon untuk revisi dan tidak dapat masuk ke Accounting.</p>
+                                                        <p>Transaksi <strong>{{ $transaction->registration_number }}</strong> akan dikembalikan untuk revisi.</p>
+                                                        @if($transaction->isPpaNonContract())
+                                                            <div class="mb-3 p-2 bg-light rounded border d-flex justify-content-between align-items-center">
+                                                                <span class="small text-muted">Periksa dokumen:</span>
+                                                                <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">
+                                                                    <iconify-icon icon="solar:eye-outline"></iconify-icon>
+                                                                    <span>Preview Lembar PPA & Verifikasi</span>
+                                                                </a>
+                                                            </div>
+                                                        @endif
                                                         <div class="mb-3">
                                                             <label class="form-label">Alasan Penolakan <span class="text-danger">*</span></label>
-                                                            <textarea name="notes" class="form-control" rows="3" required placeholder="Jelaskan alasan penolakan atau revisi yang harus dilakukan pemohon..."></textarea>
+                                                            <textarea name="notes" class="form-control" rows="3" required placeholder="Jelaskan alasan penolakan atau revisi..."></textarea>
                                                         </div>
                                                     </div>
                                                     <div class="modal-footer">

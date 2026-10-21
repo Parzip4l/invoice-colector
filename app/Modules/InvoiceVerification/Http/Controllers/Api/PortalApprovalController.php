@@ -104,9 +104,15 @@ class PortalApprovalController extends Controller
 
     private function isActiveStep(ApprovalTransaction $approval): bool
     {
-        $expected = (int) $approval->approvalFlow?->step_no === 1 ? TransactionStep::KADEP_REVIEW : TransactionStep::KADIV_REVIEW;
+        $stepNo = (int) $approval->approvalFlow?->step_no;
+        $expected = match ($stepNo) {
+            1 => TransactionStep::KADEP_REVIEW,
+            2 => TransactionStep::KADIV_REVIEW,
+            3 => TransactionStep::KADIV_FINANCE_REVIEW,
+            default => null,
+        };
 
-        return $approval->transaction?->current_step === $expected;
+        return $expected !== null && $approval->transaction?->current_step === $expected;
     }
 
     private function serialize(ApprovalTransaction $approval): array

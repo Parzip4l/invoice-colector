@@ -1,13 +1,16 @@
-<div class="card workflow-card section-card">
+<div class="card workflow-card section-card scroll-card">
     <div class="card-header">
         <div>
             <div class="section-kicker mb-1">Activity</div>
             <h5 class="section-title">Timeline</h5>
         </div>
+        @if ($histories->count() > 5)
+            <span class="scroll-hint"><iconify-icon icon="solar:mouse-minimalistic-outline"></iconify-icon>Scroll untuk melihat semua</span>
+        @endif
     </div>
     <div class="card-body">
         @if ($histories->isNotEmpty())
-            <div class="activity-list">
+            <div class="activity-list scroll-area" tabindex="0" aria-label="Timeline perubahan status transaksi">
                 @foreach ($histories as $history)
                     <div class="activity-item">
                         <span class="activity-node">

@@ -23,7 +23,7 @@
 @endonce
 
 @if ($documents->isNotEmpty())
-<div class="table-responsive">
+<div class="table-responsive table-scroll-area">
     <table class="table table-centered table-nowrap mb-0 {{ $tableClass }}">
         <thead class="{{ isset($transaction) ? '' : 'table-light' }}">
             <tr>

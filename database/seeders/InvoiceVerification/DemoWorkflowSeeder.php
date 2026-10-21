@@ -35,7 +35,8 @@ class DemoWorkflowSeeder extends Seeder
     public function run(): void
     {
         $externalVendorUser = User::query()->where('email', 'vendor@demo.local')->firstOrFail();
-        $internalVendorUser = User::query()->where('email', 'user.divisi@demo.local')->firstOrFail();
+        $internalVendorUser = User::query()->where('email', 'user.divisi@demo.local')->first()
+            ?? User::query()->where('email', 'owner@lrtjakarta.co.id')->firstOrFail();
         $accounting = User::query()->where('email', 'akuntansi@demo.local')->firstOrFail();
         $finance = User::query()->where('email', 'finance@demo.local')->firstOrFail();
 
@@ -114,6 +115,8 @@ class DemoWorkflowSeeder extends Seeder
             'SPUK' => 4,
             'KK' => 4,
         ]);
+
+        $this->distributeDemoTransactionDates();
 
         unset($ppaDraft, $ppaSubmitted, $pnkInReview);
     }
@@ -210,6 +213,28 @@ class DemoWorkflowSeeder extends Seeder
                 financeUser: $finance,
             );
             $this->seedFinanceStateIfNeeded($transaction, $status, $finance);
+        }
+    }
+
+    private function distributeDemoTransactionDates(): void
+    {
+        $assignments = [
+            7 => ['KK-00001', 'PPA-00007', 'SPU-00008'],
+            6 => ['SPUK-00001', 'PNK-00006'],
+            5 => ['PPA-00006', 'SPUK-00004'],
+            4 => ['SPU-00002', 'PPA-00005', 'KK-00004'],
+            3 => ['PNK-00005', 'SPU-00006', 'SPUK-00003'],
+            2 => ['SPU-00001', 'PPA-00004', 'PNK-00004'],
+            1 => ['PNK-00001', 'PPA-00003', 'SPU-00005', 'PPA-00002'],
+            0 => ['PPA-00001', 'PNK-00002', 'SPU-00003', 'PPA-00008', 'SPU-00004', 'PNK-00003', 'SPUK-00002', 'KK-00002', 'KK-00003', 'SPU-00007'],
+        ];
+
+        foreach ($assignments as $weeksAgo => $numbers) {
+            $date = $weeksAgo === 0
+                ? now()->subHours(2)
+                : now()->subWeeks($weeksAgo)->startOfWeek()->addDays(2)->setHour(10)->setMinute(15);
+            Transaction::whereIn('registration_number', $numbers)
+                ->update(['created_at' => $date, 'updated_at' => $date]);
         }
     }
 

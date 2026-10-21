@@ -12,11 +12,19 @@
                 {{ $canSubmitVerification ? 'Pilih status setiap bagian, lalu tekan tombol simpan untuk memproses hasil verifikasi.' : 'Verifikasi akuntansi untuk transaksi ini sudah selesai atau tidak lagi berada pada tahap In Review.' }}
             </p>
         </div>
-        @if ($canSubmitVerification)
-            <button class="btn btn-primary" type="submit" form="accountingVerificationForm">
-                Simpan Verifikasi
-            </button>
-        @endif
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            @if ($transaction->ppaVerificationSheet?->file_path)
+                <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}" target="_blank" class="btn btn-outline-secondary d-inline-flex align-items-center gap-1">
+                    <iconify-icon icon="solar:eye-outline" class="fs-18"></iconify-icon>
+                    <span>Preview Lembar PPA & Verifikasi (2 Lembar)</span>
+                </a>
+            @endif
+            @if ($canSubmitVerification)
+                <button class="btn btn-primary" type="submit" form="accountingVerificationForm">
+                    Simpan Verifikasi
+                </button>
+            @endif
+        </div>
     </div>
     <div class="card-body">
         @error('status')
@@ -66,19 +74,23 @@
 
                     @if ($transaction->ppaVerificationSheet?->file_path)
                         <div class="col-md-6">
-                            <div class="border rounded p-3 h-100">
-                                <div class="fw-semibold">Lembar Checklist PPA</div>
-                                <div class="text-muted small">{{ $transaction->ppaVerificationSheet->file_name ?? 'Checklist PPA' }}</div>
+                            <div class="border rounded p-3 h-100 bg-light-subtle">
+                                <div class="fw-semibold text-dark">Lembar PPA & Lembar Verifikasi (2 Lembar)</div>
+                                <div class="text-muted small">Formulir LRTJ-FR-KDA-001 & Lembar Verifikasi LRTJ-FR-KDA-004</div>
                                 <div class="d-flex gap-2 flex-wrap mt-2">
                                     <button
                                         type="button"
-                                        class="btn btn-outline-primary d-inline-flex align-items-center gap-2"
+                                        class="btn btn-outline-primary d-inline-flex align-items-center gap-1"
                                         data-file-preview-url="{{ route('invoice-verification.transactions.ppa-verification-sheets.preview', $transaction) }}"
-                                        data-file-preview-title="Lembar Checklist PPA - {{ $transaction->registration_number }}"
+                                        data-file-preview-title="Lembar PPA & Verifikasi - {{ $transaction->registration_number }}"
                                     >
                                         <iconify-icon icon="solar:eye-outline" class="fs-18"></iconify-icon>
-                                        <span>Lihat Dokumen</span>
+                                        <span>Preview PDF</span>
                                     </button>
+                                    <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.download', $transaction) }}" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1">
+                                        <iconify-icon icon="solar:download-outline"></iconify-icon>
+                                        <span>Download PDF</span>
+                                    </a>
                                     <a href="{{ route('invoice-verification.transactions.ppa-verification-sheets.edit', $transaction) }}" class="btn btn-sm btn-outline-secondary">Detail Checklist</a>
                                 </div>
                             </div>

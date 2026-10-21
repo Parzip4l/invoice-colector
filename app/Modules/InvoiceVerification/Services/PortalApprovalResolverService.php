@@ -140,6 +140,39 @@ class PortalApprovalResolverService
     }
 
     /**
+     * Resolve Kepala Divisi Keuangan dan Akuntansi (Kadiv Finance) from Portal.
+     */
+    public function resolveKadivFinance(Transaction $transaction): User
+    {
+        $owner = $transaction->owner;
+        if (! $owner || blank($owner->email)) {
+            throw ValidationException::withMessages([
+                'approval' => sprintf('Owner transaksi #%s tidak memiliki email valid untuk lookup approval Kadiv Finance.', $transaction->registration_number),
+            ]);
+        }
+
+        try {
+            $holder = $this->resolvePositionHolder($owner, 'Finance & Accounting Division Head');
+
+            return $this->findOrProvisionUser(
+                $holder['email'],
+                $holder,
+                RoleCode::FINANCE,
+                $transaction,
+            );
+        } catch (\Throwable $exception) {
+            $fallbackUser = User::where('role_code', RoleCode::FINANCE->value)->where('is_active', true)->first();
+            if ($fallbackUser && (! app()->isProduction() || str_ends_with((string) $owner->email, '@demo.local') || $owner->email === 'owner@lrtjakarta.co.id')) {
+                Log::info('Portal lookup for Finance & Accounting Division Head failed for demo user, falling back to local finance user: '.$fallbackUser->email);
+
+                return $fallbackUser;
+            }
+
+            throw $exception;
+        }
+    }
+
+    /**
      * @return array{kadep: ?User, kadiv: ?User}
      */
     protected function callPortalResolver(Transaction $transaction, User $owner): array
@@ -449,7 +482,7 @@ class PortalApprovalResolverService
         $payload = [
             'module' => (string) config('invoice_verification.approval_resolver.client_code', 'invoice_collector'),
             'signature_type' => 'approval_decision',
-            'role' => $stepNo === 1 ? 'kadep_approver' : 'kadiv_approver',
+            'role' => $stepNo === 1 ? 'kadep_approver' : ($stepNo === 2 ? 'kadiv_approver' : 'kadiv_finance_approver'),
             'ticket' => [
                 'id' => (string) $transaction->id,
                 'ticket_no' => (string) $transaction->registration_number,

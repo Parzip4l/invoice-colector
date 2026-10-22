@@ -8,6 +8,7 @@ use App\Modules\InvoiceVerification\Domain\Models\ApprovalTransaction;
 use App\Modules\InvoiceVerification\Domain\Models\Department;
 use App\Modules\InvoiceVerification\Domain\Models\Division;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -57,11 +58,8 @@ class PortalApprovalResolverService
     public function notifyApprovalRequested(ApprovalTransaction $approval): void
     {
         $approval->loadMissing(['transaction.owner', 'approvalFlow', 'approver']);
-        $baseUrl = (string) config('invoice_verification.approval_resolver.base_url');
-        $endpoint = (string) config('invoice_verification.approval_resolver.notification_endpoint');
-        $secret = (string) config('invoice_verification.approval_resolver.shared_secret');
-        if ($baseUrl === '' || $endpoint === '' || $secret === '' || blank($approval->approver?->email)) {
-            Log::warning('Portal approval notification skipped because configuration or approver email is missing.', ['approval_id' => $approval->id]);
+        if (blank($approval->approver?->email)) {
+            Log::warning('Portal approval notification skipped because approver email is missing.', ['approval_id' => $approval->id]);
 
             return;
         }
@@ -78,6 +76,97 @@ class PortalApprovalResolverService
             'approval_step' => (string) ($approval->approvalFlow?->step_name ?? 'Approval'),
             'priority' => 'high',
         ];
+
+        $this->sendMobileNotification($payload, ['approval_id' => $approval->id]);
+    }
+
+    public function notifyTransactionStatusChanged(Transaction $transaction, ?string $previousStatus = null, ?User $actor = null): void
+    {
+        $transaction->loadMissing('owner');
+        if (blank($transaction->owner?->email)) {
+            return;
+        }
+
+        $status = $transaction->status?->value ?? (string) $transaction->status;
+        $statusLabel = $transaction->status?->label() ?? Str::headline($status);
+        $previousLabel = filled($previousStatus) ? Str::headline(Str::lower($previousStatus)) : null;
+
+        $this->sendMobileNotification([
+            'event_type' => 'invoice_status_changed',
+            'recipient_email' => $transaction->owner->email,
+            'transaction_id' => (string) $transaction->id,
+            'registration_number' => (string) $transaction->registration_number,
+            'transaction_title' => (string) $transaction->title,
+            'requester_name' => (string) ($transaction->owner->name ?? '-'),
+            'status' => $status,
+            'status_label' => $statusLabel,
+            'previous_status' => $previousStatus,
+            'previous_status_label' => $previousLabel,
+            'current_step' => $transaction->current_step?->value ?? null,
+            'current_step_label' => $transaction->current_step?->label() ?? null,
+            'actor_name' => $actor?->name,
+            'title' => 'Status Invoice Collector berubah',
+            'body' => "{$transaction->registration_number} sekarang {$statusLabel}.",
+            'priority' => 'high',
+        ], ['transaction_id' => $transaction->id]);
+    }
+
+    public function notifyApprovalDecided(ApprovalTransaction $approval, ?User $actor = null): void
+    {
+        $approval->loadMissing(['transaction.owner', 'approvalFlow', 'approver']);
+        $transaction = $approval->transaction;
+        if (! $transaction || blank($transaction->owner?->email)) {
+            return;
+        }
+
+        $decision = $approval->status?->value ?? (string) $approval->status;
+        $decisionLabel = $decision === 'APPROVED' ? 'disetujui' : 'ditolak';
+        $actorName = $actor?->name ?? $approval->approver?->name;
+
+        $this->sendMobileNotification([
+            'event_type' => 'invoice_approval_decided',
+            'recipient_email' => $transaction->owner->email,
+            'approval_id' => (string) $approval->id,
+            'transaction_id' => (string) $transaction->id,
+            'registration_number' => (string) $transaction->registration_number,
+            'transaction_title' => (string) $transaction->title,
+            'requester_name' => (string) ($transaction->owner->name ?? '-'),
+            'approval_step' => (string) ($approval->approvalFlow?->step_name ?? 'Approval'),
+            'approval_status' => $decision,
+            'approval_note' => $approval->notes,
+            'actor_name' => $actorName,
+            'title' => 'Approval Invoice Collector '.$decisionLabel,
+            'body' => trim("{$transaction->registration_number} {$decisionLabel}".($actorName ? " oleh {$actorName}." : '.')),
+            'priority' => 'high',
+        ], ['approval_id' => $approval->id, 'transaction_id' => $transaction->id]);
+    }
+
+    private function sendMobileNotification(array $payload, array $context = []): void
+    {
+        $baseUrl = (string) config('invoice_verification.approval_resolver.base_url');
+        $endpoint = (string) config('invoice_verification.approval_resolver.notification_endpoint');
+        $secret = (string) config('invoice_verification.approval_resolver.shared_secret');
+        if ($baseUrl === '' || $endpoint === '' || $secret === '') {
+            Log::warning('Portal mobile notification skipped because configuration is incomplete.', $context);
+
+            return;
+        }
+
+        $dedupeParts = [
+            $payload['event_type'] ?? '',
+            $payload['recipient_email'] ?? '',
+            $payload['transaction_id'] ?? '',
+            $payload['approval_id'] ?? '',
+            $payload['status'] ?? '',
+            $payload['previous_status'] ?? '',
+            $payload['current_step'] ?? '',
+            $payload['approval_status'] ?? '',
+        ];
+        $dedupeKey = 'invoice-collector:mobile-notification:'.hash('sha256', implode('|', $dedupeParts));
+        if (! Cache::add($dedupeKey, true, now()->addSeconds(30))) {
+            return;
+        }
+
         $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if ($body === false) {
             return;
@@ -95,10 +184,10 @@ class PortalApprovalResolverService
             }
             $response = $client->withBody($body, 'application/json')->post(rtrim($baseUrl, '/').'/'.ltrim($endpoint, '/'));
             if (! $response->successful()) {
-                Log::warning('Portal approval notification rejected.', ['approval_id' => $approval->id, 'status' => $response->status(), 'body' => $response->body()]);
+                Log::warning('Portal mobile notification rejected.', [...$context, 'status' => $response->status(), 'body' => $response->body()]);
             }
         } catch (\Throwable $exception) {
-            Log::warning('Portal approval notification failed: '.$exception->getMessage(), ['approval_id' => $approval->id]);
+            Log::warning('Portal mobile notification failed: '.$exception->getMessage(), $context);
         }
     }
 

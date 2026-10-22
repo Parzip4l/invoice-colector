@@ -937,6 +937,30 @@ class InvoiceVerificationModuleTest extends TestCase
         $this->assertNull($compiled->archive_path);
     }
 
+    public function test_backfill_command_registers_missing_manifest_for_completed_transaction(): void
+    {
+        $vendor = User::where('email', 'vendor@demo.local')->firstOrFail();
+        $transaction = $this->createTransactionOfType('SPU', 'INV-SPU-BACKFILL', $vendor);
+        $transaction->forceFill([
+            'status' => TransactionStatus::COMPLETED,
+            'current_step' => TransactionStep::COMPLETED,
+            'completed_at' => now(),
+        ])->save();
+
+        $this->assertNull($transaction->fresh()->compiledDocument);
+
+        $this->artisan('invoice-verification:backfill-compilation-manifests')
+            ->expectsOutputToContain($transaction->registration_number)
+            ->assertSuccessful();
+
+        $compiled = $transaction->fresh('compiledDocument.items')->compiledDocument;
+
+        $this->assertNotNull($compiled);
+        $this->assertNull($compiled->compiled_file_path);
+        $this->assertNull($compiled->archive_path);
+        $this->assertSame($compiled->total_files, $compiled->items->count());
+    }
+
     public function test_functional_compiler_builds_a_valid_temporary_pdf(): void
     {
         Storage::fake('public');

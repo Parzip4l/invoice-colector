@@ -114,4 +114,38 @@ class PortalOrganizationSyncTest extends TestCase
         $this->assertSame('DEP-IT-SEC', Department::findOrFail($user->department_id)->ldap_code);
         $this->assertSame('EMP-ADMIN-001', $user->employee_number);
     }
+
+    public function test_create_transaction_uses_valid_local_organization_when_portal_sync_fails(): void
+    {
+        $this->seed(InvoiceVerificationSeeder::class);
+        $division = Division::query()->where('is_active', true)->firstOrFail();
+        $department = Department::query()
+            ->where('division_id', $division->id)
+            ->where('is_active', true)
+            ->firstOrFail();
+        $user = User::factory()->create([
+            'name' => 'Pemohon Dengan Organisasi Lokal',
+            'email' => 'local.organization@lrtjakarta.co.id',
+            'role_code' => RoleCode::USER_DIVISI,
+            'division_id' => $division->id,
+            'department_id' => $department->id,
+        ]);
+
+        config([
+            'invoice_verification.approval_resolver.base_url' => 'https://portal.test',
+            'invoice_verification.approval_resolver.shared_secret' => 'portal-test-secret',
+        ]);
+        Http::fake([
+            'https://portal.test/api/v1/approval/resolve' => Http::response([
+                'success' => false,
+                'message' => 'Data organisasi user belum tersedia.',
+            ], 422),
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('invoice-verification.transactions.create'))
+            ->assertOk()
+            ->assertSee($division->name)
+            ->assertSee($department->name);
+    }
 }

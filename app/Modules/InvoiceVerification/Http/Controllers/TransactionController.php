@@ -3,6 +3,7 @@
 namespace App\Modules\InvoiceVerification\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Modules\InvoiceVerification\Actions\CreateTransactionAction;
 use App\Modules\InvoiceVerification\Actions\UploadTransactionDocumentAction;
 use App\Modules\InvoiceVerification\Domain\Enums\DocumentSourceType;
@@ -11,6 +12,7 @@ use App\Modules\InvoiceVerification\Domain\Enums\TransactionStatus;
 use App\Modules\InvoiceVerification\Domain\Models\AgreementReference;
 use App\Modules\InvoiceVerification\Domain\Models\AuditLog;
 use App\Modules\InvoiceVerification\Domain\Models\Department;
+use App\Modules\InvoiceVerification\Domain\Models\Division;
 use App\Modules\InvoiceVerification\Domain\Models\DocumentType;
 use App\Modules\InvoiceVerification\Domain\Models\InvoiceMetadata;
 use App\Modules\InvoiceVerification\Domain\Models\MemoRequest;
@@ -27,6 +29,8 @@ use App\Modules\InvoiceVerification\Services\PpaVerificationSheetService;
 use App\Modules\InvoiceVerification\Services\TransactionLifecycleService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class TransactionController extends Controller
 {
@@ -150,7 +154,20 @@ class TransactionController extends Controller
         $user = auth()->user();
 
         if ($user?->hasRole(RoleCode::ADMIN_DIVISI, RoleCode::USER_DIVISI)) {
-            $this->portalApprovalResolver->syncRequesterOrganization($user);
+            try {
+                $this->portalApprovalResolver->syncRequesterOrganization($user);
+            } catch (ValidationException $exception) {
+                if (! $this->hasValidLocalOrganization($user)) {
+                    throw $exception;
+                }
+
+                Log::warning('Portal organization sync failed; using the valid local organization.', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'errors' => $exception->errors(),
+                ]);
+            }
+
             $user = $user->fresh(['division', 'department']);
         }
 
@@ -216,6 +233,23 @@ class TransactionController extends Controller
             'ppaDocumentTypes' => $ppaDocumentTypes,
             'spuTransactions' => $spuTransactions,
         ]);
+    }
+
+    private function hasValidLocalOrganization(User $user): bool
+    {
+        if (! $user->division_id || ! $user->department_id) {
+            return false;
+        }
+
+        return Division::query()
+            ->whereKey($user->division_id)
+            ->where('is_active', true)
+            ->exists()
+            && Department::query()
+                ->whereKey($user->department_id)
+                ->where('division_id', $user->division_id)
+                ->where('is_active', true)
+                ->exists();
     }
 
     public function store(StoreTransactionRequest $request)

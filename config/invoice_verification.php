@@ -17,6 +17,10 @@ return [
             'xlsx',
         ],
     ],
+    'operations' => [
+        'allow_production_reset' => filter_var(env('INVOICE_VERIFICATION_ALLOW_PRODUCTION_RESET', false), FILTER_VALIDATE_BOOLEAN),
+        'production_reset_token' => env('INVOICE_VERIFICATION_PRODUCTION_RESET_TOKEN', ''),
+    ],
     'eproc' => [
         'driver' => env('EPROC_DRIVER', 'local'),
         'base_url' => env('EPROC_BASE_URL', 'https://eproc-lrt-api.cendana2000.biz'),

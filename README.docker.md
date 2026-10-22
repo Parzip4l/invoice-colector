@@ -16,7 +16,7 @@ docker compose up --build
 
 ## Production
 
-Production memakai image terpisah dari `Dockerfile.production`, build asset Vite di dalam image, dan menjalankan Laravel lewat Apache.
+Production memakai image PHP/Apache terpisah. Source aplikasi di-bind dari checkout server sehingga deployment rutin tidak perlu rebuild image. Panduan aktivasi pertama dan migrasi storage tersedia di [`docs/production-live-deployment.md`](docs/production-live-deployment.md).
 
 ```sh
 cp .env.production.example .env.production
@@ -28,11 +28,18 @@ Isi `APP_KEY` dengan hasil `php artisan key:generate --show` dari environment se
 set -a
 . ./.env.production
 set +a
-docker compose -f docker-compose.prod.yml up --build -d
+docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d
 ```
 
 - App production: http://localhost:8080
 - Migration production opsional: set `RUN_MIGRATIONS=true`
+
+Sesudah aktivasi pertama, deployment rutin cukup:
+
+```sh
+git pull --ff-only
+./scripts/deploy-production-live.sh
+```
 
 ## Bootstrap Whitelist User
 

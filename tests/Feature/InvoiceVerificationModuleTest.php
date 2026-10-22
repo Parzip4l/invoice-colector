@@ -961,6 +961,43 @@ class InvoiceVerificationModuleTest extends TestCase
         $this->assertSame($compiled->total_files, $compiled->items->count());
     }
 
+    public function test_operational_reset_requires_token_and_preserves_master_data(): void
+    {
+        Storage::fake('public');
+        config()->set('invoice_verification.operations.production_reset_token', 'testing-reset-token');
+
+        $vendorUser = User::where('email', 'vendor@demo.local')->firstOrFail();
+        $transaction = $this->createTransactionOfType('SPU', 'INV-SPU-RESET', $vendorUser);
+        Storage::disk('public')->put("transactions/{$transaction->id}/documents/testing.pdf", 'testing');
+
+        $userCount = User::query()->count();
+        $vendorCount = Vendor::query()->count();
+        $transactionCount = Transaction::query()->count();
+
+        $this->artisan('invoice-verification:reset-operational-data', [
+            '--dry-run' => true,
+            '--confirm' => 'testing-reset-token',
+        ])->assertSuccessful();
+
+        $this->assertSame($transactionCount, Transaction::query()->count());
+        Storage::disk('public')->assertExists("transactions/{$transaction->id}/documents/testing.pdf");
+
+        $this->artisan('invoice-verification:reset-operational-data', [
+            '--confirm' => 'wrong-token',
+        ])->assertFailed();
+
+        $this->artisan('invoice-verification:reset-operational-data', [
+            '--confirm' => 'testing-reset-token',
+        ])->assertSuccessful();
+
+        $this->assertDatabaseCount('transactions', 0);
+        $this->assertDatabaseCount('audit_logs', 0);
+        $this->assertDatabaseCount('transaction_number_sequences', 0);
+        $this->assertSame($userCount, User::query()->count());
+        $this->assertSame($vendorCount, Vendor::query()->count());
+        Storage::disk('public')->assertMissing('transactions');
+    }
+
     public function test_functional_compiler_builds_a_valid_temporary_pdf(): void
     {
         Storage::fake('public');

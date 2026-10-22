@@ -13,7 +13,6 @@ services:
       APP_URL: ${APP_URL:-http://localhost:8080}
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Jakarta}
       TZ: ${TZ:-Asia/Jakarta}
-      APP_KEY: ${APP_KEY:-}
       LOG_CHANNEL: stderr
       DB_CONNECTION: pgsql
       DB_HOST: postgres
@@ -24,10 +23,27 @@ services:
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-false}
     ports:
       - "${APP_PORT:-8080}:80"
+    volumes:
+      # Production live-code mode: PHP, Blade, routes, migrations, and public
+      # files follow the checked-out repository without rebuilding the image.
+      - .:/var/www/html
+      # Dependencies and Vite output stay isolated from the host checkout.
+      - vendor-production-data:/var/www/html/vendor
+      - public-build-production-data:/var/www/html/public/build
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+
+  assets:
+    image: node:20-alpine
+    profiles: ["tools"]
+    working_dir: /app
+    command: ["sh", "-lc", "npm ci && npm run build"]
+    volumes:
+      - .:/app
+      - node-modules-production-data:/app/node_modules
+      - public-build-production-data:/app/public/build
 
   postgres:
     image: postgres:16-alpine
@@ -47,3 +63,6 @@ services:
 
 volumes:
   postgres-production-data:
+  vendor-production-data:
+  public-build-production-data:
+  node-modules-production-data:

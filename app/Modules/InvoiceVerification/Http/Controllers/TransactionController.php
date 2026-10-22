@@ -21,6 +21,7 @@ use App\Modules\InvoiceVerification\Http\Requests\StoreTransactionRequest;
 use App\Modules\InvoiceVerification\Http\Requests\UpdateInvoiceMetadataRequest;
 use App\Modules\InvoiceVerification\Services\AuditLogService;
 use App\Modules\InvoiceVerification\Services\Contracts\EprocDataProviderInterface;
+use App\Modules\InvoiceVerification\Services\FinalizationService;
 use App\Modules\InvoiceVerification\Services\PortalApprovalResolverService;
 use App\Modules\InvoiceVerification\Services\PpaVerificationSheetService;
 use App\Modules\InvoiceVerification\Services\TransactionLifecycleService;
@@ -37,6 +38,7 @@ class TransactionController extends Controller
         protected TransactionLifecycleService $transactionLifecycleService,
         protected EprocDataProviderInterface $eprocDataProvider,
         protected PortalApprovalResolverService $portalApprovalResolver,
+        protected FinalizationService $finalizationService,
     ) {}
 
     public function index(Request $request)
@@ -325,6 +327,10 @@ class TransactionController extends Controller
                 ])->save();
 
                 app(\App\Modules\InvoiceVerification\Services\NumberingRegisterService::class)->syncFromTransaction($transaction);
+                $manifestActor = $step3Approval->approver ?? $transaction->owner;
+                if ($manifestActor) {
+                    $this->finalizationService->registerCompilationManifest($transaction, $manifestActor);
+                }
                 $transaction->load(['numberingRegister', 'statusHistory.changer']);
             }
         }

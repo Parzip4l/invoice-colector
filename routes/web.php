@@ -74,6 +74,7 @@ Route::group(['prefix' => '/', 'middleware' => 'auth'], function () {
             Route::put('/numbering-registers/{numberingRegister}', [NumberingRegisterController::class, 'update'])->name('numbering-registers.update');
             Route::get('/compiled-documents', [CompiledDocumentController::class, 'index'])->name('compiled-documents.index');
             Route::get('/compiled-documents/{compiledDocument}', [CompiledDocumentController::class, 'show'])->name('compiled-documents.show');
+            Route::get('/compiled-documents/{compiledDocument}/download', [CompiledDocumentController::class, 'download'])->name('compiled-documents.download');
             Route::get('/archive', [ArchiveController::class, 'index'])->name('archive.index');
             Route::get('/master-data', [MasterDataController::class, 'index'])->name('master-data.index');
             Route::post('/master-data/banks', [MasterDataController::class, 'storeBank'])->name('master-data.banks.store');

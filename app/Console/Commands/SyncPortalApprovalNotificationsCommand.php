@@ -11,6 +11,7 @@ use App\Modules\InvoiceVerification\Domain\Models\ApprovalTransaction;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
 use App\Modules\InvoiceVerification\Domain\Models\TransactionStatusHistory;
 use App\Modules\InvoiceVerification\Services\ApprovalWorkflowService;
+use App\Modules\InvoiceVerification\Services\FinalizationService;
 use App\Modules\InvoiceVerification\Services\NumberingRegisterService;
 use App\Modules\InvoiceVerification\Services\PortalApprovalResolverService;
 use App\Modules\InvoiceVerification\Services\PpaVerificationSheetService;
@@ -95,6 +96,9 @@ class SyncPortalApprovalNotificationsCommand extends Command
                 ]);
 
                 app(NumberingRegisterService::class)->syncFromTransaction($tx);
+                if ($actor) {
+                    app(FinalizationService::class)->registerCompilationManifest($tx, $actor);
+                }
 
                 try {
                     app(PpaVerificationSheetService::class)->regeneratePdf($tx);
@@ -226,6 +230,9 @@ class SyncPortalApprovalNotificationsCommand extends Command
                     ]);
 
                     app(NumberingRegisterService::class)->syncFromTransaction($transaction);
+                    if ($actor) {
+                        app(FinalizationService::class)->registerCompilationManifest($transaction, $actor);
+                    }
 
                     try {
                         app(PpaVerificationSheetService::class)->regeneratePdf($transaction);

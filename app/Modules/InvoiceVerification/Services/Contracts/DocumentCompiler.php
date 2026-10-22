@@ -6,5 +6,10 @@ use App\Modules\InvoiceVerification\Domain\Models\Transaction;
 
 interface DocumentCompiler
 {
-    public function compile(Transaction $transaction, array $documents, string $targetDirectory): array;
+    /**
+     * Build a compiled PDF in temporary storage for a single download response.
+     *
+     * @return array{file_name: string, temporary_path: string, total_files: int}
+     */
+    public function compileTemporary(Transaction $transaction, array $documents): array;
 }

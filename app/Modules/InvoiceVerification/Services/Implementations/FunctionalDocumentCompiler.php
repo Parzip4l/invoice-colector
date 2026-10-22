@@ -16,11 +16,14 @@ class FunctionalDocumentCompiler implements DocumentCompiler
     ) {
     }
 
-    public function compile(Transaction $transaction, array $documents, string $targetDirectory): array
+    public function compileTemporary(Transaction $transaction, array $documents): array
     {
-        $disk = config('invoice_verification.storage.compiled_disk');
-        $fileName = sprintf('compiled-%s-%s.pdf', $transaction->registration_number, Str::lower(Str::random(6)));
-        $path = trim($targetDirectory, '/').'/'.$fileName;
+        $fileName = sprintf('kompilasi-%s.pdf', Str::slug($transaction->registration_number));
+        $temporaryPath = tempnam(sys_get_temp_dir(), 'iv_compiled_');
+
+        if ($temporaryPath === false) {
+            throw new \RuntimeException('File temporer untuk kompilasi PDF tidak dapat dibuat.');
+        }
 
         $pdf = new Fpdi();
         $temporaryFiles = [];
@@ -35,33 +38,38 @@ class FunctionalDocumentCompiler implements DocumentCompiler
             ];
         }
 
-        foreach ($documents as $document) {
-            $sourcePath = $this->prepareSourcePdf($document, $temporaryFiles, $transaction);
+        try {
+            foreach ($documents as $document) {
+                $sourcePath = $this->prepareSourcePdf($document, $temporaryFiles, $transaction);
 
-            if (! $sourcePath || ! is_file($sourcePath)) {
-                continue;
+                if (! $sourcePath || ! is_file($sourcePath)) {
+                    continue;
+                }
+
+                $pageCount = $pdf->setSourceFile($sourcePath);
+
+                for ($pageNumber = 1; $pageNumber <= $pageCount; $pageNumber++) {
+                    $templateId = $pdf->importPage($pageNumber);
+                    $size = $pdf->getTemplateSize($templateId);
+                    $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                    $pdf->useTemplate($templateId);
+                }
             }
 
-            $pageCount = $pdf->setSourceFile($sourcePath);
+            $pdf->Output('F', $temporaryPath);
+        } catch (\Throwable $exception) {
+            @unlink($temporaryPath);
 
-            for ($pageNumber = 1; $pageNumber <= $pageCount; $pageNumber++) {
-                $templateId = $pdf->importPage($pageNumber);
-                $size = $pdf->getTemplateSize($templateId);
-                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
-                $pdf->useTemplate($templateId);
+            throw $exception;
+        } finally {
+            foreach ($temporaryFiles as $temporaryFile) {
+                @unlink($temporaryFile);
             }
-        }
-
-        Storage::disk($disk)->put($path, $pdf->Output('S'));
-
-        foreach ($temporaryFiles as $temporaryFile) {
-            @unlink($temporaryFile);
         }
 
         return [
-            'compiled_file_name' => $fileName,
-            'compiled_file_disk' => $disk,
-            'compiled_file_path' => $path,
+            'file_name' => $fileName,
+            'temporary_path' => $temporaryPath,
             'total_files' => count($documents),
         ];
     }

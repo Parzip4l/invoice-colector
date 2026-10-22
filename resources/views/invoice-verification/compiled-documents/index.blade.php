@@ -30,7 +30,7 @@
                         <th class="ps-4">@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.compiled-documents.index', 'column' => 'transaction', 'label' => 'Transaksi'])</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.compiled-documents.index', 'column' => 'compiled_file_name', 'label' => 'File'])</th>
                         <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.compiled-documents.index', 'column' => 'total_files', 'label' => 'Total Files'])</th>
-                        <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.compiled-documents.index', 'column' => 'compiled_at', 'label' => 'Compiled At'])</th>
+                        <th>@include('invoice-verification.partials.sort-link', ['route' => 'invoice-verification.compiled-documents.index', 'column' => 'compiled_at', 'label' => 'Manifest Dibuat'])</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -42,7 +42,13 @@
                             <td>{{ $compiledDocument->total_files }}</td>
                             <td>{{ $compiledDocument->compiled_at?->format('d M Y H:i') }}</td>
                             <td class="text-end">
-                                <a href="{{ route('invoice-verification.compiled-documents.show', $compiledDocument) }}" class="btn btn-sm btn-outline-primary">Detail</a>
+                                <div class="d-inline-flex gap-1">
+                                    <a href="{{ route('invoice-verification.compiled-documents.show', $compiledDocument) }}" class="btn btn-sm btn-outline-secondary">Detail</a>
+                                    <a href="{{ route('invoice-verification.compiled-documents.download', $compiledDocument) }}" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1">
+                                        <iconify-icon icon="solar:download-minimalistic-outline"></iconify-icon>
+                                        <span>Download PDF</span>
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                     @empty

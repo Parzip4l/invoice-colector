@@ -19,6 +19,7 @@ class ApprovalWorkflowService
         protected PortalApprovalResolverService $portalResolver,
         protected TransactionLifecycleService $lifecycleService,
         protected AuditLogService $auditLogService,
+        protected FinalizationService $finalizationService,
     ) {}
 
     /**
@@ -372,6 +373,7 @@ class ApprovalWorkflowService
                         'Disetujui oleh Kepala Divisi Keuangan dan Akuntansi (Kadiv Finance). Seluruh tahapan selesai.'.($notes ? ' Catatan: '.$notes : ''),
                     );
                     app(NumberingRegisterService::class)->syncFromTransaction($completedTransaction);
+                    $this->finalizationService->registerCompilationManifest($completedTransaction, $actor);
 
                     \Illuminate\Support\Facades\DB::afterCommit(function () use ($completedTransaction) {
                         $completedTransaction->loadMissing('transactionType', 'vendor');

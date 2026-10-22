@@ -616,6 +616,13 @@ class PpaNonContractApprovalWorkflowTest extends TestCase
         $this->assertNotNull($this->transaction->completed_at);
         $this->assertSame(ApprovalStatus::APPROVED, $step3Approval->fresh()->status);
         $this->assertNotNull($this->transaction->numberingRegister);
+
+        $compiledDocument = $this->transaction->fresh('compiledDocument.items')->compiledDocument;
+        $this->assertNotNull($compiledDocument);
+        $this->assertNull($compiledDocument->compiled_file_path);
+        $this->assertNull($compiledDocument->archive_path);
+        $this->assertGreaterThan(0, $compiledDocument->total_files);
+        $this->assertCount($compiledDocument->total_files, $compiledDocument->items);
     }
 
     public function test_sync_portal_approval_notifications_command_backfills_accounting_approved_transactions(): void

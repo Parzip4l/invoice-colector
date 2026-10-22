@@ -10,9 +10,9 @@ use App\Modules\InvoiceVerification\Domain\Models\CompiledDocument;
 use App\Modules\InvoiceVerification\Domain\Models\CompiledDocumentItem;
 use App\Modules\InvoiceVerification\Domain\Models\NumberingRegister;
 use App\Modules\InvoiceVerification\Domain\Models\Transaction;
-use App\Modules\InvoiceVerification\Services\Contracts\DocumentCompiler;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class FinalizationService
@@ -20,7 +20,6 @@ class FinalizationService
     public function __construct(
         protected AuditLogService $auditLogService,
         protected RegistrationNumberService $registrationNumberService,
-        protected DocumentCompiler $documentCompiler,
         protected TransactionLifecycleService $transactionLifecycleService,
     ) {
     }
@@ -82,51 +81,7 @@ class FinalizationService
             ]);
             $register->save();
 
-            $orderedDocuments = $this->collectCompiledDocuments($transaction);
-            $compiledPayload = $this->documentCompiler->compile(
-                $transaction,
-                $orderedDocuments,
-                'transactions/'.$transaction->id.'/compiled',
-            );
-
-            $compiledDocument = CompiledDocument::updateOrCreate(
-                ['transaction_id' => $transaction->id],
-                [
-                    ...$compiledPayload,
-                    'compiled_at' => now(),
-                    'compiled_by' => $actor->id,
-                ],
-            );
-
-            CompiledDocumentItem::query()
-                ->where('compiled_document_id', $compiledDocument->id)
-                ->delete();
-
-            foreach ($orderedDocuments as $index => $document) {
-                CompiledDocumentItem::create([
-                    'compiled_document_id' => $compiledDocument->id,
-                    'source_type' => $document['source_type'],
-                    'source_id' => $document['source_id'],
-                    'included_as' => $document['label'],
-                    'sort_order' => $index + 1,
-                ]);
-            }
-
-            if (! empty($compiledDocument->compiled_file_path)) {
-                $archiveDisk = config('invoice_verification.storage.archive_disk', $compiledDocument->compiled_file_disk);
-                $archivePath = 'archive/'.$transaction->id.'/'.$compiledDocument->compiled_file_name;
-                $stream = Storage::disk($compiledDocument->compiled_file_disk)->readStream($compiledDocument->compiled_file_path);
-
-                if (is_resource($stream)) {
-                    Storage::disk($archiveDisk)->writeStream($archivePath, $stream);
-                    fclose($stream);
-                }
-
-                $compiledDocument->update([
-                    'archive_disk' => $archiveDisk,
-                    'archive_path' => $archivePath,
-                ]);
-            }
+            $compiledDocument = $this->registerCompilationManifest($transaction, $actor);
 
             $this->transactionLifecycleService->transition(
                 $transaction,
@@ -156,6 +111,7 @@ class FinalizationService
                 newValue: [
                     'compiled_file_name' => $compiledDocument->compiled_file_name,
                     'total_files' => $compiledDocument->total_files,
+                    'storage_mode' => 'on_demand',
                 ],
             );
 
@@ -185,6 +141,7 @@ class FinalizationService
                 referenceId: $compiledDocument?->id,
                 newValue: [
                     'archive_path' => $compiledDocument?->archive_path,
+                    'storage_mode' => 'on_demand',
                     'notes' => $notes,
                 ],
             );
@@ -199,8 +156,17 @@ class FinalizationService
         });
     }
 
-    protected function collectCompiledDocuments(Transaction $transaction): array
+    public function collectCompiledDocuments(Transaction $transaction): array
     {
+        $transaction->loadMissing([
+            'transactionType',
+            'generatedDocuments',
+            'latestDocuments.documentType',
+            'ppaVerificationSheet',
+            'memoRequest',
+            'agreementReference',
+        ]);
+
         $order = config('invoice_verification.document_compile_order.'.$transaction->transactionType->code->value, []);
         $documents = [];
 
@@ -278,20 +244,149 @@ class FinalizationService
             }
         }
 
-        if ($transaction->usesCombinedUpload()) {
-            foreach ($transaction->latestDocuments as $document) {
-                $documents[] = [
-                    'source_type' => 'transaction_document',
-                    'source_id' => $document->id,
-                    'label' => $document->document_label ?: $document->documentType->name,
-                    'path' => $document->file_path,
-                    'disk' => $document->file_disk,
-                    'file_name' => $document->file_name,
-                    'extension' => $document->file_extension,
-                ];
+        // Append every available source not explicitly listed in the configured order.
+        // This keeps the bundle complete for transaction types with a combined upload
+        // scheme and for newly introduced generated documents.
+        foreach ($transaction->generatedDocuments as $generated) {
+            if (! $generated->file_path) {
+                continue;
             }
+
+            $documents[] = [
+                'source_type' => 'generated_document',
+                'source_id' => $generated->id,
+                'label' => $generated->document_code,
+                'path' => $generated->file_path,
+                'disk' => $generated->file_disk,
+                'file_name' => $generated->file_name,
+                'extension' => pathinfo((string) $generated->file_name, PATHINFO_EXTENSION),
+            ];
         }
 
-        return array_values(array_unique($documents, SORT_REGULAR));
+        if ($transaction->ppaVerificationSheet?->file_path) {
+            $documents[] = [
+                'source_type' => 'ppa_verification_sheet',
+                'source_id' => $transaction->ppaVerificationSheet->id,
+                'label' => 'PPA Verification Sheet',
+                'path' => $transaction->ppaVerificationSheet->file_path,
+                'disk' => $transaction->ppaVerificationSheet->file_disk,
+                'file_name' => $transaction->ppaVerificationSheet->file_name,
+                'extension' => pathinfo((string) $transaction->ppaVerificationSheet->file_name, PATHINFO_EXTENSION),
+            ];
+        }
+
+        foreach ($transaction->latestDocuments as $document) {
+            $documents[] = [
+                'source_type' => 'transaction_document',
+                'source_id' => $document->id,
+                'label' => $document->document_label ?: $document->documentType->name,
+                'path' => $document->file_path,
+                'disk' => $document->file_disk,
+                'file_name' => $document->file_name,
+                'extension' => $document->file_extension,
+            ];
+        }
+
+        if ($transaction->memoRequest?->file_path) {
+            $documents[] = [
+                'source_type' => 'memo_request',
+                'source_id' => $transaction->memoRequest->id,
+                'label' => $transaction->memoRequest->memo_number,
+                'path' => $transaction->memoRequest->file_path,
+                'disk' => $transaction->memoRequest->file_disk,
+                'file_name' => $transaction->memoRequest->file_name,
+                'extension' => $transaction->memoRequest->file_extension,
+            ];
+        }
+
+        if ($transaction->agreementReference?->file_path) {
+            $documents[] = [
+                'source_type' => 'agreement_reference',
+                'source_id' => $transaction->agreementReference->id,
+                'label' => $transaction->agreementReference->contract_number,
+                'path' => $transaction->agreementReference->file_path,
+                'disk' => $transaction->agreementReference->file_disk,
+                'file_name' => $transaction->agreementReference->file_name,
+                'extension' => $transaction->agreementReference->file_extension,
+            ];
+        }
+
+        if ($transaction->payment_proof_file_path) {
+            $documents[] = [
+                'source_type' => 'payment_proof',
+                'source_id' => $transaction->id,
+                'label' => 'Bukti Pembayaran',
+                'path' => $transaction->payment_proof_file_path,
+                'disk' => $transaction->payment_proof_file_disk,
+                'file_name' => $transaction->payment_proof_file_name,
+                'extension' => pathinfo((string) $transaction->payment_proof_file_name, PATHINFO_EXTENSION),
+            ];
+        }
+
+        $uniqueDocuments = [];
+
+        foreach ($documents as $document) {
+            $key = $document['source_type'].':'.$document['source_id'];
+            $uniqueDocuments[$key] ??= $document;
+        }
+
+        return array_values($uniqueDocuments);
+    }
+
+    public function registerCompilationManifest(Transaction $transaction, User $actor): CompiledDocument
+    {
+        $orderedDocuments = $this->collectCompiledDocuments($transaction);
+
+        return DB::transaction(function () use ($transaction, $actor, $orderedDocuments): CompiledDocument {
+            $existingCompiledDocument = CompiledDocument::query()
+                ->where('transaction_id', $transaction->id)
+                ->first();
+
+            if ($existingCompiledDocument) {
+                $this->deletePersistedCompilation($existingCompiledDocument);
+            }
+
+            $compiledDocument = CompiledDocument::updateOrCreate(
+                ['transaction_id' => $transaction->id],
+                [
+                    'compiled_file_name' => sprintf('kompilasi-%s.pdf', Str::slug($transaction->registration_number)),
+                    'compiled_file_disk' => null,
+                    'compiled_file_path' => null,
+                    'total_files' => count($orderedDocuments),
+                    'compiled_at' => now(),
+                    'compiled_by' => $actor->id,
+                    'archive_disk' => null,
+                    'archive_path' => null,
+                ],
+            );
+
+            CompiledDocumentItem::query()
+                ->where('compiled_document_id', $compiledDocument->id)
+                ->delete();
+
+            foreach ($orderedDocuments as $index => $document) {
+                CompiledDocumentItem::create([
+                    'compiled_document_id' => $compiledDocument->id,
+                    'source_type' => $document['source_type'],
+                    'source_id' => $document['source_id'],
+                    'included_as' => $document['label'],
+                    'sort_order' => $index + 1,
+                ]);
+            }
+
+            return $compiledDocument->fresh('items');
+        });
+    }
+
+    protected function deletePersistedCompilation(CompiledDocument $compiledDocument): void
+    {
+        foreach ([
+            [$compiledDocument->compiled_file_disk, $compiledDocument->compiled_file_path],
+            [$compiledDocument->archive_disk, $compiledDocument->archive_path],
+        ] as [$disk, $path]) {
+            if (filled($disk) && filled($path) && Storage::disk($disk)->exists($path)) {
+                Storage::disk($disk)->delete($path);
+            }
+        }
     }
 }

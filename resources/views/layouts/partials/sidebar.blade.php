@@ -109,19 +109,21 @@
                          </li>
 
                          <li class="nav-item">
-                              <a class="nav-link @if(request()->routeIs('invoice-verification.compiled-documents.*')) active @endif" href="{{ route('invoice-verification.compiled-documents.index') }}">
-                                   <span class="nav-icon"><iconify-icon icon="solar:folder-with-files-outline"></iconify-icon></span>
-                                   <span class="nav-text">Dokumen Kompilasi</span>
-                              </a>
-                         </li>
-
-                         <li class="nav-item">
                               <a class="nav-link @if(request()->routeIs('invoice-verification.archive.*')) active @endif" href="{{ route('invoice-verification.archive.index') }}">
                                    <span class="nav-icon"><iconify-icon icon="solar:archive-outline"></iconify-icon></span>
                                    <span class="nav-text">Arsip</span>
                               </a>
                          </li>
                     @endif
+
+                    @unless($isVendor)
+                         <li class="nav-item">
+                              <a class="nav-link @if(request()->routeIs('invoice-verification.compiled-documents.*')) active @endif" href="{{ route('invoice-verification.compiled-documents.index') }}">
+                                   <span class="nav-icon"><iconify-icon icon="solar:folder-with-files-outline"></iconify-icon></span>
+                                   <span class="nav-text">Dokumen Kompilasi</span>
+                              </a>
+                         </li>
+                    @endunless
 
                     @if($user?->hasRole(RoleCode::ADMIN_DIVISI))
                          <li class="nav-item">

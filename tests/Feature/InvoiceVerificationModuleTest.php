@@ -830,7 +830,7 @@ class InvoiceVerificationModuleTest extends TestCase
         $this->assertTrue(Storage::disk($submitted->file_disk)->exists($submitted->file_path));
     }
 
-    public function test_finalization_creates_compiled_pdf_and_archive(): void
+    public function test_finalization_registers_on_demand_compilation_without_persisting_duplicate_pdf(): void
     {
         $this->app->bind(DocumentCompiler::class, PlaceholderDocumentCompiler::class);
 
@@ -849,8 +849,123 @@ class InvoiceVerificationModuleTest extends TestCase
         $compiled = $transaction->fresh()->compiledDocument;
 
         $this->assertNotNull($compiled);
-        $this->assertTrue(Storage::disk($compiled->compiled_file_disk)->exists($compiled->compiled_file_path));
-        $this->assertTrue(Storage::disk($compiled->archive_disk)->exists($compiled->archive_path));
+        $this->assertNull($compiled->compiled_file_disk);
+        $this->assertNull($compiled->compiled_file_path);
+        $this->assertNull($compiled->archive_disk);
+        $this->assertNull($compiled->archive_path);
+
+        $response = $this->actingAs($user)
+            ->get(route('invoice-verification.compiled-documents.download', $compiled));
+
+        $response->assertOk();
+        $response->assertHeader('content-type', 'application/pdf');
+        $response->assertDownload($compiled->compiled_file_name);
+        $this->assertDatabaseHas('audit_logs', [
+            'transaction_id' => $transaction->id,
+            'module' => 'compiled_document',
+            'action' => 'download_on_demand',
+        ]);
+
+        $temporaryPath = $response->baseResponse->getFile()->getPathname();
+        $this->assertFileExists($temporaryPath);
+        @unlink($temporaryPath);
+
+        $internalUser = User::where('email', 'user.divisi@demo.local')->firstOrFail();
+        $transaction->update(['owner_user_id' => $internalUser->id]);
+
+        $this->actingAs($internalUser)
+            ->get(route('invoice-verification.compiled-documents.index'))
+            ->assertOk()
+            ->assertSee($compiled->compiled_file_name);
+
+        $ownerDownload = $this->actingAs($internalUser)
+            ->get(route('invoice-verification.compiled-documents.download', $compiled));
+
+        $ownerDownload->assertOk()->assertDownload($compiled->compiled_file_name);
+        @unlink($ownerDownload->baseResponse->getFile()->getPathname());
+
+        $transaction->update(['owner_user_id' => $user->id]);
+
+        $this->actingAs($internalUser)
+            ->get(route('invoice-verification.compiled-documents.show', $compiled))
+            ->assertForbidden();
+    }
+
+    public function test_purge_command_removes_only_legacy_compiled_copies(): void
+    {
+        Storage::fake('public');
+
+        $user = User::where('email', 'admin.divisi@demo.local')->firstOrFail();
+        $vendor = User::where('email', 'vendor@demo.local')->firstOrFail();
+        $transaction = $this->createTransactionOfType('SPU', 'INV-SPU-PURGE', $vendor);
+
+        app(FinalizationService::class)->finalize($transaction->fresh([
+            'transactionType',
+            'invoiceMetadata',
+            'vendor',
+            'generatedDocuments',
+            'latestDocuments.documentType',
+        ]), $user);
+
+        $compiled = $transaction->fresh()->compiledDocument;
+        Storage::disk('public')->put('compiled/legacy.pdf', 'compiled-copy');
+        Storage::disk('public')->put('archive/legacy.pdf', 'archive-copy');
+        Storage::disk('public')->put('documents/source.pdf', 'source-document');
+
+        $compiled->update([
+            'compiled_file_disk' => 'public',
+            'compiled_file_path' => 'compiled/legacy.pdf',
+            'archive_disk' => 'public',
+            'archive_path' => 'archive/legacy.pdf',
+        ]);
+
+        $this->artisan('invoice-verification:purge-stored-compilations', ['--dry-run' => true])
+            ->assertSuccessful();
+
+        Storage::disk('public')->assertExists('compiled/legacy.pdf');
+        Storage::disk('public')->assertExists('archive/legacy.pdf');
+
+        $this->artisan('invoice-verification:purge-stored-compilations')
+            ->assertSuccessful();
+
+        Storage::disk('public')->assertMissing('compiled/legacy.pdf');
+        Storage::disk('public')->assertMissing('archive/legacy.pdf');
+        Storage::disk('public')->assertExists('documents/source.pdf');
+
+        $compiled->refresh();
+        $this->assertNull($compiled->compiled_file_path);
+        $this->assertNull($compiled->archive_path);
+    }
+
+    public function test_functional_compiler_builds_a_valid_temporary_pdf(): void
+    {
+        Storage::fake('public');
+
+        $vendor = User::where('email', 'vendor@demo.local')->firstOrFail();
+        $transaction = $this->createTransactionOfType('SPU', 'INV-SPU-DOWNLOAD', $vendor);
+
+        $sourcePdf = new \setasign\Fpdi\Fpdi();
+        $sourcePdf->AddPage();
+        $sourcePdf->SetFont('Arial', 'B', 14);
+        $sourcePdf->Cell(0, 12, 'Invoice Collector Source Document');
+        Storage::disk('public')->put('documents/source.pdf', $sourcePdf->Output('S'));
+
+        $result = app(DocumentCompiler::class)->compileTemporary($transaction, [[
+            'source_type' => 'transaction_document',
+            'source_id' => 'source-1',
+            'label' => 'Invoice',
+            'path' => 'documents/source.pdf',
+            'disk' => 'public',
+            'file_name' => 'source.pdf',
+            'extension' => 'pdf',
+        ]]);
+
+        $this->assertSame('kompilasi-'.str($transaction->registration_number)->slug().'.pdf', $result['file_name']);
+        $this->assertSame(1, $result['total_files']);
+        $this->assertFileExists($result['temporary_path']);
+        $this->assertStringStartsWith('%PDF-', (string) file_get_contents($result['temporary_path']));
+
+        @unlink($result['temporary_path']);
     }
 
     protected function createTransactionOfType(string $transactionTypeCode, string $invoiceNumber, User $user): Transaction

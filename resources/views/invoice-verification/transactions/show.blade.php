@@ -923,6 +923,23 @@
         @endif
     </div>
 
+    @if ($transaction->compiledDocument)
+        <div class="workflow-card mb-3 d-flex align-items-center justify-content-between gap-3 flex-wrap">
+            <div class="d-flex align-items-center gap-3">
+                <span class="overview-icon"><iconify-icon icon="solar:folder-with-files-outline"></iconify-icon></span>
+                <div>
+                    <div class="section-kicker mb-1">Dokumen Kompilasi</div>
+                    <div class="fw-semibold">{{ $transaction->compiledDocument->total_files }} dokumen siap digabung</div>
+                    <div class="text-muted small">PDF dibuat saat diunduh dan tidak disimpan permanen di server.</div>
+                </div>
+            </div>
+            <a href="{{ route('invoice-verification.compiled-documents.download', $transaction->compiledDocument) }}" class="btn btn-primary d-inline-flex align-items-center gap-2">
+                <iconify-icon icon="solar:download-minimalistic-outline"></iconify-icon>
+                Download PDF
+            </a>
+        </div>
+    @endif
+
     <div class="content-grid">
         <div class="d-grid gap-3">
             <div class="card workflow-card section-card">

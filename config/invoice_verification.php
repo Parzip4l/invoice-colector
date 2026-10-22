@@ -53,7 +53,8 @@ return [
         'signature_ttl' => (int) env('INVOICE_COLLECTOR_PORTAL_SIGNATURE_TTL', 300),
     ],
     'mobile_sso' => [
-        'shared_secret' => env('INVOICE_COLLECTOR_MOBILE_SSO_SHARED_SECRET', env('INVOICE_COLLECTOR_PORTAL_SHARED_SECRET', '')),
+        'shared_secret' => env('INVOICE_COLLECTOR_MOBILE_SSO_SHARED_SECRET')
+            ?: env('INVOICE_COLLECTOR_PORTAL_SHARED_SECRET', env('LRTJ_SPACE_SATSET_SHARED_SECRET', '')),
         'signature_tolerance_seconds' => (int) env('INVOICE_COLLECTOR_MOBILE_SSO_SIGNATURE_TOLERANCE_SECONDS', 300),
         'token_ttl_minutes' => (int) env('INVOICE_COLLECTOR_MOBILE_TOKEN_TTL_MINUTES', 129600),
     ],
